@@ -1,7 +1,40 @@
 const fs = require('node:fs')
 const path = require('node:path')
+const crypto = require('node:crypto')
 
 const CLAUDE_SETTINGS_PATH = path.join(window.utools.getPath('home'), '.claude', 'settings.json')
+
+const ENCRYPTION_KEY = crypto
+  .createHash('sha256')
+  .update('ccswitch-encryption-key-' + window.utools.getPath('home'))
+  .digest()
+
+const IV_LENGTH = 16
+
+const encrypt = (text) => {
+  if (!text) return ''
+  const iv = crypto.randomBytes(IV_LENGTH)
+  const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv)
+  let encrypted = cipher.update(text, 'utf8', 'hex')
+  encrypted += cipher.final('hex')
+  return iv.toString('hex') + ':' + encrypted
+}
+
+const decrypt = (encryptedText) => {
+  if (!encryptedText) return ''
+  try {
+    const parts = encryptedText.split(':')
+    if (parts.length !== 2) return encryptedText
+    const iv = Buffer.from(parts[0], 'hex')
+    const encrypted = parts[1]
+    const decipher = crypto.createDecipheriv('aes-256-cbc', ENCRYPTION_KEY, iv)
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
+    return decrypted
+  } catch (error) {
+    return encryptedText
+  }
+}
 
 window.services = {
   readClaudeSettings() {
@@ -33,5 +66,8 @@ window.services = {
 
   getClaudeSettingsPath() {
     return CLAUDE_SETTINGS_PATH
-  }
+  },
+
+  encryptKey: encrypt,
+  decryptKey: decrypt
 }

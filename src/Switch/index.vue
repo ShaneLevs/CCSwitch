@@ -16,7 +16,7 @@ import {
 const DB_PREFIX = "ccswitch_config_";
 
 const currentConfig = ref({
-  token: "",
+  key: "",
   baseUrl: "",
   model: "",
 });
@@ -26,7 +26,7 @@ const showDialog = ref(false);
 const editingConfig = ref(null);
 const formData = ref({
   name: "",
-  token: "",
+  key: "",
   baseUrl: "",
   model: "",
 });
@@ -39,7 +39,7 @@ const loadCurrentConfig = () => {
   const settings = window.services.readClaudeSettings();
   if (settings && settings.env) {
     currentConfig.value = {
-      token: settings.env.ANTHROPIC_AUTH_TOKEN || "",
+      key: settings.env.ANTHROPIC_AUTH_TOKEN || "",
       baseUrl: settings.env.ANTHROPIC_BASE_URL || "",
       model: settings.env.ANTHROPIC_MODEL || "",
     };
@@ -53,7 +53,7 @@ const loadSavedConfigs = () => {
     .map((doc) => ({
       id: doc._id,
       name: doc.name,
-      token: doc.token,
+      key: window.services.decryptKey(doc.key),
       baseUrl: doc.baseUrl,
       model: doc.model,
       updatedAt: doc.updatedAt,
@@ -61,18 +61,18 @@ const loadSavedConfigs = () => {
     .sort((a, b) => b.updatedAt - a.updatedAt);
 };
 
-const maskToken = (token) => {
-  if (!token || token.length < 8) return token || "";
-  return token.substring(0, 6) + "***" + token.substring(token.length - 4);
+const maskKey = (key) => {
+  if (!key || key.length < 8) return key || "";
+  return key.substring(0, 6) + "***" + key.substring(key.length - 4);
 };
 
 const openCreateDialog = () => {
   editingConfig.value = null;
   formData.value = {
     name: "",
-    token: currentConfig.value.token,
-    baseUrl: currentConfig.value.baseUrl,
-    model: currentConfig.value.model,
+    key: "",
+    baseUrl: "",
+    model: "",
   };
   showDialog.value = true;
 };
@@ -81,16 +81,32 @@ const openEditDialog = (config) => {
   editingConfig.value = config;
   formData.value = {
     name: config.name,
-    token: config.token,
+    key: config.key,
     baseUrl: config.baseUrl,
     model: config.model,
   };
   showDialog.value = true;
 };
 
+const fillCurrentConfig = () => {
+  formData.value.key = currentConfig.value.key;
+  formData.value.baseUrl = currentConfig.value.baseUrl;
+  formData.value.model = currentConfig.value.model;
+};
+
 const saveConfig = () => {
   if (!formData.value.name.trim()) {
     MessagePlugin.warning("请输入配置名称");
+    return;
+  }
+
+  if (!formData.value.key.trim()) {
+    MessagePlugin.warning("请输入 Key");
+    return;
+  }
+
+  if (!formData.value.baseUrl.trim()) {
+    MessagePlugin.warning("请输入 URL");
     return;
   }
 
@@ -100,7 +116,7 @@ const saveConfig = () => {
   const doc = {
     _id: id,
     name: formData.value.name.trim(),
-    token: formData.value.token.trim(),
+    key: window.services.encryptKey(formData.value.key.trim()),
     baseUrl: formData.value.baseUrl.trim(),
     model: formData.value.model.trim(),
     updatedAt: now,
@@ -137,7 +153,7 @@ const switchConfig = (config) => {
     currentSettings.env = {};
   }
 
-  currentSettings.env.ANTHROPIC_AUTH_TOKEN = config.token;
+  currentSettings.env.ANTHROPIC_AUTH_TOKEN = config.key;
   currentSettings.env.ANTHROPIC_BASE_URL = config.baseUrl;
 
   if (config.model && config.model.trim()) {
@@ -159,7 +175,7 @@ const isCurrentConfig = (config) => {
   const configModel = config.model || "";
   const currentModel = currentConfig.value.model || "";
   return (
-    config.token === currentConfig.value.token &&
+    config.key === currentConfig.value.key &&
     config.baseUrl === currentConfig.value.baseUrl &&
     configModel === currentModel
   );
@@ -183,9 +199,9 @@ onMounted(() => {
       </template>
       <div class="config-info">
         <div class="config-item">
-          <span class="label">Token:</span>
+          <span class="label">Key:</span>
           <span class="value">{{
-            maskToken(currentConfig.token) || "未设置"
+            maskKey(currentConfig.key) || "未设置"
           }}</span>
         </div>
         <div class="config-item">
@@ -232,8 +248,8 @@ onMounted(() => {
         </template>
         <div class="config-info">
           <div class="config-item">
-            <span class="label">Token:</span>
-            <span class="value">{{ maskToken(config.token) }}</span>
+            <span class="label">Key:</span>
+            <span class="value">{{ maskKey(config.key) }}</span>
           </div>
           <div class="config-item">
             <span class="label">URL:</span>
@@ -241,7 +257,7 @@ onMounted(() => {
           </div>
           <div class="config-item">
             <span class="label">Model:</span>
-            <span class="value">{{ config.model }}</span>
+            <span class="value">{{ config.model || "未设置" }}</span>
           </div>
         </div>
         <template #actions>
@@ -281,19 +297,25 @@ onMounted(() => {
       <div class="form">
         <div class="form-item">
           <label>配置名称 <span class="required">*</span></label>
-          <Input v-model="formData.name" placeholder="例如: Kimi K2.5" />
+          <Input v-model="formData.name" placeholder="方便分辨的名字" />
         </div>
         <div class="form-item">
-          <label>Token</label>
-          <Input v-model="formData.token" placeholder="ANTHROPIC_AUTH_TOKEN" />
+          <label>Key <span class="required">*</span></label>
+          <Input v-model="formData.key" placeholder="ANTHROPIC_AUTH_TOKEN" />
         </div>
         <div class="form-item">
-          <label>URL</label>
+          <label>URL <span class="required">*</span></label>
           <Input v-model="formData.baseUrl" placeholder="ANTHROPIC_BASE_URL" />
         </div>
         <div class="form-item">
           <label>Model</label>
           <Input v-model="formData.model" placeholder="ANTHROPIC_MODEL" />
+        </div>
+        <div class="form-actions">
+          <Button variant="outline" @click="fillCurrentConfig">
+            <template #icon><Icon name="refresh" /></template>
+            读取当前配置
+          </Button>
         </div>
       </div>
     </Dialog>
@@ -392,5 +414,11 @@ onMounted(() => {
 
 .form-item .required {
   color: var(--td-error-color);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
 }
 </style>
