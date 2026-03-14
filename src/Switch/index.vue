@@ -290,7 +290,6 @@ onMounted(() => {
     <Dialog
       v-model:visible="showDialog"
       :header="dialogTitle"
-      :confirm-btn="{ content: '保存', theme: 'primary' }"
       @confirm="saveConfig"
       width="480px"
     >
@@ -301,7 +300,11 @@ onMounted(() => {
         </div>
         <div class="form-item">
           <label>Key <span class="required">*</span></label>
-          <Input v-model="formData.key" placeholder="ANTHROPIC_AUTH_TOKEN" />
+          <Input
+            v-model="formData.key"
+            type="password"
+            placeholder="ANTHROPIC_AUTH_TOKEN"
+          />
         </div>
         <div class="form-item">
           <label>URL <span class="required">*</span></label>
@@ -311,13 +314,19 @@ onMounted(() => {
           <label>Model</label>
           <Input v-model="formData.model" placeholder="ANTHROPIC_MODEL" />
         </div>
-        <div class="form-actions">
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
           <Button variant="outline" @click="fillCurrentConfig">
             <template #icon><Icon name="refresh" /></template>
             读取当前配置
           </Button>
+          <div class="dialog-footer-right">
+            <Button variant="outline" @click="showDialog = false">取消</Button>
+            <Button theme="primary" @click="saveConfig">保存</Button>
+          </div>
         </div>
-      </div>
+      </template>
     </Dialog>
   </div>
 </template>
@@ -416,9 +425,14 @@ onMounted(() => {
   color: var(--td-error-color);
 }
 
-.form-actions {
+.dialog-footer {
   display: flex;
-  justify-content: flex-end;
-  padding-top: 8px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dialog-footer-right {
+  display: flex;
+  gap: 8px;
 }
 </style>
