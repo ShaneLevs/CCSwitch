@@ -6,7 +6,7 @@ const CLAUDE_SETTINGS_PATH = path.join(window.utools.getPath('home'), '.claude',
 
 const ENCRYPTION_KEY = crypto
   .createHash('sha256')
-  .update('ccswitch-encryption-key-' + window.utools.getPath('home'))
+  .update('ccswitch-encryption-key')
   .digest()
 
 const IV_LENGTH = 16
