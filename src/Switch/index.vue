@@ -407,13 +407,38 @@ onMounted(() => {
 }
 
 .config-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
 .config-card {
   margin-bottom: 0;
+}
+
+.config-card :deep(.t-card__body) {
+  padding: 12px 16px;
+}
+
+.config-card :deep(.t-card__header) {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--td-component-stroke);
+}
+
+.config-card :deep(.t-card__actions) {
+  padding: 12px 16px;
+}
+
+.config-card .config-info {
+  gap: 4px;
+}
+
+.config-card .config-item {
+  font-size: 13px;
+}
+
+.config-card .config-item .label {
+  min-width: 50px;
 }
 
 .empty-state {
