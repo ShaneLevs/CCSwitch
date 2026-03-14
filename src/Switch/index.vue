@@ -11,6 +11,7 @@ import {
   Divider,
   Empty,
   Icon,
+  Popconfirm,
 } from "tdesign-vue-next";
 
 const DB_PREFIX = "ccswitch_config_";
@@ -190,6 +191,7 @@ onMounted(() => {
 <template>
   <div class="container">
     <div class="header">
+      <img src="/logo.png" alt="logo" class="logo" />
       <h2>Claude Code 配置切换</h2>
     </div>
 
@@ -274,14 +276,19 @@ onMounted(() => {
             <Button size="small" variant="base" @click="openEditDialog(config)">
               编辑
             </Button>
-            <Button
-              size="small"
+            <Popconfirm
               theme="danger"
-              variant="base"
-              @click="deleteConfig(config)"
+              content="确定要删除这个配置吗？"
+              @confirm="deleteConfig(config)"
             >
-              删除
-            </Button>
+              <Button
+                size="small"
+                theme="danger"
+                variant="base"
+              >
+                删除
+              </Button>
+            </Popconfirm>
           </Space>
         </template>
       </Card>
@@ -340,6 +347,15 @@ onMounted(() => {
 
 .header {
   margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header .logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
 }
 
 .header h2 {
