@@ -10,9 +10,9 @@ import {
   Space,
   Divider,
   Empty,
-  Icon,
   Popconfirm,
 } from "tdesign-vue-next";
+import { AddIcon, RefreshIcon, DownloadIcon, UploadIcon } from "tdesign-icons-vue-next";
 
 const DB_PREFIX = "ccswitch_config_";
 
@@ -182,6 +182,103 @@ const isCurrentConfig = (config) => {
   );
 };
 
+const handleExport = () => {
+  if (savedConfigs.value.length === 0) {
+    MessagePlugin.warning("没有可导出的配置");
+    return;
+  }
+
+  const filePath = window.utools.showSaveDialog({
+    title: "导出配置",
+    defaultPath: `ccswitch-configs-${new Date().toISOString().split('T')[0].replace(/-/g, '')}.json`,
+    filters: [{ name: "JSON 文件", extensions: ["json"] }]
+  });
+
+  if (!filePath) return;
+
+  try {
+    const configsToExport = savedConfigs.value.map(config => ({
+      name: config.name,
+      key: window.services.encryptKey(config.key),
+      baseUrl: config.baseUrl,
+      model: config.model
+    }));
+
+    window.services.exportConfigsToFile(filePath, configsToExport);
+    MessagePlugin.success("配置已导出");
+  } catch (error) {
+    console.error("导出失败:", error);
+    MessagePlugin.error("导出失败");
+  }
+};
+
+const handleImport = () => {
+  const filePaths = window.utools.showOpenDialog({
+    title: "导入配置",
+    filters: [{ name: "JSON 文件", extensions: ["json"] }],
+    properties: ["openFile"]
+  });
+
+  if (!filePaths || filePaths.length === 0) return;
+
+  const filePath = filePaths[0];
+
+  try {
+    const data = window.services.importConfigsFromFile(filePath);
+
+    if (!data || data.app !== "ccswitch" || !Array.isArray(data.configs)) {
+      MessagePlugin.error("文件格式不正确");
+      return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const config of data.configs) {
+      if (!config.name || !config.key) {
+        failCount++;
+        continue;
+      }
+
+      try {
+        const decryptedKey = window.services.decryptKey(config.key);
+        const now = Date.now();
+        const doc = {
+          _id: DB_PREFIX + now + "_" + Math.random().toString(36).substr(2, 9),
+          name: config.name.trim(),
+          key: window.services.encryptKey(decryptedKey),
+          baseUrl: config.baseUrl?.trim() || "",
+          model: config.model?.trim() || "",
+          updatedAt: now
+        };
+
+        const result = window.utools.db.put(doc);
+        if (result.ok) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (err) {
+        console.error("导入配置失败:", err);
+        failCount++;
+      }
+    }
+
+    loadSavedConfigs();
+
+    if (successCount > 0 && failCount === 0) {
+      MessagePlugin.success(`成功导入 ${successCount} 个配置`);
+    } else if (successCount > 0 && failCount > 0) {
+      MessagePlugin.warning(`成功导入 ${successCount} 个，失败 ${failCount} 个`);
+    } else {
+      MessagePlugin.error("导入失败，请检查文件格式");
+    }
+  } catch (error) {
+    console.error("导入失败:", error);
+    MessagePlugin.error("无法读取文件");
+  }
+};
+
 onMounted(() => {
   loadCurrentConfig();
   loadSavedConfigs();
@@ -221,10 +318,20 @@ onMounted(() => {
 
     <div class="section-header">
       <h3>已保存的配置方案</h3>
-      <Button theme="primary" @click="openCreateDialog">
-        <template #icon><Icon name="add" /></template>
-        新建配置
-      </Button>
+      <Space>
+        <Button variant="outline" @click="handleExport">
+          <template #icon><DownloadIcon /></template>
+          导出
+        </Button>
+        <Button variant="outline" @click="handleImport">
+          <template #icon><UploadIcon /></template>
+          导入
+        </Button>
+        <Button theme="primary" @click="openCreateDialog">
+          <template #icon><AddIcon /></template>
+          新建配置
+        </Button>
+      </Space>
     </div>
 
     <div v-if="savedConfigs.length === 0" class="empty-state">
@@ -325,7 +432,7 @@ onMounted(() => {
       <template #footer>
         <div class="dialog-footer">
           <Button variant="outline" @click="fillCurrentConfig">
-            <template #icon><Icon name="refresh" /></template>
+            <template #icon><RefreshIcon /></template>
             读取当前配置
           </Button>
           <div class="dialog-footer-right">

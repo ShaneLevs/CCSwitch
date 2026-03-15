@@ -69,5 +69,21 @@ window.services = {
   },
 
   encryptKey: encrypt,
-  decryptKey: decrypt
+  decryptKey: decrypt,
+
+  exportConfigsToFile(filePath, configs) {
+    const data = {
+      version: '1.0',
+      exportedAt: Date.now(),
+      app: 'ccswitch',
+      configs
+    }
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), { encoding: 'utf-8' })
+    return true
+  },
+
+  importConfigsFromFile(filePath) {
+    const content = fs.readFileSync(filePath, 'utf8')
+    return JSON.parse(content)
+  }
 }
