@@ -11,8 +11,12 @@ import {
   Divider,
   Empty,
   Popconfirm,
+  Dropdown,
+  DropdownMenu,
+  DropdownItem,
+  Textarea,
 } from "tdesign-vue-next";
-import { AddIcon, RefreshIcon, DownloadIcon, UploadIcon } from "tdesign-icons-vue-next";
+import { AddIcon, RefreshIcon, DownloadIcon, UploadIcon, FileIcon, LinkIcon } from "tdesign-icons-vue-next";
 
 const DB_PREFIX = "ccswitch_config_";
 
@@ -25,6 +29,8 @@ const currentConfig = ref({
 const savedConfigs = ref([]);
 const showDialog = ref(false);
 const editingConfig = ref(null);
+const showImportStringDialog = ref(false);
+const importString = ref("");
 const formData = ref({
   name: "",
   key: "",
@@ -279,6 +285,164 @@ const handleImport = () => {
   }
 };
 
+const handleExportAsString = () => {
+  if (savedConfigs.value.length === 0) {
+    MessagePlugin.warning("没有可导出的配置");
+    return;
+  }
+
+  try {
+    // 构建去重字典和带引用的配置列表
+    const keyDict = new Map(); // key值 -> 第一个出现的配置索引
+    const urlDict = new Map(); // url值 -> 第一个出现的配置索引
+    const configsToExport = [];
+
+    savedConfigs.value.forEach((config, index) => {
+      const cfg = {};
+      const idx = index + 1; // 从1开始计数
+
+      // name 总是直接存储
+      cfg[`n${idx}`] = config.name;
+
+      // key: 如果重复，引用第一个出现的配置
+      if (keyDict.has(config.key)) {
+        cfg[`k${idx}`] = `k${keyDict.get(config.key)}`;
+      } else {
+        cfg[`k${idx}`] = config.key;
+        keyDict.set(config.key, idx);
+      }
+
+      // url: 如果重复，引用第一个出现的配置
+      if (urlDict.has(config.baseUrl)) {
+        cfg[`u${idx}`] = `u${urlDict.get(config.baseUrl)}`;
+      } else {
+        cfg[`u${idx}`] = config.baseUrl;
+        urlDict.set(config.baseUrl, idx);
+      }
+
+      // model 直接存储（通常不重复）
+      cfg[`m${idx}`] = config.model;
+
+      configsToExport.push(cfg);
+    });
+
+    const compressed = window.services.compressConfigs(configsToExport);
+    const encrypted = window.services.encryptString(compressed);
+    window.utools.copyText(encrypted);
+    MessagePlugin.success("配置已复制到剪贴板，请勿泄露给他人");
+  } catch (error) {
+    console.error("导出失败:", error);
+    MessagePlugin.error("导出失败");
+  }
+};
+
+const openImportStringDialog = () => {
+  importString.value = "";
+  showImportStringDialog.value = true;
+};
+
+const handleImportFromString = () => {
+  const str = importString.value.trim();
+  if (!str) {
+    MessagePlugin.warning("请输入配置字符串");
+    return;
+  }
+
+  try {
+    // 解密字符串
+    const decrypted = window.services.decryptString(str);
+    const decompressed = window.services.decompressConfigs(decrypted);
+
+    if (!decompressed || !Array.isArray(decompressed)) {
+      MessagePlugin.error("配置字符串格式不正确");
+      return;
+    }
+
+    // 解析带数字后缀的字段和引用
+    const configs = [];
+    const keyMap = new Map(); // 存储每个索引对应的 key 值
+    const urlMap = new Map(); // 存储每个索引对应的 url 值
+
+    for (let i = 0; i < decompressed.length; i++) {
+      const rawCfg = decompressed[i];
+      const idx = i + 1;
+
+      // 获取字段值（处理引用）
+      let key = rawCfg[`k${idx}`];
+      let url = rawCfg[`u${idx}`];
+
+      // 如果 key 是引用格式 "k数字"，从 keyMap 查找
+      if (typeof key === 'string' && /^k\d+$/.test(key)) {
+        const refIdx = parseInt(key.substring(1));
+        key = keyMap.get(refIdx);
+      } else {
+        keyMap.set(idx, key);
+      }
+
+      // 如果 url 是引用格式 "u数字"，从 urlMap 查找
+      if (typeof url === 'string' && /^u\d+$/.test(url)) {
+        const refIdx = parseInt(url.substring(1));
+        url = urlMap.get(refIdx);
+      } else {
+        urlMap.set(idx, url);
+      }
+
+      configs.push({
+        name: rawCfg[`n${idx}`],
+        key: key,
+        baseUrl: url,
+        model: rawCfg[`m${idx}`]
+      });
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const config of configs) {
+      if (!config.name || !config.key) {
+        failCount++;
+        continue;
+      }
+
+      try {
+        const now = Date.now();
+        const doc = {
+          _id: DB_PREFIX + now + "_" + Math.random().toString(36).substr(2, 9),
+          name: config.name.trim(),
+          key: window.services.encryptKey(config.key),
+          baseUrl: config.baseUrl?.trim() || "",
+          model: config.model?.trim() || "",
+          updatedAt: now
+        };
+
+        const result = window.utools.db.put(doc);
+        if (result.ok) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (err) {
+        console.error("导入配置失败:", err);
+        failCount++;
+      }
+    }
+
+    loadSavedConfigs();
+    showImportStringDialog.value = false;
+
+    if (successCount > 0 && failCount === 0) {
+      MessagePlugin.success(`成功导入 ${successCount} 个配置`);
+    } else if (successCount > 0 && failCount > 0) {
+      MessagePlugin.warning(`成功导入 ${successCount} 个，失败 ${failCount} 个`);
+    } else {
+      MessagePlugin.error("导入失败，请检查配置字符串");
+    }
+  } catch (error) {
+    console.error("导入失败:", error);
+    MessagePlugin.error("配置字符串格式不正确");
+  }
+};
+
 onMounted(() => {
   loadCurrentConfig();
   loadSavedConfigs();
@@ -319,14 +483,30 @@ onMounted(() => {
     <div class="section-header">
       <h3>已保存的配置方案</h3>
       <Space>
-        <Button variant="outline" @click="handleExport">
-          <template #icon><DownloadIcon /></template>
-          导出
-        </Button>
-        <Button variant="outline" @click="handleImport">
-          <template #icon><UploadIcon /></template>
-          导入
-        </Button>
+        <Dropdown>
+          <template #dropdown>
+            <DropdownMenu>
+              <DropdownItem @click="handleExport">导出到文件</DropdownItem>
+              <DropdownItem @click="handleExportAsString">复制配置字符串</DropdownItem>
+            </DropdownMenu>
+          </template>
+          <Button variant="outline">
+            <template #icon><DownloadIcon /></template>
+            导出
+          </Button>
+        </Dropdown>
+        <Dropdown>
+          <template #dropdown>
+            <DropdownMenu>
+              <DropdownItem @click="handleImport">从文件导入</DropdownItem>
+              <DropdownItem @click="openImportStringDialog">从字符串导入</DropdownItem>
+            </DropdownMenu>
+          </template>
+          <Button variant="outline">
+            <template #icon><UploadIcon /></template>
+            导入
+          </Button>
+        </Dropdown>
         <Button theme="primary" @click="openCreateDialog">
           <template #icon><AddIcon /></template>
           新建配置
@@ -441,6 +621,24 @@ onMounted(() => {
           </div>
         </div>
       </template>
+    </Dialog>
+
+    <Dialog
+      v-model:visible="showImportStringDialog"
+      header="从字符串导入"
+      @confirm="handleImportFromString"
+      width="480px"
+    >
+      <div class="form">
+        <div class="form-item">
+          <label>配置字符串</label>
+          <Textarea
+            v-model="importString"
+            placeholder="粘贴配置字符串"
+            :autosize="{ minRows: 4, maxRows: 8 }"
+          />
+        </div>
+      </div>
     </Dialog>
   </div>
 </template>

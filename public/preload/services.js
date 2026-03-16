@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const crypto = require('node:crypto')
+const zlib = require('node:zlib')
 
 const CLAUDE_SETTINGS_PATH = path.join(window.utools.getPath('home'), '.claude', 'settings.json')
 
@@ -85,5 +86,46 @@ window.services = {
   importConfigsFromFile(filePath) {
     const content = fs.readFileSync(filePath, 'utf8')
     return JSON.parse(content)
+  },
+
+  compressConfigs(configs) {
+    const json = JSON.stringify(configs)
+    const compressed = zlib.deflateSync(Buffer.from(json))
+    return compressed.toString('base64')
+  },
+
+  decompressConfigs(compressedStr) {
+    try {
+      const buffer = Buffer.from(compressedStr, 'base64')
+      const decompressed = zlib.inflateSync(buffer)
+      return JSON.parse(decompressed.toString())
+    } catch (error) {
+      console.error('解压配置失败:', error)
+      return null
+    }
+  },
+
+  // 简单字符替换加密（Base64字符集 → 打乱字符集）
+  encryptString(str) {
+    if (!str) return ''
+    // Base64字符集
+    const fromChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/='
+    // 打乱后的字符集（固定映射）
+    const toChars =   'QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm9876543210-_='
+    return str.split('').map(c => {
+      const idx = fromChars.indexOf(c)
+      return idx >= 0 ? toChars[idx] : c
+    }).join('')
+  },
+
+  // 解密（打乱字符集 → Base64字符集）
+  decryptString(str) {
+    if (!str) return ''
+    const fromChars = 'QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm9876543210-_='
+    const toChars =   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/='
+    return str.split('').map(c => {
+      const idx = fromChars.indexOf(c)
+      return idx >= 0 ? toChars[idx] : c
+    }).join('')
   }
 }
