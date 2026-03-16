@@ -15,8 +15,21 @@ import {
   DropdownMenu,
   DropdownItem,
   Textarea,
+  List,
+  ListItem,
+  ListItemMeta,
 } from "tdesign-vue-next";
-import { AddIcon, RefreshIcon, DownloadIcon, UploadIcon, FileIcon, LinkIcon } from "tdesign-icons-vue-next";
+import {
+  AddIcon,
+  RefreshIcon,
+  DownloadIcon,
+  UploadIcon,
+  FileIcon,
+  LinkIcon,
+  CheckCircleIcon,
+  EditIcon,
+  DeleteIcon,
+} from "tdesign-icons-vue-next";
 
 const DB_PREFIX = "ccswitch_config_";
 
@@ -487,7 +500,7 @@ onMounted(() => {
           <template #dropdown>
             <DropdownMenu>
               <DropdownItem @click="handleExport">导出到文件</DropdownItem>
-              <DropdownItem @click="handleExportAsString">复制配置字符串</DropdownItem>
+              <DropdownItem @click="handleExportAsString">复制配置</DropdownItem>
             </DropdownMenu>
           </template>
           <Button variant="outline">
@@ -518,50 +531,37 @@ onMounted(() => {
       <Empty description="暂无保存的配置方案" />
     </div>
 
-    <div v-else class="config-list">
-      <Card
-        v-for="config in savedConfigs"
-        :key="config.id"
-        :bordered="true"
-        class="config-card"
-      >
-        <template #title>
-          <span class="config-name">{{ config.name }}</span>
-          <Tag
-            v-if="isCurrentConfig(config)"
-            theme="success"
-            variant="light"
-            size="small"
-            >当前</Tag
-          >
-        </template>
-        <div class="config-info">
-          <div class="config-item">
-            <span class="label">Key:</span>
-            <span class="value">{{ maskKey(config.key) }}</span>
-          </div>
-          <div class="config-item">
-            <span class="label">URL:</span>
-            <span class="value">{{ config.baseUrl }}</span>
-          </div>
-          <div class="config-item">
-            <span class="label">Model:</span>
-            <span class="value">{{ config.model || "未设置" }}</span>
-          </div>
-        </div>
-        <template #actions>
-          <Space>
+    <List v-else class="config-list" split>
+      <ListItem v-for="config in savedConfigs" :key="config.id">
+        <ListItemMeta
+          :title="config.name"
+          :description="`${maskKey(config.key)} · ${config.baseUrl}${config.model ? ' · ' + config.model : ''}`"
+        />
+        <template #action>
+          <Space size="small">
+            <Tag
+              v-if="isCurrentConfig(config)"
+              theme="success"
+              variant="light"
+              size="small"
+            >当前</Tag>
             <Button
               size="small"
               theme="primary"
-              variant="base"
+              variant="text"
               @click="switchConfig(config)"
               :disabled="isCurrentConfig(config)"
+              title="切换配置"
             >
-              切换
+              <CheckCircleIcon />
             </Button>
-            <Button size="small" variant="base" @click="openEditDialog(config)">
-              编辑
+            <Button
+              size="small"
+              variant="text"
+              @click="openEditDialog(config)"
+              title="编辑"
+            >
+              <EditIcon />
             </Button>
             <Popconfirm
               theme="danger"
@@ -571,15 +571,16 @@ onMounted(() => {
               <Button
                 size="small"
                 theme="danger"
-                variant="base"
+                variant="text"
+                title="删除"
               >
-                删除
+                <DeleteIcon />
               </Button>
             </Popconfirm>
           </Space>
         </template>
-      </Card>
-    </div>
+      </ListItem>
+    </List>
 
     <Dialog
       v-model:visible="showDialog"
@@ -712,38 +713,21 @@ onMounted(() => {
 }
 
 .config-list {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  margin-top: 8px;
 }
 
-.config-card {
-  margin-bottom: 0;
+.config-list :deep(.t-list-item__meta-title) {
+  font-weight: 500;
+  margin-bottom: 4px;
 }
 
-.config-card :deep(.t-card__body) {
-  padding: 12px 16px;
-}
-
-.config-card :deep(.t-card__header) {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--td-component-stroke);
-}
-
-.config-card :deep(.t-card__actions) {
-  padding: 12px 16px;
-}
-
-.config-card .config-info {
-  gap: 4px;
-}
-
-.config-card .config-item {
+.config-list :deep(.t-list-item__meta-description) {
+  color: var(--td-text-color-secondary);
   font-size: 13px;
-}
-
-.config-card .config-item .label {
-  min-width: 50px;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .empty-state {

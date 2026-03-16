@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:tdesign.tencent.com)"
+      "WebFetch(domain:tdesign.tencent.com)",
+      "mcp__tdesign-mcp-server__get-component-docs"
     ]
   }
 }
