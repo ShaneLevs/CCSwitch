@@ -37,6 +37,27 @@ const decrypt = (encryptedText) => {
   }
 }
 
+const findJsonlFiles = (dir) => {
+  const results = []
+  try {
+    if (!fs.existsSync(dir)) {
+      return results
+    }
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        results.push(...findJsonlFiles(fullPath))
+      } else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
+        results.push(fullPath)
+      }
+    }
+  } catch (error) {
+    console.error('查找 jsonl 文件失败:', error)
+  }
+  return results
+}
+
 window.services = {
   readClaudeSettings() {
     try {
@@ -127,5 +148,161 @@ window.services = {
       const idx = fromChars.indexOf(c)
       return idx >= 0 ? toChars[idx] : c
     }).join('')
+  },
+
+  // 读取 Claude Code usage 数据
+  readClaudeUsage() {
+    try {
+      const homeDir = window.utools.getPath('home')
+      const projectsDir = path.join(homeDir, '.claude', 'projects')
+
+      const emptyResult = {
+        records: [],
+        summary: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0, sessionCount: 0 },
+        modelStats: [],
+        contributions: [],
+        avgTokensPerSession: 0,
+        recentSessions: []
+      }
+
+      if (!fs.existsSync(projectsDir)) {
+        return emptyResult
+      }
+
+      const jsonlFiles = findJsonlFiles(projectsDir)
+      const sessionMap = new Map() // sessionId -> { inputTokens, outputTokens, cacheReadTokens, model, timestamp }
+
+      for (const filePath of jsonlFiles) {
+        try {
+          const content = fs.readFileSync(filePath, { encoding: 'utf-8' })
+          const lines = content.split('\n').filter(line => line.trim())
+
+          for (const line of lines) {
+            try {
+              const data = JSON.parse(line)
+              
+              // 只处理 assistant 类型的响应（包含 usage 数据）
+              if (data.type !== 'assistant' || !data.message?.usage) continue
+
+              const usage = data.message.usage
+              const inputTokens = usage.input_tokens || 0
+              const outputTokens = usage.output_tokens || 0
+              const cacheReadTokens = usage.cache_read_input_tokens || 0
+              const model = data.message.model || 'unknown'
+              const sessionId = data.sessionId || 'unknown'
+
+              // 只保留有意义的记录
+              if (inputTokens + outputTokens > 0) {
+                if (!sessionMap.has(sessionId)) {
+                  sessionMap.set(sessionId, {
+                    sessionId,
+                    model,
+                    timestamp: data.timestamp,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    cacheReadTokens: 0
+                  })
+                }
+                const session = sessionMap.get(sessionId)
+                session.inputTokens += inputTokens
+                session.outputTokens += outputTokens
+                session.cacheReadTokens += cacheReadTokens
+                // 更新为最新时间戳
+                if (data.timestamp > session.timestamp) {
+                  session.timestamp = data.timestamp
+                }
+              }
+            } catch (parseError) {
+              // 跳过解析失败的行
+            }
+          }
+        } catch (fileError) {
+          console.error('读取文件失败:', filePath, fileError)
+        }
+      }
+
+      // 转换为数组并计算 totalTokens
+      const allRecords = Array.from(sessionMap.values()).map(session => ({
+        ...session,
+        totalTokens: session.inputTokens + session.outputTokens
+      }))
+
+      // 按时间排序
+      allRecords.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+
+      // 计算汇总数据
+      const summary = allRecords.reduce((acc, record) => {
+        acc.inputTokens += record.inputTokens
+        acc.outputTokens += record.outputTokens
+        acc.cacheReadTokens += record.cacheReadTokens
+        acc.totalTokens += record.totalTokens
+        return acc
+      }, { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0, sessionCount: allRecords.length })
+
+      // 计算模型使用分布
+      const modelMap = new Map()
+      allRecords.forEach(record => {
+        if (!modelMap.has(record.model)) {
+          modelMap.set(record.model, { name: record.model, sessions: 0, tokens: 0, inputTokens: 0, outputTokens: 0 })
+        }
+        const stat = modelMap.get(record.model)
+        stat.sessions++
+        stat.tokens += record.totalTokens
+        stat.inputTokens += record.inputTokens
+        stat.outputTokens += record.outputTokens
+      })
+      const modelStats = Array.from(modelMap.values()).sort((a, b) => b.tokens - a.tokens)
+
+      // 计算贡献墙数据（最近 365 天，按天聚合，含模型明细）
+      const now = new Date()
+      const contributionMap = new Map() // date -> { tokens, inputTokens, outputTokens, models: { modelName: { inputTokens, outputTokens } } }
+      const totalDays = 365
+      for (let i = totalDays - 1; i >= 0; i--) {
+        const d = new Date(now)
+        d.setDate(d.getDate() - i)
+        const dateKey = d.toISOString().split('T')[0]
+        contributionMap.set(dateKey, { date: dateKey, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
+      }
+      allRecords.forEach(record => {
+        const dateKey = record.timestamp.split('T')[0]
+        if (contributionMap.has(dateKey)) {
+          const day = contributionMap.get(dateKey)
+          day.tokens += record.totalTokens
+          day.inputTokens += record.inputTokens
+          day.outputTokens += record.outputTokens
+          if (!day.models[record.model]) {
+            day.models[record.model] = { inputTokens: 0, outputTokens: 0 }
+          }
+          day.models[record.model].inputTokens += record.inputTokens
+          day.models[record.model].outputTokens += record.outputTokens
+        }
+      })
+      const contributions = Array.from(contributionMap.values())
+
+      // 平均每会话 tokens
+      const avgTokensPerSession = summary.sessionCount > 0 ? Math.round(summary.totalTokens / summary.sessionCount) : 0
+
+      // 最近 10 个会话
+      const recentSessions = allRecords.slice(0, 10)
+
+      return {
+        records: allRecords,
+        summary,
+        modelStats,
+        contributions,
+        avgTokensPerSession,
+        recentSessions
+      }
+    } catch (error) {
+      console.error('读取 Claude usage 数据失败:', error)
+        return {
+          records: [],
+          summary: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0, sessionCount: 0 },
+          modelStats: [],
+          contributions: [],
+          avgTokensPerSession: 0,
+          recentSessions: []
+        }
+    }
   }
 }

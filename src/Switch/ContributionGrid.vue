@@ -1,0 +1,290 @@
+<script setup>
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import { Tooltip } from "tdesign-vue-next";
+
+const props = defineProps({
+  contributions: { type: Array, default: () => [] },
+});
+
+const CELL_SIZE = 12;
+const CELL_GAP = 3;
+const WEEK_WIDTH = CELL_SIZE + CELL_GAP;
+const LABEL_WIDTH = 24;
+
+const containerRef = ref(null);
+const containerWidth = ref(700);
+
+const measureWidth = () => {
+  if (containerRef.value) containerWidth.value = containerRef.value.clientWidth;
+};
+
+onMounted(() => {
+  measureWidth();
+  window.addEventListener("resize", measureWidth);
+});
+
+onUnmounted(() => window.removeEventListener("resize", measureWidth));
+
+const maxWeeks = computed(() => {
+  const available = containerWidth.value - LABEL_WIDTH;
+  return Math.max(Math.floor(available / WEEK_WIDTH), 10);
+});
+
+const fmt = (num) => {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  return num.toString();
+};
+
+const allWeeks = computed(() => {
+  const contribs = props.contributions;
+  if (!contribs?.length) return [];
+  const maxTokens = Math.max(...contribs.map((d) => d.tokens), 1);
+  const mapped = contribs.map((d) => {
+    const dayOfWeek = new Date(d.date + "T00:00:00").getDay();
+    let level = 0;
+    if (d.tokens > 0) {
+      const ratio = d.tokens / maxTokens;
+      level = ratio <= 0.1 ? 1 : ratio <= 0.3 ? 2 : ratio <= 0.6 ? 3 : 4;
+    }
+    return {
+      date: d.date,
+      tokens: d.tokens,
+      models: d.models,
+      level,
+      dayOfWeek,
+      totalText: fmt(d.tokens),
+      modelLines: Object.entries(d.models || {}).map(([name, data]) => ({
+        name,
+        input: fmt(data.inputTokens),
+        output: fmt(data.outputTokens),
+      })),
+    };
+  });
+  const result = [];
+  let currentWeek = [];
+  for (const day of mapped) {
+    if (currentWeek.length === 0 && day.dayOfWeek !== 0) {
+      for (let i = 0; i < day.dayOfWeek; i++) currentWeek.push({ date: "", level: -1 });
+    }
+    currentWeek.push(day);
+    if (currentWeek.length === 7) { result.push(currentWeek); currentWeek = []; }
+  }
+  if (currentWeek.length > 0) {
+    while (currentWeek.length < 7) currentWeek.push({ date: "", level: -1 });
+    result.push(currentWeek);
+  }
+  return result;
+});
+
+const visibleWeeks = computed(() => {
+  const all = allWeeks.value;
+  return all.slice(Math.max(0, all.length - maxWeeks.value));
+});
+
+const monthLabels = computed(() => {
+  const weeks = visibleWeeks.value;
+  if (!weeks.length) return [];
+  const labels = [];
+  let currentMonth = -1, span = 0;
+  for (const week of weeks) {
+    const validDay = week.find((d) => d.date);
+    if (!validDay) { span++; continue; }
+    const month = new Date(validDay.date + "T00:00:00").getMonth();
+    if (month !== currentMonth) {
+      if (currentMonth !== -1) labels.push({ text: `${currentMonth + 1}月`, span });
+      currentMonth = month; span = 1;
+    } else { span++; }
+  }
+  if (currentMonth !== -1) labels.push({ text: `${currentMonth + 1}月`, span });
+  return labels;
+});
+</script>
+
+<template>
+  <div ref="containerRef" class="contrib-wrapper" v-if="visibleWeeks.length">
+    <div class="contrib-months">
+      <div class="contrib-label-space"></div>
+      <div class="contrib-month-row">
+        <div v-for="(label, i) in monthLabels" :key="i" class="contrib-month" :style="{ flex: label.span }">
+          {{ label.text }}
+        </div>
+      </div>
+    </div>
+    <div class="contrib-body">
+      <div class="contrib-day-labels">
+        <span></span><span>一</span><span></span><span>三</span><span></span><span>五</span><span></span>
+      </div>
+      <div class="contrib-grid">
+        <div v-for="(week, wi) in visibleWeeks" :key="wi" class="contrib-week">
+          <template v-for="(day, di) in week" :key="di">
+            <Tooltip
+              v-if="day.date && day.tokens > 0"
+              placement="top"
+              :show-arrow="true"
+            >
+              <template #content>
+                <div class="tip-content">
+                  <div class="tip-header">
+                    <span class="tip-date">{{ day.date }}</span>
+                    <span class="tip-total">{{ day.totalText }}</span>
+                  </div>
+                  <div v-for="m in day.modelLines" :key="m.name" class="tip-line">
+                    <span class="tip-name">{{ m.name }}</span>
+                    <span class="tip-detail">Input: {{ m.input }} Output: {{ m.output }}</span>
+                  </div>
+                </div>
+              </template>
+              <div :class="['contrib-cell', `level-${day.level}`]"></div>
+            </Tooltip>
+            <div v-else :class="['contrib-cell', `level-${day.level}`]"></div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.contrib-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.contrib-months {
+  display: flex;
+  align-items: center;
+}
+
+.contrib-label-space {
+  width: 24px;
+  flex-shrink: 0;
+}
+
+.contrib-month-row {
+  flex: 1;
+  display: flex;
+}
+
+.contrib-month {
+  font-size: 11px;
+  color: var(--td-text-color-placeholder);
+  overflow: hidden;
+}
+
+.contrib-body {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.contrib-day-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.contrib-day-labels span {
+  height: 12px;
+  line-height: 12px;
+  font-size: 10px;
+  color: var(--td-text-color-placeholder);
+  display: flex;
+  align-items: center;
+}
+
+.contrib-grid {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+}
+
+.contrib-week {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.contrib-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  cursor: default;
+  box-sizing: border-box;
+  transition: outline 0.1s;
+}
+
+.contrib-cell.level--1 {
+  visibility: hidden;
+}
+
+.contrib-cell.level-0 {
+  background: var(--td-bg-color-component);
+}
+
+.contrib-cell.level-1 {
+  background: #9be9a8;
+}
+
+.contrib-cell.level-2 {
+  background: #40c463;
+}
+
+.contrib-cell.level-3 {
+  background: #30a14e;
+}
+
+.contrib-cell.level-4 {
+  background: #216e39;
+}
+
+.contrib-cell:hover {
+  outline: 1px solid var(--td-text-color-primary);
+  outline-offset: 1px;
+}
+
+/* Tooltip content */
+.tip-content {
+  min-width: 160px;
+}
+
+.tip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tip-date {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.tip-total {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.tip-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.tip-name {
+  opacity: 0.7;
+}
+
+.tip-detail {
+  opacity: 0.9;
+}
+</style>
