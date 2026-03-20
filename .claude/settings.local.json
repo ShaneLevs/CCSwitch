@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:tdesign.tencent.com)",
-      "mcp__tdesign-mcp-server__get-component-docs"
+      "mcp__tdesign-mcp-server__get-component-docs",
+      "Bash(grep -r export.*Icon /Users/shanelevs/Documents/GitHub/CCSwitch/node_modules/tdesign-icons-vue-next/esm/components/*.js)",
+      "Bash(ls /Users/shanelevs/Documents/GitHub/CCSwitch/node_modules/tdesign-icons-vue-next/esm/components/*.js)",
+      "Bash(xargs -I{} basename {} .js)",
+      "Bash(grep -E \"^arrow-\\(up|down\\)$\")"
     ]
   }
 }

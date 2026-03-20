@@ -82,6 +82,12 @@ const visibleWeeks = computed(() => {
   return all.slice(Math.max(0, all.length - maxWeeks.value));
 });
 
+const gridWidth = computed(() => {
+  const count = visibleWeeks.value.length;
+  if (!count) return 0;
+  return count * CELL_SIZE + (count - 1) * CELL_GAP;
+});
+
 const monthLabels = computed(() => {
   const weeks = visibleWeeks.value;
   if (!weeks.length) return [];
@@ -105,7 +111,7 @@ const monthLabels = computed(() => {
   <div ref="containerRef" class="contrib-wrapper" v-if="visibleWeeks.length">
     <div class="contrib-months">
       <div class="contrib-label-space"></div>
-      <div class="contrib-month-row">
+      <div class="contrib-month-row" :style="{ width: gridWidth + 'px' }">
         <div v-for="(label, i) in monthLabels" :key="i" class="contrib-month" :style="{ flex: label.span }">
           {{ label.text }}
         </div>
@@ -115,7 +121,7 @@ const monthLabels = computed(() => {
       <div class="contrib-day-labels">
         <span></span><span>一</span><span></span><span>三</span><span></span><span>五</span><span></span>
       </div>
-      <div class="contrib-grid">
+      <div class="contrib-grid" :style="{ width: gridWidth + 'px' }">
         <div v-for="(week, wi) in visibleWeeks" :key="wi" class="contrib-week">
           <template v-for="(day, di) in week" :key="di">
             <Tooltip
@@ -163,7 +169,6 @@ const monthLabels = computed(() => {
 }
 
 .contrib-month-row {
-  flex: 1;
   display: flex;
 }
 
@@ -199,7 +204,6 @@ const monthLabels = computed(() => {
 .contrib-grid {
   display: flex;
   gap: 3px;
-  flex: 1;
 }
 
 .contrib-week {
