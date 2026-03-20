@@ -299,7 +299,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
             <Space size="small">
               <Tag v-if="isCurrentConfig(config)" theme="success" variant="light" size="small">当前</Tag>
               <Button size="small" theme="primary" variant="text" @click="switchConfig(config)" :disabled="isCurrentConfig(config)" title="切换配置"><CheckCircleIcon /></Button>
-              <Button size="small" variant="text" @click="openEditDialog(config)" title="编辑"><EditIcon /></Button>
+              <Button size="small" theme="default" variant="text" @click="openEditDialog(config)" title="编辑"><EditIcon /></Button>
               <Popconfirm theme="danger" content="确定要删除这个配置吗？" @confirm="deleteConfig(config)">
                 <Button size="small" theme="danger" variant="text" title="删除"><DeleteIcon /></Button>
               </Popconfirm>
