@@ -160,6 +160,7 @@ window.services = {
         records: [],
         summary: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0, sessionCount: 0 },
         modelStats: [],
+        projectStats: [],
         contributions: [],
         avgTokensPerSession: 0,
         recentSessions: []
@@ -170,17 +171,26 @@ window.services = {
       }
 
       const jsonlFiles = findJsonlFiles(projectsDir)
-      const sessionMap = new Map() // sessionId -> { inputTokens, outputTokens, cacheReadTokens, model, timestamp }
+      const sessionMap = new Map() // sessionId -> { inputTokens, outputTokens, cacheReadTokens, model, timestamp, project }
+      const projectMap = new Map() // project -> { inputTokens, outputTokens, totalTokens, sessions }
 
       for (const filePath of jsonlFiles) {
         try {
+          // 从文件路径提取项目名：~/.claude/projects/-Users-shane-...-ProjectName/xxx.jsonl
+          const relativePath = path.relative(projectsDir, filePath)
+          const projectFolder = relativePath.split(path.sep)[0] || 'unknown'
+          // 将 -Users-shane-...-ProjectName 转换为 ProjectName（取最后一段）
+          const projectName = projectFolder.split('-').pop() || projectFolder
+          // 还原原始路径：把 - 替换回 /
+          const projectPath = '/' + projectFolder.replace(/^-/, '').replace(/-/g, '/')
+
           const content = fs.readFileSync(filePath, { encoding: 'utf-8' })
           const lines = content.split('\n').filter(line => line.trim())
 
           for (const line of lines) {
             try {
               const data = JSON.parse(line)
-              
+
               // 只处理 assistant 类型的响应（包含 usage 数据）
               if (data.type !== 'assistant' || !data.message?.usage) continue
 
@@ -197,6 +207,8 @@ window.services = {
                   sessionMap.set(sessionId, {
                     sessionId,
                     model,
+                    project: projectName,
+                    projectPath: projectPath,
                     timestamp: data.timestamp,
                     inputTokens: 0,
                     outputTokens: 0,
@@ -253,6 +265,21 @@ window.services = {
       })
       const modelStats = Array.from(modelMap.values()).sort((a, b) => b.tokens - a.tokens)
 
+      // 计算项目使用分布
+      allRecords.forEach(record => {
+        const projectName = record.project || 'unknown'
+        if (!projectMap.has(projectName)) {
+          const exists = fs.existsSync(record.projectPath)
+          projectMap.set(projectName, { name: projectName, path: record.projectPath, exists, sessions: 0, tokens: 0, inputTokens: 0, outputTokens: 0 })
+        }
+        const stat = projectMap.get(projectName)
+        stat.sessions++
+        stat.tokens += record.totalTokens
+        stat.inputTokens += record.inputTokens
+        stat.outputTokens += record.outputTokens
+      })
+      const projectStats = Array.from(projectMap.values()).sort((a, b) => b.tokens - a.tokens)
+
       // 计算贡献墙数据（最近 365 天，按天聚合，含模型明细）
       const now = new Date()
       const contributionMap = new Map() // date -> { tokens, inputTokens, outputTokens, models: { modelName: { inputTokens, outputTokens } } }
@@ -289,6 +316,7 @@ window.services = {
         records: allRecords,
         summary,
         modelStats,
+        projectStats,
         contributions,
         avgTokensPerSession,
         recentSessions
@@ -299,6 +327,7 @@ window.services = {
           records: [],
           summary: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0, sessionCount: 0 },
           modelStats: [],
+          projectStats: [],
           contributions: [],
           avgTokensPerSession: 0,
           recentSessions: []
