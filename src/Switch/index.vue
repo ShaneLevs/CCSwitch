@@ -81,15 +81,10 @@ const groupedConfigs = computed(() => {
         key: config.key,
         baseUrl: config.baseUrl,
         configs: [],
-        isCurrent: false,
       });
     }
     const group = groups.get(groupKey);
     group.configs.push(config);
-    // 只要有一个是当前配置，就标记整个组
-    if (isCurrentConfig(config)) {
-      group.isCurrent = true;
-    }
   });
   // 每组按最新更新时间排序
   return Array.from(groups.values()).map(group => {
@@ -324,7 +319,6 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
         <div v-for="(group, gIdx) in groupedConfigs" :key="gIdx" class="config-group">
           <div class="group-header">
             <span class="group-url">{{ group.baseUrl }}</span>
-            <Tag v-if="group.isCurrent" theme="success" variant="light" size="small">当前</Tag>
           </div>
           <div class="group-items">
             <div v-for="config in group.configs" :key="config.id" class="config-item">
@@ -333,6 +327,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
                 <span v-if="config.model" class="config-model">{{ config.model }}</span>
               </div>
               <Space size="small">
+                <Tag v-if="isCurrentConfig(config)" theme="success" variant="light" size="small">当前</Tag>
                 <Button size="small" theme="primary" variant="text" @click="switchConfig(config)" :disabled="isCurrentConfig(config)" title="切换配置"><CheckCircleIcon /></Button>
                 <Button size="small" theme="default" variant="text" @click="openEditDialog(config)" title="编辑"><EditIcon /></Button>
                 <Popconfirm theme="danger" content="确定要删除这个配置吗？" @confirm="deleteConfig(config)">
