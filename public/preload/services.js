@@ -198,6 +198,7 @@ window.services = {
               const inputTokens = usage.input_tokens || 0
               const outputTokens = usage.output_tokens || 0
               const cacheReadTokens = usage.cache_read_input_tokens || 0
+              const cacheCreationTokens = usage.cache_creation_input_tokens || 0
               const model = data.message.model || 'unknown'
               const sessionId = data.sessionId || 'unknown'
 
@@ -212,13 +213,15 @@ window.services = {
                     timestamp: data.timestamp,
                     inputTokens: 0,
                     outputTokens: 0,
-                    cacheReadTokens: 0
+                    cacheReadTokens: 0,
+                    cacheCreationTokens: 0
                   })
                 }
                 const session = sessionMap.get(sessionId)
                 session.inputTokens += inputTokens
                 session.outputTokens += outputTokens
                 session.cacheReadTokens += cacheReadTokens
+                session.cacheCreationTokens += cacheCreationTokens
                 // 更新为最新时间戳
                 if (data.timestamp > session.timestamp) {
                   session.timestamp = data.timestamp
@@ -233,10 +236,10 @@ window.services = {
         }
       }
 
-      // 转换为数组并计算 totalTokens
+      // 转换为数组并计算 totalTokens（四个字段相加）
       const allRecords = Array.from(sessionMap.values()).map(session => ({
         ...session,
-        totalTokens: session.inputTokens + session.outputTokens
+        totalTokens: session.inputTokens + session.outputTokens + session.cacheReadTokens + session.cacheCreationTokens
       }))
 
       // 按时间排序
@@ -247,9 +250,10 @@ window.services = {
         acc.inputTokens += record.inputTokens
         acc.outputTokens += record.outputTokens
         acc.cacheReadTokens += record.cacheReadTokens
+        acc.cacheCreationTokens += record.cacheCreationTokens
         acc.totalTokens += record.totalTokens
         return acc
-      }, { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0, sessionCount: allRecords.length })
+      }, { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 0, sessionCount: allRecords.length })
 
       // 计算模型使用分布
       const modelMap = new Map()
@@ -260,7 +264,8 @@ window.services = {
         const stat = modelMap.get(record.model)
         stat.sessions++
         stat.tokens += record.totalTokens
-        stat.inputTokens += record.inputTokens
+        // 输入 = input + cacheCreation + cacheRead
+        stat.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
         stat.outputTokens += record.outputTokens
       })
       const modelStats = Array.from(modelMap.values()).sort((a, b) => b.tokens - a.tokens)
@@ -275,7 +280,8 @@ window.services = {
         const stat = projectMap.get(projectName)
         stat.sessions++
         stat.tokens += record.totalTokens
-        stat.inputTokens += record.inputTokens
+        // 输入 = input + cacheCreation + cacheRead
+        stat.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
         stat.outputTokens += record.outputTokens
       })
       const projectStats = Array.from(projectMap.values()).sort((a, b) => b.tokens - a.tokens)
@@ -295,12 +301,13 @@ window.services = {
         if (contributionMap.has(dateKey)) {
           const day = contributionMap.get(dateKey)
           day.tokens += record.totalTokens
-          day.inputTokens += record.inputTokens
+          // 输入 = input + cacheCreation + cacheRead
+          day.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
           day.outputTokens += record.outputTokens
           if (!day.models[record.model]) {
             day.models[record.model] = { inputTokens: 0, outputTokens: 0 }
           }
-          day.models[record.model].inputTokens += record.inputTokens
+          day.models[record.model].inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
           day.models[record.model].outputTokens += record.outputTokens
         }
       })
@@ -325,7 +332,7 @@ window.services = {
       console.error('读取 Claude usage 数据失败:', error)
         return {
           records: [],
-          summary: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0, sessionCount: 0 },
+          summary: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 0, sessionCount: 0 },
           modelStats: [],
           projectStats: [],
           contributions: [],

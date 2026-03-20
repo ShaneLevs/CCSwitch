@@ -7,7 +7,10 @@
       "Bash(ls /Users/shanelevs/Documents/GitHub/CCSwitch/node_modules/tdesign-icons-vue-next/esm/components/*.js)",
       "Bash(xargs -I{} basename {} .js)",
       "Bash(grep -E \"^arrow-\\(up|down\\)$\")",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(grep -h \"\"type\"\":\"\"assistant\"\" /Users/shane/.claude/projects/-Users-shane-Documents-GitHub-CC-Switch/*.jsonl)",
+      "Bash(grep -h \"\"type\"\":\"\"assistant\"\" /Users/shane/.claude/projects/*/*.jsonl)",
+      "Bash(grep -r Icon node_modules/tdesign-icons-vue-next/esm/*.js)"
     ]
   }
 }

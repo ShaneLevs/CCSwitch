@@ -9,6 +9,8 @@ import {
   LayersIcon,
   ChartIcon,
   SumIcon,
+  FileAddIcon,
+  CheckCircleIcon,
 } from "tdesign-icons-vue-next";
 import ContributionGrid from "./ContributionGrid.vue";
 
@@ -18,6 +20,7 @@ const usageData = ref({
     inputTokens: 0,
     outputTokens: 0,
     cacheReadTokens: 0,
+    cacheCreationTokens: 0,
     totalTokens: 0,
     sessionCount: 0,
   },
@@ -28,13 +31,14 @@ const usageData = ref({
 });
 
 const stats = [
-  // 第一行：总消耗、会话数、平均每会话
-  { key: "total", title: "总消耗 Tokens", icon: SumIcon, bg: "#E8F4E8" },
+  // 第一行：总处理、会话数、平均每会话
+  { key: "total", title: "总处理 Tokens", icon: SumIcon, bg: "#E8F4E8" },
   { key: "sessions", title: "总会话数", icon: LayersIcon, bg: "#B5DEE5", suffix: "次" },
   { key: "avg", title: "平均每会话", icon: ChartIcon, bg: "#B5DFB8" },
-  // 第二行：输入、缓存、输出
+  // 第二行：输入、首次缓存、命中缓存、输出
   { key: "input", title: "输入 Tokens", icon: ArrowUpIcon, bg: "#FFE8E8" },
-  { key: "cache", title: "缓存 Tokens", icon: TimeIcon, bg: "#E0D4FF" },
+  { key: "cacheCreation", title: "首次缓存", icon: FileAddIcon, bg: "#FFE4B5" },
+  { key: "cacheRead", title: "命中缓存", icon: CheckCircleIcon, bg: "#E0D4FF" },
   { key: "output", title: "输出 Tokens", icon: ArrowDownIcon, bg: "#F8DAF3" },
 ];
 
@@ -48,8 +52,9 @@ const getStatValue = (key) => {
   switch (key) {
     case "total": return usageData.value.summary.totalTokens;
     case "input": return usageData.value.summary.inputTokens;
+    case "cacheCreation": return usageData.value.summary.cacheCreationTokens;
+    case "cacheRead": return usageData.value.summary.cacheReadTokens;
     case "output": return usageData.value.summary.outputTokens;
-    case "cache": return usageData.value.summary.cacheReadTokens;
     case "sessions": return usageData.value.summary.sessionCount;
     case "avg": return usageData.value.avgTokensPerSession;
     default: return 0;
@@ -78,7 +83,7 @@ defineExpose({ loadData });
 <template>
   <div class="usage-view">
     <div class="usage-header">
-      <span></span>
+      <span class="usage-tip">当前统计数据仅用于展示处理的 token 数量，不做其他参考。</span>
       <Button size="small" variant="outline" :loading="loading" @click="loadData">
         <template #icon><RefreshIcon /></template>
         刷新数据
@@ -86,8 +91,22 @@ defineExpose({ loadData });
     </div>
 
     <!-- 统计卡片 -->
-    <div class="stat-cards">
-      <div v-for="s in stats" :key="s.key" class="stat-card" :style="{ background: s.bg }">
+    <div class="stat-cards-row1">
+      <div v-for="s in stats.slice(0, 3)" :key="s.key" class="stat-card" :style="{ background: s.bg }">
+        <Statistic :value="getStatValue(s.key)" :format="formatNumber" :suffix="s.suffix">
+          <template #title>
+            <span class="stat-title-row">
+              <span class="stat-icon-wrap">
+                <component :is="s.icon" size="14px" />
+              </span>
+              <span>{{ s.title }}</span>
+            </span>
+          </template>
+        </Statistic>
+      </div>
+    </div>
+    <div class="stat-cards-row2">
+      <div v-for="s in stats.slice(3)" :key="s.key" class="stat-card" :style="{ background: s.bg }">
         <Statistic :value="getStatValue(s.key)" :format="formatNumber" :suffix="s.suffix">
           <template #title>
             <span class="stat-title-row">
@@ -176,9 +195,20 @@ defineExpose({ loadData });
   align-items: center;
 }
 
-.stat-cards {
+.usage-tip {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
+}
+
+.stat-cards-row1 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.stat-cards-row2 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
 }
 
