@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import {
   Card,
   Button,
@@ -70,6 +70,34 @@ const loadSavedConfigs = () => {
     }))
     .sort((a, b) => b.updatedAt - a.updatedAt);
 };
+
+// 将配置按 key + baseUrl 分组
+const groupedConfigs = computed(() => {
+  const groups = new Map();
+  savedConfigs.value.forEach(config => {
+    const groupKey = `${config.key}|${config.baseUrl}`;
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, {
+        key: config.key,
+        baseUrl: config.baseUrl,
+        configs: [],
+        isCurrent: false,
+      });
+    }
+    const group = groups.get(groupKey);
+    group.configs.push(config);
+    // 只要有一个是当前配置，就标记整个组
+    if (isCurrentConfig(config)) {
+      group.isCurrent = true;
+    }
+  });
+  // 每组按最新更新时间排序
+  return Array.from(groups.values()).map(group => {
+    group.configs.sort((a, b) => b.updatedAt - a.updatedAt);
+    group.latestConfig = group.configs[0];
+    return group;
+  }).sort((a, b) => b.latestConfig.updatedAt - a.latestConfig.updatedAt);
+});
 
 const maskKey = (key) => {
   if (!key || key.length < 8) return key || "";
@@ -267,9 +295,9 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
       <Card title="当前配置" :bordered="true" class="card">
         <template #actions><Tag theme="success" variant="light">当前生效</Tag></template>
         <div class="config-info">
-          <div class="config-item"><span class="label">Key:</span><span class="value">{{ maskKey(currentConfig.key) || "未设置" }}</span></div>
-          <div class="config-item"><span class="label">URL:</span><span class="value">{{ currentConfig.baseUrl || "未设置" }}</span></div>
-          <div class="config-item"><span class="label">Model:</span><span class="value">{{ currentConfig.model || "未设置" }}</span></div>
+          <div class="info-item"><span class="label">Key:</span><span class="value">{{ maskKey(currentConfig.key) || "未设置" }}</span></div>
+          <div class="info-item"><span class="label">URL:</span><span class="value">{{ currentConfig.baseUrl || "未设置" }}</span></div>
+          <div class="info-item"><span class="label">Model:</span><span class="value">{{ currentConfig.model || "未设置" }}</span></div>
         </div>
       </Card>
 
@@ -292,21 +320,29 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
 
       <div v-if="!savedConfigs.length" class="empty-state"><Empty description="暂无保存的配置方案" /></div>
 
-      <List v-else class="config-list" split>
-        <ListItem v-for="config in savedConfigs" :key="config.id">
-          <ListItemMeta :title="config.name" :description="`${maskKey(config.key)} · ${config.baseUrl}${config.model ? ' · ' + config.model : ''}`" />
-          <template #action>
-            <Space size="small">
-              <Tag v-if="isCurrentConfig(config)" theme="success" variant="light" size="small">当前</Tag>
-              <Button size="small" theme="primary" variant="text" @click="switchConfig(config)" :disabled="isCurrentConfig(config)" title="切换配置"><CheckCircleIcon /></Button>
-              <Button size="small" theme="default" variant="text" @click="openEditDialog(config)" title="编辑"><EditIcon /></Button>
-              <Popconfirm theme="danger" content="确定要删除这个配置吗？" @confirm="deleteConfig(config)">
-                <Button size="small" theme="danger" variant="text" title="删除"><DeleteIcon /></Button>
-              </Popconfirm>
-            </Space>
-          </template>
-        </ListItem>
-      </List>
+      <div v-else class="config-groups">
+        <div v-for="(group, gIdx) in groupedConfigs" :key="gIdx" class="config-group">
+          <div class="group-header">
+            <span class="group-url">{{ group.baseUrl }}</span>
+            <Tag v-if="group.isCurrent" theme="success" variant="light" size="small">当前</Tag>
+          </div>
+          <div class="group-items">
+            <div v-for="config in group.configs" :key="config.id" class="config-item">
+              <div class="config-item-left">
+                <span class="config-name">{{ config.name }}</span>
+                <span v-if="config.model" class="config-model">{{ config.model }}</span>
+              </div>
+              <Space size="small">
+                <Button size="small" theme="primary" variant="text" @click="switchConfig(config)" :disabled="isCurrentConfig(config)" title="切换配置"><CheckCircleIcon /></Button>
+                <Button size="small" theme="default" variant="text" @click="openEditDialog(config)" title="编辑"><EditIcon /></Button>
+                <Popconfirm theme="danger" content="确定要删除这个配置吗？" @confirm="deleteConfig(config)">
+                  <Button size="small" theme="danger" variant="text" title="删除"><DeleteIcon /></Button>
+                </Popconfirm>
+              </Space>
+            </div>
+          </div>
+        </div>
+      </div>
     </template>
 
     <!-- 使用统计 -->
@@ -345,13 +381,22 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .section-header h3 { margin: 0; font-size: 16px; font-weight: 500; }
 .config-info { display: flex; flex-direction: column; gap: 8px; }
-.config-item { display: flex; gap: 8px; }
-.config-item .label { color: var(--td-text-color-secondary); min-width: 60px; }
-.config-item .value { color: var(--td-text-color-primary); word-break: break-all; }
-.config-list { margin-top: 8px; }
-.config-list :deep(.t-list-item__meta-title) { font-weight: 500; margin-bottom: 4px; }
-.config-list :deep(.t-list-item__meta-description) { color: var(--td-text-color-secondary); font-size: 13px; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.info-item { display: flex; gap: 8px; }
+.info-item .label { color: var(--td-text-color-secondary); min-width: 60px; }
+.info-item .value { color: var(--td-text-color-primary); word-break: break-all; }
 .empty-state { padding: 40px 0; }
+
+/* 配置分组样式 */
+.config-groups { display: flex; flex-direction: column; gap: 12px; }
+.config-group { background: var(--td-bg-color-container); border-radius: 8px; overflow: hidden; border: 1px solid var(--td-component-border); }
+.group-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--td-bg-color-container-hover); border-bottom: 1px solid var(--td-component-border); }
+.group-url { font-size: 13px; color: var(--td-text-color-primary); font-family: monospace; }
+.group-items { padding: 8px 0; }
+.config-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; }
+.config-item:hover { background: var(--td-bg-color-container-hover); }
+.config-item-left { display: flex; align-items: center; gap: 12px; }
+.config-name { font-size: 14px; font-weight: 500; color: var(--td-text-color-primary); }
+.config-model { font-size: 12px; color: var(--td-text-color-placeholder); font-family: monospace; }
 .form { display: flex; flex-direction: column; gap: 16px; }
 .form-item { display: flex; flex-direction: column; gap: 8px; }
 .form-item label { font-size: 14px; color: var(--td-text-color-primary); }
