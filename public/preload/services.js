@@ -181,8 +181,20 @@ window.services = {
           const projectFolder = relativePath.split(path.sep)[0] || 'unknown'
           // 将 -Users-shane-...-ProjectName 转换为 ProjectName（取最后一段）
           const projectName = projectFolder.split('-').pop() || projectFolder
-          // 还原原始路径：把 - 替换回 /
-          const projectPath = '/' + projectFolder.replace(/^-/, '').replace(/-/g, '/')
+          // 还原原始路径
+          let projectPath
+          if (process.platform === 'win32') {
+            // Windows: D--pro -> D:\pro（盘符冒号和路径分隔符都被转为 -）
+            const parts = projectFolder.split('-').filter(p => p)
+            if (parts.length > 0) {
+              projectPath = parts[0] + ':\\' + parts.slice(1).join('\\')
+            } else {
+              projectPath = projectFolder
+            }
+          } else {
+            // Unix/macOS: -Users-shane-Project -> /Users/shane/Project
+            projectPath = '/' + projectFolder.replace(/^-/, '').replace(/-/g, '/')
+          }
 
           const content = fs.readFileSync(filePath, { encoding: 'utf-8' })
           const lines = content.split('\n').filter(line => line.trim())
