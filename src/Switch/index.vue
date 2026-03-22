@@ -271,7 +271,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
     <div class="header">
       <div class="header-left">
         <img src="/logo.png" alt="logo" class="logo" />
-        <h2>{{ activeTab === 'usage' ? 'Claude Code 使用统计' : 'Claude Code 配置切换' }}</h2>
+        <t-typography-title level="h5">{{ activeTab === 'usage' ? 'Claude Code 使用统计' : 'Claude Code 配置切换' }}</t-typography-title>
       </div>
       <div class="header-right">
         <div class="tab-buttons">
@@ -299,7 +299,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
       <Divider />
 
       <div class="section-header">
-        <h3>已保存的配置方案</h3>
+        <t-typography-title level="h5">已保存的配置方案</t-typography-title>
         <Space>
           <Dropdown>
             <template #dropdown><DropdownMenu><DropdownItem @click="handleExport">导出到文件</DropdownItem><DropdownItem @click="handleExportAsString">复制配置</DropdownItem></DropdownMenu></template>
@@ -370,11 +370,11 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
 .header-left { display: flex; align-items: center; gap: 12px; }
 .header-right { display: flex; align-items: center; }
 .header .logo { width: 32px; height: 32px; border-radius: 6px; }
-.header h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--td-text-color-primary); }
+.header :deep(.t-typography-title) { margin: 0; }
 .tab-buttons { display: flex; gap: 4px; }
 .card { margin-bottom: 16px; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.section-header h3 { margin: 0; font-size: 16px; font-weight: 500; color: var(--td-text-color-primary); }
+.section-header :deep(.t-typography-title) { margin: 0; }
 .config-info { display: flex; flex-direction: column; gap: 8px; }
 .info-item { display: flex; gap: 8px; }
 .info-item .label { color: var(--td-text-color-secondary); min-width: 60px; }
