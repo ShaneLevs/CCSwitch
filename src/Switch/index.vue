@@ -370,11 +370,11 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
 .header-left { display: flex; align-items: center; gap: 12px; }
 .header-right { display: flex; align-items: center; }
 .header .logo { width: 32px; height: 32px; border-radius: 6px; }
-.header h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.header h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--td-text-color-primary); }
 .tab-buttons { display: flex; gap: 4px; }
 .card { margin-bottom: 16px; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.section-header h3 { margin: 0; font-size: 16px; font-weight: 500; }
+.section-header h3 { margin: 0; font-size: 16px; font-weight: 500; color: var(--td-text-color-primary); }
 .config-info { display: flex; flex-direction: column; gap: 8px; }
 .info-item { display: flex; gap: 8px; }
 .info-item .label { color: var(--td-text-color-secondary); min-width: 60px; }

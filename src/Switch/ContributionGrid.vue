@@ -230,6 +230,7 @@ const monthLabels = computed(() => {
   background: var(--td-bg-color-component);
 }
 
+/* 浅色模式贡献墙颜色 */
 .contrib-cell.level-1 {
   background: #9be9a8;
 }
@@ -244,6 +245,23 @@ const monthLabels = computed(() => {
 
 .contrib-cell.level-4 {
   background: #216e39;
+}
+
+/* 深色模式贡献墙颜色 */
+:root[theme-mode="dark"] .contrib-cell.level-1 {
+  background: #0e4429;
+}
+
+:root[theme-mode="dark"] .contrib-cell.level-2 {
+  background: #006d32;
+}
+
+:root[theme-mode="dark"] .contrib-cell.level-3 {
+  background: #26a641;
+}
+
+:root[theme-mode="dark"] .contrib-cell.level-4 {
+  background: #39d353;
 }
 
 .contrib-cell:hover {

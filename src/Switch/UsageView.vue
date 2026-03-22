@@ -32,14 +32,14 @@ const usageData = ref({
 
 const stats = [
   // 第一行：总处理、会话数、平均每会话
-  { key: "total", title: "总处理 Tokens", icon: SumIcon, bg: "#E8F4E8" },
-  { key: "sessions", title: "总会话数", icon: LayersIcon, bg: "#B5DEE5", suffix: "次" },
-  { key: "avg", title: "平均每会话", icon: ChartIcon, bg: "#B5DFB8" },
+  { key: "total", title: "总处理 Tokens", icon: SumIcon, colorClass: "stat-green", iconColor: "#52c41a" },
+  { key: "sessions", title: "总会话数", icon: LayersIcon, colorClass: "stat-blue", iconColor: "#1890ff", suffix: "次" },
+  { key: "avg", title: "平均每会话", icon: ChartIcon, colorClass: "stat-teal", iconColor: "#13c2c2" },
   // 第二行：输入、首次缓存、命中缓存、输出
-  { key: "input", title: "输入 Tokens", icon: ArrowUpIcon, bg: "#FFE8E8" },
-  { key: "cacheCreation", title: "首次缓存", icon: FileAddIcon, bg: "#FFE4B5" },
-  { key: "cacheRead", title: "命中缓存", icon: CheckCircleIcon, bg: "#E0D4FF" },
-  { key: "output", title: "输出 Tokens", icon: ArrowDownIcon, bg: "#F8DAF3" },
+  { key: "input", title: "输入 Tokens", icon: ArrowUpIcon, colorClass: "stat-red", iconColor: "#f5222d" },
+  { key: "cacheCreation", title: "首次缓存", icon: FileAddIcon, colorClass: "stat-orange", iconColor: "#fa8c16" },
+  { key: "cacheRead", title: "命中缓存", icon: CheckCircleIcon, colorClass: "stat-purple", iconColor: "#722ed1" },
+  { key: "output", title: "输出 Tokens", icon: ArrowDownIcon, colorClass: "stat-pink", iconColor: "#eb2f96" },
 ];
 
 const formatNumber = (num) => {
@@ -92,11 +92,11 @@ defineExpose({ loadData });
 
     <!-- 统计卡片 -->
     <div class="stat-cards-row1">
-      <div v-for="s in stats.slice(0, 3)" :key="s.key" class="stat-card" :style="{ background: s.bg }">
+      <div v-for="s in stats.slice(0, 3)" :key="s.key" class="stat-card" :class="s.colorClass">
         <Statistic :value="getStatValue(s.key)" :format="formatNumber" :suffix="s.suffix">
           <template #title>
             <span class="stat-title-row">
-              <span class="stat-icon-wrap">
+              <span class="stat-icon-wrap" :style="{ background: s.iconColor + '20', color: s.iconColor }">
                 <component :is="s.icon" size="14px" />
               </span>
               <span>{{ s.title }}</span>
@@ -106,11 +106,11 @@ defineExpose({ loadData });
       </div>
     </div>
     <div class="stat-cards-row2">
-      <div v-for="s in stats.slice(3)" :key="s.key" class="stat-card" :style="{ background: s.bg }">
+      <div v-for="s in stats.slice(3)" :key="s.key" class="stat-card" :class="s.colorClass">
         <Statistic :value="getStatValue(s.key)" :format="formatNumber" :suffix="s.suffix">
           <template #title>
             <span class="stat-title-row">
-              <span class="stat-icon-wrap">
+              <span class="stat-icon-wrap" :style="{ background: s.iconColor + '20', color: s.iconColor }">
                 <component :is="s.icon" size="14px" />
               </span>
               <span>{{ s.title }}</span>
@@ -227,6 +227,24 @@ defineExpose({ loadData });
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
+/* 统计卡片颜色 - 浅色模式 */
+.stat-green { background: #f6ffed; }
+.stat-blue { background: #e6f7ff; }
+.stat-teal { background: #e6fffb; }
+.stat-red { background: #fff1f0; }
+.stat-orange { background: #fff7e6; }
+.stat-purple { background: #f9f0ff; }
+.stat-pink { background: #fff0f6; }
+
+/* 统计卡片颜色 - 深色模式 */
+:root[theme-mode="dark"] .stat-green { background: rgba(82, 196, 26, 0.12); }
+:root[theme-mode="dark"] .stat-blue { background: rgba(24, 144, 255, 0.12); }
+:root[theme-mode="dark"] .stat-teal { background: rgba(19, 194, 194, 0.12); }
+:root[theme-mode="dark"] .stat-red { background: rgba(245, 34, 45, 0.12); }
+:root[theme-mode="dark"] .stat-orange { background: rgba(250, 140, 22, 0.12); }
+:root[theme-mode="dark"] .stat-purple { background: rgba(114, 46, 209, 0.12); }
+:root[theme-mode="dark"] .stat-pink { background: rgba(235, 47, 150, 0.12); }
+
 .stat-title-row {
   display: flex;
   align-items: center;
@@ -237,27 +255,25 @@ defineExpose({ loadData });
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.1);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(0, 0, 0, 0.45);
 }
 
 .stat-card :deep(.t-statistic-title) {
   font-size: 12px;
-  color: rgba(0, 0, 0, 0.55);
+  color: var(--td-text-color-secondary);
 }
 
 .stat-card :deep(.t-statistic-content) {
   font-size: 22px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--td-text-color-primary);
 }
 
 .stat-card :deep(.t-statistic-suffix) {
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.45);
+  color: var(--td-text-color-secondary);
 }
 
 .model-list {
