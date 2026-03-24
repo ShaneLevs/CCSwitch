@@ -162,6 +162,9 @@ const handleProjectClick = (projectPath) => {
 
     <!-- 模型使用分布 -->
     <Card title="模型使用分布" class="model-card">
+      <template #actions>
+        <span class="model-hint">同一会话可能使用多个模型，故各模型会话数之和可能大于总会话数</span>
+      </template>
       <div v-if="loading" class="empty-small">
         <Empty description="加载中..." size="small" />
       </div>
@@ -384,6 +387,11 @@ const handleProjectClick = (projectPath) => {
   border-radius: 4px;
   min-width: 2px;
   transition: width 0.3s ease;
+}
+
+.model-hint {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
 }
 
 .empty-small {

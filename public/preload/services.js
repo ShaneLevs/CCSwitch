@@ -321,16 +321,18 @@ window.services = {
       const modelMap = new Map()
       messageRecords.forEach(record => {
         if (!modelMap.has(record.model)) {
-          modelMap.set(record.model, { name: record.model, messages: 0, tokens: 0, inputTokens: 0, outputTokens: 0 })
+          modelMap.set(record.model, { name: record.model, sessions: new Set(), tokens: 0, inputTokens: 0, outputTokens: 0 })
         }
         const stat = modelMap.get(record.model)
-        stat.messages++
+        stat.sessions.add(record.sessionId)
         stat.tokens += record.totalTokens
         // 输入 = input + cacheCreation + cacheRead
         stat.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
         stat.outputTokens += record.outputTokens
       })
-      const modelStats = Array.from(modelMap.values()).sort((a, b) => b.tokens - a.tokens)
+      const modelStats = Array.from(modelMap.values())
+        .map(stat => ({ ...stat, sessions: stat.sessions.size }))
+        .sort((a, b) => b.tokens - a.tokens)
 
       // 计算项目使用分布（使用 projectPath 作为 key，避免同名项目冲突）
       messageRecords.forEach(record => {
