@@ -170,32 +170,67 @@ window.services = {
         return emptyResult
       }
 
-      const jsonlFiles = findJsonlFiles(projectsDir)
       const sessionMap = new Map() // sessionId -> { inputTokens, outputTokens, cacheReadTokens, model, timestamp, project }
-      const projectMap = new Map() // project -> { inputTokens, outputTokens, totalTokens, sessions }
+      const projectMap = new Map() // projectPath -> { inputTokens, outputTokens, totalTokens, sessions }
+      const messageRecords = [] // 每条消息的记录，用于按时间准确统计
+
+      // 先获取所有项目文件夹，为每个项目确定真实路径
+      const projectFolders = fs.readdirSync(projectsDir, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .map(dirent => dirent.name)
+
+      // 项目文件夹名 -> 真实路径的映射
+      const projectPathMap = new Map()
+
+      for (const folderName of projectFolders) {
+        const folderPath = path.join(projectsDir, folderName)
+        // 找到该文件夹下最新的 jsonl 文件
+        const files = fs.readdirSync(folderPath)
+          .filter(f => f.endsWith('.jsonl'))
+          .map(f => ({
+            name: f,
+            path: path.join(folderPath, f),
+            mtime: fs.statSync(path.join(folderPath, f)).mtime.getTime()
+          }))
+          .sort((a, b) => b.mtime - a.mtime)
+
+        if (files.length > 0) {
+          // 在最新文件中查找 cwd 字段
+          const latestFile = files[0]
+          try {
+            const content = fs.readFileSync(latestFile.path, { encoding: 'utf-8' })
+            const lines = content.split('\n').filter(line => line.trim())
+            for (const line of lines) {
+              try {
+                const data = JSON.parse(line)
+                if (data.cwd) {
+                  projectPathMap.set(folderName, data.cwd)
+                  break
+                }
+              } catch (e) {
+                // 继续下一行
+              }
+            }
+          } catch (e) {
+            console.error('读取文件失败:', latestFile.path, e)
+          }
+        }
+      }
+
+      // 遍历所有 jsonl 文件处理 usage 数据
+      const jsonlFiles = findJsonlFiles(projectsDir)
 
       for (const filePath of jsonlFiles) {
         try {
-          // 从文件路径提取项目名：~/.claude/projects/-Users-shane-...-ProjectName/xxx.jsonl
+          // 从文件路径获取项目文件夹名
           const relativePath = path.relative(projectsDir, filePath)
-          const projectFolder = relativePath.split(path.sep)[0] || 'unknown'
-          // 将 -Users-shane-...-ProjectName 转换为 ProjectName（取最后一段）
-          const projectName = projectFolder.split('-').pop() || projectFolder
-          // 还原原始路径
-          let projectPath
-          if (process.platform === 'win32') {
-            // Windows: D--pro -> D:\pro（盘符冒号和路径分隔符都被转为 -）
-            const parts = projectFolder.split('-').filter(p => p)
-            if (parts.length > 0) {
-              projectPath = parts[0] + ':\\' + parts.slice(1).join('\\')
-            } else {
-              projectPath = projectFolder
-            }
-          } else {
-            // Unix/macOS: -Users-shane-Project -> /Users/shane/Project
-            projectPath = '/' + projectFolder.replace(/^-/, '').replace(/-/g, '/')
-          }
+          const folderName = relativePath.split(path.sep)[0] || 'unknown'
 
+          // 从映射中获取真实路径和项目名
+          const projectPath = projectPathMap.get(folderName) || 'unknown'
+          const projectName = projectPath !== 'unknown' ? path.basename(projectPath) : 'unknown'
+
+          // 读取文件内容
           const content = fs.readFileSync(filePath, { encoding: 'utf-8' })
           const lines = content.split('\n').filter(line => line.trim())
 
@@ -216,6 +251,21 @@ window.services = {
 
               // 只保留有意义的记录
               if (inputTokens + outputTokens > 0) {
+                // 记录每条消息的信息（用于按消息时间准确统计）
+                messageRecords.push({
+                  sessionId,
+                  model,
+                  project: projectName,
+                  projectPath: projectPath,
+                  timestamp: data.timestamp,
+                  inputTokens,
+                  outputTokens,
+                  cacheReadTokens,
+                  cacheCreationTokens,
+                  totalTokens: inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens
+                })
+
+                // 同时维护会话聚合数据（用于会话列表展示）
                 if (!sessionMap.has(sessionId)) {
                   sessionMap.set(sessionId, {
                     sessionId,
@@ -257,24 +307,24 @@ window.services = {
       // 按时间排序
       allRecords.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
 
-      // 计算汇总数据
-      const summary = allRecords.reduce((acc, record) => {
+      // 计算汇总数据（使用每条消息的记录）
+      const summary = messageRecords.reduce((acc, record) => {
         acc.inputTokens += record.inputTokens
         acc.outputTokens += record.outputTokens
         acc.cacheReadTokens += record.cacheReadTokens
         acc.cacheCreationTokens += record.cacheCreationTokens
         acc.totalTokens += record.totalTokens
         return acc
-      }, { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 0, sessionCount: allRecords.length })
+      }, { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 0, messageCount: messageRecords.length, sessionCount: sessionMap.size })
 
-      // 计算模型使用分布
+      // 计算模型使用分布（使用每条消息的记录）
       const modelMap = new Map()
-      allRecords.forEach(record => {
+      messageRecords.forEach(record => {
         if (!modelMap.has(record.model)) {
-          modelMap.set(record.model, { name: record.model, sessions: 0, tokens: 0, inputTokens: 0, outputTokens: 0 })
+          modelMap.set(record.model, { name: record.model, messages: 0, tokens: 0, inputTokens: 0, outputTokens: 0 })
         }
         const stat = modelMap.get(record.model)
-        stat.sessions++
+        stat.messages++
         stat.tokens += record.totalTokens
         // 输入 = input + cacheCreation + cacheRead
         stat.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
@@ -282,23 +332,26 @@ window.services = {
       })
       const modelStats = Array.from(modelMap.values()).sort((a, b) => b.tokens - a.tokens)
 
-      // 计算项目使用分布
-      allRecords.forEach(record => {
-        const projectName = record.project || 'unknown'
-        if (!projectMap.has(projectName)) {
-          const exists = fs.existsSync(record.projectPath)
-          projectMap.set(projectName, { name: projectName, path: record.projectPath, exists, sessions: 0, tokens: 0, inputTokens: 0, outputTokens: 0 })
+      // 计算项目使用分布（使用 projectPath 作为 key，避免同名项目冲突）
+      messageRecords.forEach(record => {
+        const projectPathKey = record.projectPath || 'unknown'
+        const projectDisplayName = projectPathKey !== 'unknown' ? path.basename(projectPathKey) : 'unknown'
+        if (!projectMap.has(projectPathKey)) {
+          const exists = projectPathKey !== 'unknown' ? fs.existsSync(projectPathKey) : false
+          projectMap.set(projectPathKey, { name: projectDisplayName, path: projectPathKey, exists, sessions: new Set(), tokens: 0, inputTokens: 0, outputTokens: 0 })
         }
-        const stat = projectMap.get(projectName)
-        stat.sessions++
+        const stat = projectMap.get(projectPathKey)
+        stat.sessions.add(record.sessionId) // 使用 Set 去重计数
         stat.tokens += record.totalTokens
         // 输入 = input + cacheCreation + cacheRead
         stat.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
         stat.outputTokens += record.outputTokens
       })
-      const projectStats = Array.from(projectMap.values()).sort((a, b) => b.tokens - a.tokens)
+      const projectStats = Array.from(projectMap.values())
+        .map(stat => ({ ...stat, sessions: stat.sessions.size })) // Set 转为数量
+        .sort((a, b) => b.tokens - a.tokens)
 
-      // 计算贡献墙数据（最近 365 天，按天聚合，含模型明细）
+      // 计算贡献墙数据（按每条消息的时间准确统计）
       const now = new Date()
       const contributionMap = new Map() // date -> { tokens, inputTokens, outputTokens, models: { modelName: { inputTokens, outputTokens } } }
       const totalDays = 365
@@ -308,7 +361,8 @@ window.services = {
         const dateKey = d.toISOString().split('T')[0]
         contributionMap.set(dateKey, { date: dateKey, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
       }
-      allRecords.forEach(record => {
+      // 使用每条消息的记录，按消息实际时间归属日期
+      messageRecords.forEach(record => {
         const dateKey = record.timestamp.split('T')[0]
         if (contributionMap.has(dateKey)) {
           const day = contributionMap.get(dateKey)
@@ -326,10 +380,16 @@ window.services = {
       const contributions = Array.from(contributionMap.values())
 
       // 平均每会话 tokens
-      const avgTokensPerSession = summary.sessionCount > 0 ? Math.round(summary.totalTokens / summary.sessionCount) : 0
+      const avgTokensPerSession = sessionMap.size > 0 ? Math.round(summary.totalTokens / sessionMap.size) : 0
 
       // 最近 10 个会话
-      const recentSessions = allRecords.slice(0, 10)
+      const recentSessions = Array.from(sessionMap.values())
+        .map(session => ({
+          ...session,
+          totalTokens: session.inputTokens + session.outputTokens + session.cacheReadTokens + session.cacheCreationTokens
+        }))
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 10)
 
       return {
         records: allRecords,
@@ -351,6 +411,20 @@ window.services = {
           avgTokensPerSession: 0,
           recentSessions: []
         }
+    }
+  },
+
+  copyClaudeCommand(projectPath) {
+    if (!projectPath || projectPath === 'unknown') {
+      return { success: false, error: '无效的项目路径' }
+    }
+    const command = `cd "${projectPath}" && claude`
+    try {
+      window.utools.copyText(command)
+      return { success: true }
+    } catch (error) {
+      console.error('复制命令失败:', error)
+      return { success: false, error: error.message }
     }
   }
 }

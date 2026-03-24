@@ -296,7 +296,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
         </div>
       </Card>
 
-      <Divider />
+      <Divider class="compact-divider" />
 
       <div class="section-header">
         <t-typography-title level="h5">已保存的配置方案</t-typography-title>
@@ -398,4 +398,5 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
 .form-item .required { color: var(--td-error-color); }
 .dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .dialog-footer-right { display: flex; gap: 8px; }
+.compact-divider { margin: 12px 0; }
 </style>

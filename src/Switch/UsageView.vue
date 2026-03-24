@@ -1,6 +1,6 @@
 <script setup>
-import { ref, onMounted, nextTick } from "vue";
-import { Card, Statistic, Empty, Button, Tag } from "tdesign-vue-next";
+import { ref, onMounted, nextTick, computed } from "vue";
+import { Card, Statistic, Empty, Button, Tag, Tooltip, MessagePlugin } from "tdesign-vue-next";
 import {
   RefreshIcon,
   ArrowDownIcon,
@@ -11,10 +11,15 @@ import {
   SumIcon,
   FileAddIcon,
   CheckCircleIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
 } from "tdesign-icons-vue-next";
 import ContributionGrid from "./ContributionGrid.vue";
 
 const loading = ref(false);
+const showAllModels = ref(false);
+const showAllProjects = ref(false);
+
 const usageData = ref({
   summary: {
     inputTokens: 0,
@@ -41,6 +46,21 @@ const stats = [
   { key: "cacheRead", title: "命中缓存", icon: CheckCircleIcon, colorClass: "stat-purple", iconColor: "#722ed1" },
   { key: "output", title: "输出 Tokens", icon: ArrowDownIcon, colorClass: "stat-pink", iconColor: "#eb2f96" },
 ];
+
+const displayLimit = 5;
+
+const displayedModelStats = computed(() => {
+  if (showAllModels.value) return usageData.value.modelStats;
+  return usageData.value.modelStats.slice(0, displayLimit);
+});
+
+const displayedProjectStats = computed(() => {
+  if (showAllProjects.value) return usageData.value.projectStats;
+  return usageData.value.projectStats.slice(0, displayLimit);
+});
+
+const hasMoreModels = computed(() => usageData.value.modelStats.length > displayLimit);
+const hasMoreProjects = computed(() => usageData.value.projectStats.length > displayLimit);
 
 const formatNumber = (num) => {
   if (num >= 1000000) return (num / 1000000).toFixed(2) + "M";
@@ -78,6 +98,15 @@ const loadData = async () => {
 onMounted(() => loadData());
 
 defineExpose({ loadData });
+
+const handleProjectClick = (projectPath) => {
+  const result = window.services.copyClaudeCommand(projectPath);
+  if (result.success) {
+    MessagePlugin.success('命令已复制到剪贴板，请在终端中粘贴执行');
+  } else {
+    MessagePlugin.error(result.error || '复制命令失败');
+  }
+};
 </script>
 
 <template>
@@ -140,7 +169,7 @@ defineExpose({ loadData });
         <Empty description="暂无数据" size="small" />
       </div>
       <div v-else class="model-list">
-        <div v-for="model in usageData.modelStats" :key="model.name" class="model-block">
+        <div v-for="model in displayedModelStats" :key="model.name" class="model-block">
           <div class="model-row">
             <div class="model-left">
               <span class="model-name">{{ model.name }}</span>
@@ -151,6 +180,14 @@ defineExpose({ loadData });
           <div class="model-bar-bg">
             <div class="model-bar" :style="{ width: (model.tokens / (usageData.summary.totalTokens || 1) * 100) + '%' }"></div>
           </div>
+        </div>
+        <div v-if="hasMoreModels" class="expand-btn-wrapper">
+          <Button theme="default" variant="text" size="small" @click="showAllModels = !showAllModels">
+            <template #icon>
+              <component :is="showAllModels ? ChevronUpIcon : ChevronDownIcon" size="14px" />
+            </template>
+            {{ showAllModels ? '收起' : `查看更多 (${usageData.modelStats.length - displayLimit})` }}
+          </Button>
         </div>
       </div>
     </Card>
@@ -164,18 +201,36 @@ defineExpose({ loadData });
         <Empty description="暂无数据" size="small" />
       </div>
       <div v-else class="project-list">
-        <div v-for="project in usageData.projectStats" :key="project.name" class="project-block">
+        <div v-for="project in displayedProjectStats" :key="project.name" class="project-block">
           <div class="project-row">
             <div class="project-left">
               <span class="project-name">{{ project.name }}</span>
               <Tag v-if="!project.exists" theme="warning" variant="light" size="small">已删除</Tag>
-              <span class="project-path">{{ project.path }}</span>
+              <template v-if="project.exists">
+                <Tooltip content="点击复制命令" placement="top">
+                  <span
+                    class="project-path clickable"
+                    @click="handleProjectClick(project.path)"
+                  >{{ project.path }}</span>
+                </Tooltip>
+              </template>
+              <template v-else>
+                <span class="project-path">{{ project.path }}</span>
+              </template>
             </div>
             <span class="project-tokens">{{ formatNumber(project.tokens) }} Tokens · {{ project.sessions }} 次会话</span>
           </div>
           <div class="project-bar-bg">
             <div class="project-bar" :style="{ width: (project.tokens / (usageData.summary.totalTokens || 1) * 100) + '%' }"></div>
           </div>
+        </div>
+        <div v-if="hasMoreProjects" class="expand-btn-wrapper">
+          <Button theme="default" variant="text" size="small" @click="showAllProjects = !showAllProjects">
+            <template #icon>
+              <component :is="showAllProjects ? ChevronUpIcon : ChevronDownIcon" size="14px" />
+            </template>
+            {{ showAllProjects ? '收起' : `查看更多 (${usageData.projectStats.length - displayLimit})` }}
+          </Button>
         </div>
       </div>
     </Card>
@@ -375,6 +430,18 @@ defineExpose({ loadData });
   font-family: monospace;
 }
 
+.project-path.clickable {
+  color: var(--td-brand-color);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.2s;
+}
+
+.project-path.clickable:hover {
+  text-decoration-color: var(--td-brand-color);
+}
+
 .project-tokens {
   font-size: 13px;
   color: var(--td-text-color-secondary);
@@ -393,5 +460,13 @@ defineExpose({ loadData });
   border-radius: 4px;
   min-width: 2px;
   transition: width 0.3s ease;
+}
+
+.expand-btn-wrapper {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--td-component-stroke);
+  margin-top: 4px;
 }
 </style>

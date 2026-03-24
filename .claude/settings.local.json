@@ -10,7 +10,9 @@
       "Bash(npm run:*)",
       "Bash(grep -h \"\"type\"\":\"\"assistant\"\" /Users/shane/.claude/projects/-Users-shane-Documents-GitHub-CC-Switch/*.jsonl)",
       "Bash(grep -h \"\"type\"\":\"\"assistant\"\" /Users/shane/.claude/projects/*/*.jsonl)",
-      "Bash(grep -r Icon node_modules/tdesign-icons-vue-next/esm/*.js)"
+      "Bash(grep -r Icon node_modules/tdesign-icons-vue-next/esm/*.js)",
+      "Bash(ls -t ~/.claude/projects/-Users-shanelevs-Documents-GitHub-CCSwitch/*.jsonl)",
+      "Bash(head -1 ~/.claude/projects/-Users-shanelevs-Documents-GitHub-CCSwitch/*.jsonl)"
     ]
   }
 }
