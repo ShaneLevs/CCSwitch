@@ -125,7 +125,7 @@ const monthLabels = computed(() => {
         <div v-for="(week, wi) in visibleWeeks" :key="wi" class="contrib-week">
           <template v-for="(day, di) in week" :key="di">
             <Tooltip
-              v-if="day.date && day.tokens > 0"
+              v-if="day.date"
               placement="top"
               :show-arrow="true"
             >
@@ -133,7 +133,7 @@ const monthLabels = computed(() => {
                 <div class="tip-content">
                   <div class="tip-header">
                     <span class="tip-date">{{ day.date }}</span>
-                    <span class="tip-total">{{ day.totalText }}</span>
+                    <span class="tip-total">{{ day.totalText || '0' }}</span>
                   </div>
                   <div v-for="m in day.modelLines" :key="m.name" class="tip-line">
                     <span class="tip-name">{{ m.name }}</span>

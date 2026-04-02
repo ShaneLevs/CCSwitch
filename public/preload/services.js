@@ -4,6 +4,7 @@ const crypto = require('node:crypto')
 const zlib = require('node:zlib')
 
 const CLAUDE_SETTINGS_PATH = path.join(window.utools.getPath('home'), '.claude', 'settings.json')
+const CLAUDE_JSON_PATH = path.join(window.utools.getPath('home'), '.claude.json')
 
 const ENCRYPTION_KEY = crypto
   .createHash('sha256')
@@ -88,6 +89,57 @@ window.services = {
 
   getClaudeSettingsPath() {
     return CLAUDE_SETTINGS_PATH
+  },
+
+  // 读取 ~/.claude.json
+  readClaudeJson() {
+    try {
+      if (!fs.existsSync(CLAUDE_JSON_PATH)) {
+        return {}
+      }
+      const content = fs.readFileSync(CLAUDE_JSON_PATH, { encoding: 'utf-8' })
+      return JSON.parse(content)
+    } catch (error) {
+      console.error('读取 Claude JSON 配置失败:', error)
+      return {}
+    }
+  },
+
+  // 写入 ~/.claude.json
+  writeClaudeJson(data) {
+    try {
+      fs.writeFileSync(CLAUDE_JSON_PATH, JSON.stringify(data, null, 2), { encoding: 'utf-8' })
+      return true
+    } catch (error) {
+      console.error('写入 Claude JSON 配置失败:', error)
+      return false
+    }
+  },
+
+  // 获取所有 MCP 配置
+  getMcpServers() {
+    const config = this.readClaudeJson()
+    return config.mcpServers || {}
+  },
+
+  // 添加/更新 MCP 配置
+  upsertMcpServer(name, serverConfig) {
+    const config = this.readClaudeJson()
+    if (!config.mcpServers) {
+      config.mcpServers = {}
+    }
+    config.mcpServers[name] = serverConfig
+    return this.writeClaudeJson(config)
+  },
+
+  // 删除 MCP 配置
+  deleteMcpServer(name) {
+    const config = this.readClaudeJson()
+    if (config.mcpServers && config.mcpServers[name]) {
+      delete config.mcpServers[name]
+      return this.writeClaudeJson(config)
+    }
+    return false
   },
 
   encryptKey: encrypt,

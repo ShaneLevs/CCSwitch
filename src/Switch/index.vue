@@ -29,8 +29,10 @@ import {
   DeleteIcon,
   ChartIcon,
   DashboardIcon,
+  ServerIcon,
 } from "tdesign-icons-vue-next";
 import UsageView from "./UsageView.vue";
+import McpView from "./McpView.vue";
 
 const DB_PREFIX = "ccswitch_config_";
 const activeTab = ref("config");
@@ -44,6 +46,12 @@ const importString = ref("");
 const formData = ref({ name: "", key: "", baseUrl: "", model: "" });
 
 const dialogTitle = computed(() => (editingConfig.value ? "编辑配置" : "新建配置"));
+
+const pageTitle = computed(() => {
+  if (activeTab.value === 'usage') return 'Claude Code 使用统计';
+  if (activeTab.value === 'mcp') return 'Claude Code MCP 配置';
+  return 'Claude Code 配置切换';
+});
 
 const loadCurrentConfig = () => {
   const settings = window.services.readClaudeSettings();
@@ -271,12 +279,15 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
     <div class="header">
       <div class="header-left">
         <img src="/logo.png" alt="logo" class="logo" />
-        <t-typography-title level="h5">{{ activeTab === 'usage' ? 'Claude Code 使用统计' : 'Claude Code 配置切换' }}</t-typography-title>
+        <t-typography-title level="h5">{{ pageTitle }}</t-typography-title>
       </div>
       <div class="header-right">
         <div class="tab-buttons">
           <Button size="small" :theme="activeTab === 'config' ? 'primary' : 'default'" :variant="activeTab === 'config' ? 'base' : 'outline'" @click="activeTab = 'config'">
             <template #icon><DashboardIcon /></template> 配置管理
+          </Button>
+          <Button size="small" :theme="activeTab === 'mcp' ? 'primary' : 'default'" :variant="activeTab === 'mcp' ? 'base' : 'outline'" @click="activeTab = 'mcp'">
+            <template #icon><ServerIcon /></template> MCP
           </Button>
           <Button size="small" :theme="activeTab === 'usage' ? 'primary' : 'default'" :variant="activeTab === 'usage' ? 'base' : 'outline'" @click="activeTab = 'usage'">
             <template #icon><ChartIcon /></template> 使用统计
@@ -321,12 +332,12 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
             <span class="group-url">{{ group.baseUrl }}</span>
           </div>
           <div class="group-items">
-            <div v-for="config in group.configs" :key="config.id" class="config-item">
+            <div v-for="config in group.configs" :key="config.id + '-' + (isCurrentConfig(config) ? 'cur' : 'other')" class="config-item">
               <div class="config-item-left">
                 <span class="config-name">{{ config.name }}</span>
                 <span v-if="config.model" class="config-model">{{ config.model }}</span>
               </div>
-              <Space size="small">
+              <Space size="small" :key="config.id + '-actions'">
                 <Tag v-if="isCurrentConfig(config)" theme="success" variant="light" size="small">当前</Tag>
                 <Button size="small" theme="primary" variant="text" @click="switchConfig(config)" :disabled="isCurrentConfig(config)" title="切换配置"><CheckCircleIcon /></Button>
                 <Button size="small" theme="default" variant="text" @click="openEditDialog(config)" title="编辑"><EditIcon /></Button>
@@ -342,6 +353,9 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
 
     <!-- 使用统计 -->
     <UsageView v-else-if="activeTab === 'usage'" />
+
+    <!-- MCP 配置 -->
+    <McpView v-else-if="activeTab === 'mcp'" />
 
     <Dialog v-model:visible="showDialog" :header="dialogTitle" @confirm="saveConfig" width="480px">
       <div class="form">
@@ -373,6 +387,14 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
 .header :deep(.t-typography-title) { margin: 0; }
 .tab-buttons { display: flex; gap: 4px; }
 .card { margin-bottom: 16px; }
+
+.card :deep(.t-card__header) {
+  padding: 10px 16px;
+}
+
+.card :deep(.t-card__body) {
+  padding: 12px 16px;
+}
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .section-header :deep(.t-typography-title) { margin: 0; }
 .config-info { display: flex; flex-direction: column; gap: 8px; }
