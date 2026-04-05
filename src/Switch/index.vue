@@ -1,14 +1,12 @@
 <script setup>
 import { ref, onMounted, computed, watch } from "vue";
 import {
-  Card,
   Button,
   Input,
   Dialog,
   MessagePlugin,
   Tag,
   Space,
-  Divider,
   Empty,
   Popconfirm,
   Dropdown,
@@ -18,6 +16,8 @@ import {
   List,
   ListItem,
   ListItemMeta,
+  Collapse,
+  CollapsePanel,
 } from "tdesign-vue-next";
 import {
   AddIcon,
@@ -37,13 +37,34 @@ import McpView from "./McpView.vue";
 const DB_PREFIX = "ccswitch_config_";
 const activeTab = ref("config");
 
-const currentConfig = ref({ key: "", baseUrl: "", model: "" });
+const currentConfig = ref({
+  key: "",
+  baseUrl: "",
+  model: "",
+  apiTimeoutMs: "",
+  disableNonessentialTraffic: "",
+  defaultHaikuModel: "",
+  defaultSonnetModel: "",
+  defaultOpusModel: "",
+});
 const savedConfigs = ref([]);
 const showDialog = ref(false);
 const editingConfig = ref(null);
 const showImportStringDialog = ref(false);
 const importString = ref("");
-const formData = ref({ name: "", key: "", baseUrl: "", model: "" });
+const showPreviewDialog = ref(false);
+const previewConfig = ref(null);
+const formData = ref({
+  name: "",
+  key: "",
+  baseUrl: "",
+  model: "",
+  apiTimeoutMs: "",
+  disableNonessentialTraffic: "",
+  defaultHaikuModel: "",
+  defaultSonnetModel: "",
+  defaultOpusModel: "",
+});
 
 const dialogTitle = computed(() => (editingConfig.value ? "编辑配置" : "新建配置"));
 
@@ -60,6 +81,11 @@ const loadCurrentConfig = () => {
       key: settings.env.ANTHROPIC_AUTH_TOKEN || "",
       baseUrl: settings.env.ANTHROPIC_BASE_URL || "",
       model: settings.env.ANTHROPIC_MODEL || "",
+      apiTimeoutMs: settings.env.API_TIMEOUT_MS || "",
+      disableNonessentialTraffic: settings.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC || "",
+      defaultHaikuModel: settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL || "",
+      defaultSonnetModel: settings.env.ANTHROPIC_DEFAULT_SONNET_MODEL || "",
+      defaultOpusModel: settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL || "",
     };
   }
 };
@@ -74,6 +100,11 @@ const loadSavedConfigs = () => {
       key: window.services.decryptKey(d.key),
       baseUrl: d.baseUrl,
       model: d.model,
+      apiTimeoutMs: d.apiTimeoutMs || "",
+      disableNonessentialTraffic: d.disableNonessentialTraffic || "",
+      defaultHaikuModel: d.defaultHaikuModel || "",
+      defaultSonnetModel: d.defaultSonnetModel || "",
+      defaultOpusModel: d.defaultOpusModel || "",
       updatedAt: d.updatedAt,
     }))
     .sort((a, b) => b.updatedAt - a.updatedAt);
@@ -107,15 +138,40 @@ const maskKey = (key) => {
   return key.substring(0, 6) + "***" + key.substring(key.length - 4);
 };
 
+const openPreviewDialog = (config) => {
+  previewConfig.value = config;
+  showPreviewDialog.value = true;
+};
+
 const openCreateDialog = () => {
   editingConfig.value = null;
-  formData.value = { name: "", key: "", baseUrl: "", model: "" };
+  formData.value = {
+    name: "",
+    key: "",
+    baseUrl: "",
+    model: "",
+    apiTimeoutMs: "",
+    disableNonessentialTraffic: "",
+    defaultHaikuModel: "",
+    defaultSonnetModel: "",
+    defaultOpusModel: "",
+  };
   showDialog.value = true;
 };
 
 const openEditDialog = (config) => {
   editingConfig.value = config;
-  formData.value = { name: config.name, key: config.key, baseUrl: config.baseUrl, model: config.model };
+  formData.value = {
+    name: config.name,
+    key: config.key,
+    baseUrl: config.baseUrl,
+    model: config.model,
+    apiTimeoutMs: config.apiTimeoutMs || "",
+    disableNonessentialTraffic: config.disableNonessentialTraffic || "",
+    defaultHaikuModel: config.defaultHaikuModel || "",
+    defaultSonnetModel: config.defaultSonnetModel || "",
+    defaultOpusModel: config.defaultOpusModel || "",
+  };
   showDialog.value = true;
 };
 
@@ -123,6 +179,11 @@ const fillCurrentConfig = () => {
   formData.value.key = currentConfig.value.key;
   formData.value.baseUrl = currentConfig.value.baseUrl;
   formData.value.model = currentConfig.value.model;
+  formData.value.apiTimeoutMs = currentConfig.value.apiTimeoutMs;
+  formData.value.disableNonessentialTraffic = currentConfig.value.disableNonessentialTraffic;
+  formData.value.defaultHaikuModel = currentConfig.value.defaultHaikuModel;
+  formData.value.defaultSonnetModel = currentConfig.value.defaultSonnetModel;
+  formData.value.defaultOpusModel = currentConfig.value.defaultOpusModel;
 };
 
 const saveConfig = () => {
@@ -138,6 +199,11 @@ const saveConfig = () => {
     key: window.services.encryptKey(formData.value.key.trim()),
     baseUrl: formData.value.baseUrl.trim(),
     model: formData.value.model.trim(),
+    apiTimeoutMs: formData.value.apiTimeoutMs.trim(),
+    disableNonessentialTraffic: formData.value.disableNonessentialTraffic.trim(),
+    defaultHaikuModel: formData.value.defaultHaikuModel.trim(),
+    defaultSonnetModel: formData.value.defaultSonnetModel.trim(),
+    defaultOpusModel: formData.value.defaultOpusModel.trim(),
     updatedAt: now,
   };
   if (editingConfig.value) doc._rev = window.utools.db.get(id)._rev;
@@ -163,13 +229,43 @@ const deleteConfig = (config) => {
 const switchConfig = (config) => {
   const settings = window.services.readClaudeSettings() || {};
   if (!settings.env) settings.env = {};
+
+  // 只替换管理的字段，保留其他未管理的字段
   settings.env.ANTHROPIC_AUTH_TOKEN = config.key;
   settings.env.ANTHROPIC_BASE_URL = config.baseUrl;
+
+  // 可选字段：有值则设置，无值则删除
   if (config.model?.trim()) {
     settings.env.ANTHROPIC_MODEL = config.model.trim();
   } else {
     delete settings.env.ANTHROPIC_MODEL;
   }
+  if (config.apiTimeoutMs?.trim()) {
+    settings.env.API_TIMEOUT_MS = config.apiTimeoutMs.trim();
+  } else {
+    delete settings.env.API_TIMEOUT_MS;
+  }
+  if (config.disableNonessentialTraffic?.trim()) {
+    settings.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = config.disableNonessentialTraffic.trim();
+  } else {
+    delete settings.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC;
+  }
+  if (config.defaultHaikuModel?.trim()) {
+    settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = config.defaultHaikuModel.trim();
+  } else {
+    delete settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL;
+  }
+  if (config.defaultSonnetModel?.trim()) {
+    settings.env.ANTHROPIC_DEFAULT_SONNET_MODEL = config.defaultSonnetModel.trim();
+  } else {
+    delete settings.env.ANTHROPIC_DEFAULT_SONNET_MODEL;
+  }
+  if (config.defaultOpusModel?.trim()) {
+    settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL = config.defaultOpusModel.trim();
+  } else {
+    delete settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL;
+  }
+
   if (window.services.writeClaudeSettings(settings)) {
     MessagePlugin.success("配置已切换");
     loadCurrentConfig();
@@ -181,7 +277,12 @@ const switchConfig = (config) => {
 const isCurrentConfig = (config) =>
   config.key === currentConfig.value.key &&
   config.baseUrl === currentConfig.value.baseUrl &&
-  (config.model || "") === (currentConfig.value.model || "");
+  (config.model || "") === (currentConfig.value.model || "") &&
+  (config.apiTimeoutMs || "") === (currentConfig.value.apiTimeoutMs || "") &&
+  (config.disableNonessentialTraffic || "") === (currentConfig.value.disableNonessentialTraffic || "") &&
+  (config.defaultHaikuModel || "") === (currentConfig.value.defaultHaikuModel || "") &&
+  (config.defaultSonnetModel || "") === (currentConfig.value.defaultSonnetModel || "") &&
+  (config.defaultOpusModel || "") === (currentConfig.value.defaultOpusModel || "");
 
 const handleExport = () => {
   if (!savedConfigs.value.length) return MessagePlugin.warning("没有可导出的配置");
@@ -193,7 +294,17 @@ const handleExport = () => {
   if (!filePath) return;
   window.services.exportConfigsToFile(
     filePath,
-    savedConfigs.value.map((c) => ({ name: c.name, key: window.services.encryptKey(c.key), baseUrl: c.baseUrl, model: c.model }))
+    savedConfigs.value.map((c) => ({
+      name: c.name,
+      key: window.services.encryptKey(c.key),
+      baseUrl: c.baseUrl,
+      model: c.model,
+      apiTimeoutMs: c.apiTimeoutMs,
+      disableNonessentialTraffic: c.disableNonessentialTraffic,
+      defaultHaikuModel: c.defaultHaikuModel,
+      defaultSonnetModel: c.defaultSonnetModel,
+      defaultOpusModel: c.defaultOpusModel,
+    }))
   );
   MessagePlugin.success("配置已导出");
 };
@@ -213,6 +324,11 @@ const handleImport = () => {
       key: window.services.encryptKey(window.services.decryptKey(c.key)),
       baseUrl: c.baseUrl?.trim() || "",
       model: c.model?.trim() || "",
+      apiTimeoutMs: c.apiTimeoutMs?.trim() || "",
+      disableNonessentialTraffic: c.disableNonessentialTraffic?.trim() || "",
+      defaultHaikuModel: c.defaultHaikuModel?.trim() || "",
+      defaultSonnetModel: c.defaultSonnetModel?.trim() || "",
+      defaultOpusModel: c.defaultOpusModel?.trim() || "",
       updatedAt: Date.now(),
     };
     window.utools.db.put(doc).ok ? ok++ : fail++;
@@ -229,7 +345,12 @@ const handleExportAsString = () => {
     cfg[`n${idx}`] = c.name;
     if (keyDict.has(c.key)) { cfg[`k${idx}`] = `k${keyDict.get(c.key)}`; } else { cfg[`k${idx}`] = c.key; keyDict.set(c.key, idx); }
     if (urlDict.has(c.baseUrl)) { cfg[`u${idx}`] = `u${urlDict.get(c.baseUrl)}`; } else { cfg[`u${idx}`] = c.baseUrl; urlDict.set(c.baseUrl, idx); }
-    cfg[`m${idx}`] = c.model;
+    if (c.model) cfg[`m${idx}`] = c.model;
+    if (c.apiTimeoutMs) cfg[`t${idx}`] = c.apiTimeoutMs;
+    if (c.disableNonessentialTraffic) cfg[`d${idx}`] = c.disableNonessentialTraffic;
+    if (c.defaultHaikuModel) cfg[`h${idx}`] = c.defaultHaikuModel;
+    if (c.defaultSonnetModel) cfg[`s${idx}`] = c.defaultSonnetModel;
+    if (c.defaultOpusModel) cfg[`o${idx}`] = c.defaultOpusModel;
     list.push(cfg);
   });
   window.utools.copyText(window.services.encryptString(window.services.compressConfigs(list)));
@@ -250,7 +371,17 @@ const handleImportFromString = () => {
     let key = raw[`k${idx}`], url = raw[`u${idx}`];
     if (typeof key === "string" && /^k\d+$/.test(key)) { key = keyMap.get(parseInt(key.substring(1))); } else { keyMap.set(idx, key); }
     if (typeof url === "string" && /^u\d+$/.test(url)) { url = urlMap.get(parseInt(url.substring(1))); } else { urlMap.set(idx, url); }
-    configs.push({ name: raw[`n${idx}`], key, baseUrl: url, model: raw[`m${idx}`] });
+    configs.push({
+      name: raw[`n${idx}`],
+      key,
+      baseUrl: url,
+      model: raw[`m${idx}`],
+      apiTimeoutMs: raw[`t${idx}`],
+      disableNonessentialTraffic: raw[`d${idx}`],
+      defaultHaikuModel: raw[`h${idx}`],
+      defaultSonnetModel: raw[`s${idx}`],
+      defaultOpusModel: raw[`o${idx}`],
+    });
   });
 
   let ok = 0, fail = 0;
@@ -262,6 +393,11 @@ const handleImportFromString = () => {
       key: window.services.encryptKey(c.key),
       baseUrl: c.baseUrl?.trim() || "",
       model: c.model?.trim() || "",
+      apiTimeoutMs: c.apiTimeoutMs?.trim() || "",
+      disableNonessentialTraffic: c.disableNonessentialTraffic?.trim() || "",
+      defaultHaikuModel: c.defaultHaikuModel?.trim() || "",
+      defaultSonnetModel: c.defaultSonnetModel?.trim() || "",
+      defaultOpusModel: c.defaultOpusModel?.trim() || "",
       updatedAt: Date.now(),
     };
     window.utools.db.put(doc).ok ? ok++ : fail++;
@@ -298,29 +434,17 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
 
     <!-- 配置管理 -->
     <template v-if="activeTab === 'config'">
-      <Card title="当前配置" :bordered="true" class="card">
-        <template #actions><Tag theme="success" variant="light">当前生效</Tag></template>
-        <div class="config-info">
-          <div class="info-item"><span class="label">Key:</span><span class="value">{{ maskKey(currentConfig.key) || "未设置" }}</span></div>
-          <div class="info-item"><span class="label">URL:</span><span class="value">{{ currentConfig.baseUrl || "未设置" }}</span></div>
-          <div class="info-item"><span class="label">Model:</span><span class="value">{{ currentConfig.model || "未设置" }}</span></div>
-        </div>
-      </Card>
-
-      <Divider class="compact-divider" />
-
       <div class="section-header">
-        <t-typography-title level="h5">已保存的配置方案</t-typography-title>
-        <Space>
+        <Space size="small">
           <Dropdown>
             <template #dropdown><DropdownMenu><DropdownItem @click="handleExport">导出到文件</DropdownItem><DropdownItem @click="handleExportAsString">复制配置</DropdownItem></DropdownMenu></template>
-            <Button variant="outline"><template #icon><DownloadIcon /></template> 导出</Button>
+            <Button size="small" variant="outline"><template #icon><DownloadIcon /></template> 导出</Button>
           </Dropdown>
           <Dropdown>
             <template #dropdown><DropdownMenu><DropdownItem @click="handleImport">从文件导入</DropdownItem><DropdownItem @click="openImportStringDialog">从字符串导入</DropdownItem></DropdownMenu></template>
-            <Button variant="outline"><template #icon><UploadIcon /></template> 导入</Button>
+            <Button size="small" variant="outline"><template #icon><UploadIcon /></template> 导入</Button>
           </Dropdown>
-          <Button theme="primary" @click="openCreateDialog"><template #icon><AddIcon /></template> 新建配置</Button>
+          <Button size="small" theme="primary" @click="openCreateDialog"><template #icon><AddIcon /></template> 新建配置</Button>
         </Space>
       </div>
 
@@ -332,12 +456,12 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
             <span class="group-url">{{ group.baseUrl }}</span>
           </div>
           <div class="group-items">
-            <div v-for="config in group.configs" :key="config.id + '-' + (isCurrentConfig(config) ? 'cur' : 'other')" class="config-item">
+            <div v-for="config in group.configs" :key="config.id + '-' + (isCurrentConfig(config) ? 'cur' : 'other')" class="config-item clickable" @click="openPreviewDialog(config)">
               <div class="config-item-left">
                 <span class="config-name">{{ config.name }}</span>
                 <span v-if="config.model" class="config-model">{{ config.model }}</span>
               </div>
-              <Space size="small" :key="config.id + '-actions'">
+              <Space size="small" :key="config.id + '-actions'" @click.stop>
                 <Tag v-if="isCurrentConfig(config)" theme="success" variant="light" size="small">当前</Tag>
                 <Button size="small" theme="primary" variant="text" @click="switchConfig(config)" :disabled="isCurrentConfig(config)" title="切换配置"><CheckCircleIcon /></Button>
                 <Button size="small" theme="default" variant="text" @click="openEditDialog(config)" title="编辑"><EditIcon /></Button>
@@ -357,12 +481,21 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
     <!-- MCP 配置 -->
     <McpView v-else-if="activeTab === 'mcp'" />
 
-    <Dialog v-model:visible="showDialog" :header="dialogTitle" @confirm="saveConfig" width="480px">
+    <Dialog v-model:visible="showDialog" :header="dialogTitle" @confirm="saveConfig" width="560px">
       <div class="form">
         <div class="form-item"><label>配置名称 <span class="required">*</span></label><Input v-model="formData.name" placeholder="方便分辨的名字" /></div>
-        <div class="form-item"><label>Key <span class="required">*</span></label><Input v-model="formData.key" type="password" placeholder="ANTHROPIC_AUTH_TOKEN" /></div>
-        <div class="form-item"><label>URL <span class="required">*</span></label><Input v-model="formData.baseUrl" placeholder="ANTHROPIC_BASE_URL" /></div>
-        <div class="form-item"><label>Model</label><Input v-model="formData.model" placeholder="ANTHROPIC_MODEL" /></div>
+        <div class="form-item"><label>ANTHROPIC_AUTH_TOKEN <span class="required">*</span></label><Input v-model="formData.key" type="password" placeholder="sk-ant-..." /></div>
+        <div class="form-item"><label>ANTHROPIC_BASE_URL <span class="required">*</span></label><Input v-model="formData.baseUrl" placeholder="https://api.anthropic.com" /></div>
+        <div class="form-item"><label>ANTHROPIC_MODEL</label><Input v-model="formData.model" placeholder="claude-sonnet-4-20250514" /></div>
+        <Collapse class="advanced-collapse">
+          <CollapsePanel header="高级配置" value="advanced">
+            <div class="form-item"><label>API_TIMEOUT_MS</label><Input v-model="formData.apiTimeoutMs" placeholder="60000" /></div>
+            <div class="form-item"><label>CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC</label><Input v-model="formData.disableNonessentialTraffic" placeholder="1" /></div>
+            <div class="form-item"><label>ANTHROPIC_DEFAULT_HAIKU_MODEL</label><Input v-model="formData.defaultHaikuModel" placeholder="claude-haiku-4-20250514" /></div>
+            <div class="form-item"><label>ANTHROPIC_DEFAULT_SONNET_MODEL</label><Input v-model="formData.defaultSonnetModel" placeholder="claude-sonnet-4-20250514" /></div>
+            <div class="form-item"><label>ANTHROPIC_DEFAULT_OPUS_MODEL</label><Input v-model="formData.defaultOpusModel" placeholder="claude-opus-4-20250514" /></div>
+          </CollapsePanel>
+        </Collapse>
       </div>
       <template #footer>
         <div class="dialog-footer">
@@ -375,6 +508,24 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
     <Dialog v-model:visible="showImportStringDialog" header="从字符串导入" @confirm="handleImportFromString" width="480px">
       <div class="form"><div class="form-item"><label>配置字符串</label><Textarea v-model="importString" placeholder="粘贴配置字符串" :autosize="{ minRows: 4, maxRows: 8 }" /></div></div>
     </Dialog>
+
+    <Dialog v-model:visible="showPreviewDialog" header="配置详情" width="560px" :footer="false">
+      <div v-if="previewConfig" class="preview-content">
+        <div class="preview-item"><span class="preview-label">配置名称</span><span class="preview-value">{{ previewConfig.name }}</span></div>
+        <div class="preview-item"><span class="preview-label">ANTHROPIC_AUTH_TOKEN</span><span class="preview-value">{{ maskKey(previewConfig.key) || "未设置" }}</span></div>
+        <div class="preview-item"><span class="preview-label">ANTHROPIC_BASE_URL</span><span class="preview-value">{{ previewConfig.baseUrl || "未设置" }}</span></div>
+        <div class="preview-item"><span class="preview-label">ANTHROPIC_MODEL</span><span class="preview-value">{{ previewConfig.model || "未设置" }}</span></div>
+        <Collapse class="preview-collapse">
+          <CollapsePanel header="高级配置" value="advanced">
+            <div class="preview-item"><span class="preview-label">API_TIMEOUT_MS</span><span class="preview-value">{{ previewConfig.apiTimeoutMs || "未设置" }}</span></div>
+            <div class="preview-item"><span class="preview-label">CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC</span><span class="preview-value">{{ previewConfig.disableNonessentialTraffic || "未设置" }}</span></div>
+            <div class="preview-item"><span class="preview-label">ANTHROPIC_DEFAULT_HAIKU_MODEL</span><span class="preview-value">{{ previewConfig.defaultHaikuModel || "未设置" }}</span></div>
+            <div class="preview-item"><span class="preview-label">ANTHROPIC_DEFAULT_SONNET_MODEL</span><span class="preview-value">{{ previewConfig.defaultSonnetModel || "未设置" }}</span></div>
+            <div class="preview-item"><span class="preview-label">ANTHROPIC_DEFAULT_OPUS_MODEL</span><span class="preview-value">{{ previewConfig.defaultOpusModel || "未设置" }}</span></div>
+          </CollapsePanel>
+        </Collapse>
+      </div>
+    </Dialog>
   </div>
 </template>
 
@@ -386,21 +537,8 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
 .header .logo { width: 32px; height: 32px; border-radius: 6px; }
 .header :deep(.t-typography-title) { margin: 0; }
 .tab-buttons { display: flex; gap: 4px; }
-.card { margin-bottom: 16px; }
-
-.card :deep(.t-card__header) {
-  padding: 10px 16px;
-}
-
-.card :deep(.t-card__body) {
-  padding: 12px 16px;
-}
-.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.section-header { display: flex; justify-content: flex-end; align-items: center; margin-bottom: 16px; }
 .section-header :deep(.t-typography-title) { margin: 0; }
-.config-info { display: flex; flex-direction: column; gap: 8px; }
-.info-item { display: flex; gap: 8px; }
-.info-item .label { color: var(--td-text-color-secondary); min-width: 60px; }
-.info-item .value { color: var(--td-text-color-primary); word-break: break-all; }
 .empty-state { padding: 40px 0; }
 
 /* 配置分组样式 */
@@ -411,14 +549,30 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
 .group-items { padding: 8px 0; }
 .config-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; }
 .config-item:hover { background: var(--td-bg-color-container-hover); }
+.config-item.clickable { cursor: pointer; }
+.config-item.clickable:hover .config-name { color: var(--td-brand-color); }
 .config-item-left { display: flex; align-items: center; gap: 12px; }
 .config-name { font-size: 14px; font-weight: 500; color: var(--td-text-color-primary); }
 .config-model { font-size: 12px; color: var(--td-text-color-placeholder); font-family: monospace; }
+
+/* 预览弹窗样式 */
+.preview-content { display: flex; flex-direction: column; gap: 12px; }
+.preview-item { display: flex; gap: 16px; }
+.preview-label { color: var(--td-text-color-secondary); min-width: 220px; font-size: 14px; }
+.preview-value { color: var(--td-text-color-primary); word-break: break-all; font-size: 14px; }
+.preview-collapse { margin-top: 4px; }
+.preview-collapse :deep(.t-collapse-panel__content) { padding: 12px 16px; background: var(--td-bg-color-container-hover); border-radius: 6px; }
+.preview-collapse :deep(.t-collapse-panel__content) .preview-item { margin-bottom: 12px; }
+.preview-collapse :deep(.t-collapse-panel__content) .preview-item:last-child { margin-bottom: 0; }
+
 .form { display: flex; flex-direction: column; gap: 16px; }
 .form-item { display: flex; flex-direction: column; gap: 8px; }
 .form-item label { font-size: 14px; color: var(--td-text-color-primary); }
 .form-item .required { color: var(--td-error-color); }
+.advanced-collapse { margin-top: 8px; }
+.advanced-collapse :deep(.t-collapse-panel__content) { padding: 16px; background: var(--td-bg-color-container-hover); border-radius: 6px; }
+.advanced-collapse :deep(.t-collapse-panel__content) .form-item { margin-bottom: 16px; }
+.advanced-collapse :deep(.t-collapse-panel__content) .form-item:last-child { margin-bottom: 0; }
 .dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .dialog-footer-right { display: flex; gap: 8px; }
-.compact-divider { margin: 12px 0; }
 </style>
