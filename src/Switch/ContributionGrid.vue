@@ -176,6 +176,7 @@ const monthLabels = computed(() => {
   font-size: 11px;
   color: var(--td-text-color-placeholder);
   overflow: hidden;
+  white-space: nowrap;
 }
 
 .contrib-body {

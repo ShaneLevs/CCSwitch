@@ -150,7 +150,7 @@ const handleProjectClick = (projectPath) => {
     </div>
 
     <!-- 贡献墙 -->
-    <Card title="Contributions">
+    <Card title="Usage Heatmap">
       <div v-if="loading" class="empty-small">
         <Empty description="加载中..." size="small" />
       </div>
