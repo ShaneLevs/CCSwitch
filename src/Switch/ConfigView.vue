@@ -536,7 +536,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
     </Dialog>
 
     <Dialog v-model:visible="showImportStringDialog" header="从字符串导入" @confirm="handleImportFromString" width="480px">
-      <div class="form"><div class="form-item"><label>配置字符串</label><Textarea v-model="importString" placeholder="粘贴配置字符串" :autosize="{ minRows: 4, maxRows: 8 }" /></div></div>
+      <div class="form"><div class="form-item"><label>配置字符串</label><Textarea v-if="showImportStringDialog" v-model="importString" placeholder="粘贴配置字符串" :autosize="{ minRows: 4, maxRows: 8 }" /></div></div>
     </Dialog>
 
     <Dialog v-model:visible="showPreviewDialog" header="配置详情" width="560px" :footer="false">

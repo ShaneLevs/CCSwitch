@@ -5,6 +5,7 @@ const zlib = require('node:zlib')
 
 const CLAUDE_SETTINGS_PATH = path.join(window.utools.getPath('home'), '.claude', 'settings.json')
 const CLAUDE_JSON_PATH = path.join(window.utools.getPath('home'), '.claude.json')
+const CLAUDE_SKILLS_PATH = path.join(window.utools.getPath('home'), '.claude', 'skills')
 
 const ENCRYPTION_KEY = crypto
   .createHash('sha256')
@@ -140,6 +141,331 @@ window.services = {
       return this.writeClaudeJson(config)
     }
     return false
+  },
+
+  // 获取所有 Skills 列表（只读）
+  getSkills() {
+    try {
+      if (!fs.existsSync(CLAUDE_SKILLS_PATH)) {
+        return []
+      }
+
+      // 读取 skillUsage 信息
+      let skillUsage = {}
+      try {
+        if (fs.existsSync(CLAUDE_JSON_PATH)) {
+          const claudeJson = JSON.parse(fs.readFileSync(CLAUDE_JSON_PATH, { encoding: 'utf-8' }))
+          skillUsage = claudeJson.skillUsage || {}
+        }
+      } catch (e) {
+        console.error('读取 skillUsage 失败:', e)
+      }
+
+      const disabledDir = path.join(CLAUDE_SKILLS_PATH, '.disabled')
+      const skills = []
+
+      // 读取启用的 skills
+      const entries = fs.readdirSync(CLAUDE_SKILLS_PATH, { withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.name === '.disabled') continue
+
+        const skillName = entry.name
+        const skillPath = path.join(CLAUDE_SKILLS_PATH, skillName)
+        const skillMdPath = path.join(skillPath, 'SKILL.md')
+
+        if (!fs.existsSync(skillMdPath)) continue
+
+        try {
+          const content = fs.readFileSync(skillMdPath, { encoding: 'utf-8' })
+          const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/)
+          const frontmatter = frontmatterMatch ? frontmatterMatch[1] : ''
+
+          const usage = skillUsage[skillName] || {}
+          skills.push({
+            name: skillName,
+            frontmatter,
+            disabled: false,
+            usageCount: usage.usageCount || 0,
+            lastUsedAt: usage.lastUsedAt || null
+          })
+        } catch (e) {
+          console.error('读取 skill 文件失败:', skillMdPath, e)
+        }
+      }
+
+      // 读取禁用的 skills
+      if (fs.existsSync(disabledDir)) {
+        const disabledEntries = fs.readdirSync(disabledDir, { withFileTypes: true })
+        for (const entry of disabledEntries) {
+          if (!entry.isDirectory()) continue
+
+          const skillName = entry.name
+          const skillPath = path.join(disabledDir, skillName)
+          const skillMdPath = path.join(skillPath, 'SKILL.md')
+
+          if (!fs.existsSync(skillMdPath)) continue
+
+          try {
+            const content = fs.readFileSync(skillMdPath, { encoding: 'utf-8' })
+            const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/)
+            const frontmatter = frontmatterMatch ? frontmatterMatch[1] : ''
+
+            const usage = skillUsage[skillName] || {}
+            skills.push({
+              name: skillName,
+              frontmatter,
+              disabled: true,
+              usageCount: usage.usageCount || 0,
+              lastUsedAt: usage.lastUsedAt || null
+            })
+          } catch (e) {
+            console.error('读取 skill 文件失败:', skillMdPath, e)
+          }
+        }
+      }
+
+      return skills.sort((a, b) => a.name.localeCompare(b.name))
+    } catch (error) {
+      console.error('读取 skills 目录失败:', error)
+      return []
+    }
+  },
+
+  // 禁用 Skill
+  disableSkill(skillName) {
+    try {
+      const skillPath = path.join(CLAUDE_SKILLS_PATH, skillName)
+      const disabledDir = path.join(CLAUDE_SKILLS_PATH, '.disabled')
+      const targetPath = path.join(disabledDir, skillName)
+
+      if (!fs.existsSync(skillPath)) {
+        return { success: false, error: 'Skill 不存在' }
+      }
+
+      // 创建 .disabled 目录
+      if (!fs.existsSync(disabledDir)) {
+        fs.mkdirSync(disabledDir, { recursive: true })
+      }
+
+      // 移动到 .disabled 目录
+      fs.renameSync(skillPath, targetPath)
+
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  },
+
+  // 启用 Skill
+  enableSkill(skillName) {
+    try {
+      const disabledDir = path.join(CLAUDE_SKILLS_PATH, '.disabled')
+      const skillPath = path.join(disabledDir, skillName)
+      const targetPath = path.join(CLAUDE_SKILLS_PATH, skillName)
+
+      if (!fs.existsSync(skillPath)) {
+        return { success: false, error: 'Skill 不存在' }
+      }
+
+      // 移动回主目录
+      fs.renameSync(skillPath, targetPath)
+
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  },
+
+  // 删除 Skill
+  deleteSkill(skillName, isDisabled) {
+    try {
+      let skillPath
+      if (isDisabled) {
+        skillPath = path.join(CLAUDE_SKILLS_PATH, '.disabled', skillName)
+      } else {
+        skillPath = path.join(CLAUDE_SKILLS_PATH, skillName)
+      }
+
+      if (!fs.existsSync(skillPath)) {
+        return { success: false, error: 'Skill 不存在' }
+      }
+
+      // 递归删除目录
+      fs.rmSync(skillPath, { recursive: true, force: true })
+
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  },
+
+  // 获取 Skills 目录路径
+  getSkillsPath() {
+    // 确保目录存在
+    if (!fs.existsSync(CLAUDE_SKILLS_PATH)) {
+      fs.mkdirSync(CLAUDE_SKILLS_PATH, { recursive: true })
+    }
+    return CLAUDE_SKILLS_PATH
+  },
+
+  // 从 SkillHub 获取 skill 信息
+  fetchSkillInfo(slug) {
+    const https = require('node:https')
+    return new Promise((resolve, reject) => {
+      const url = `https://api.skillhub.tencent.com/api/v1/skills/${slug}`
+      const options = {
+        headers: {
+          'accept': '*/*',
+          'accept-language': 'zh-CN,zh;q=0.9',
+          'origin': 'https://skillhub.tencent.com',
+          'referer': 'https://skillhub.tencent.com/',
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+        }
+      }
+
+      https.get(url, options, (res) => {
+        let data = ''
+        res.on('data', chunk => data += chunk)
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data))
+          } catch (e) {
+            reject(new Error('解析响应失败'))
+          }
+        })
+      }).on('error', reject)
+    })
+  },
+
+  // 安装 Skill
+  async installSkill(slug, version, onProgress) {
+    const https = require('node:https')
+    const AdmZip = require('adm-zip')
+
+    // 下载 zip
+    const zipUrl = `https://skillhub-1388575217.cos.accelerate.myqcloud.com/skills/${slug}/${version}.zip`
+    const tempDir = path.join(window.utools.getPath('temp'), 'ccswitch-skill-install')
+    const zipPath = path.join(tempDir, `${slug}-${version}.zip`)
+
+    // 创建临时目录
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true })
+    }
+
+    // 下载文件
+    await new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(zipPath)
+      https.get(zipUrl, (res) => {
+        if (res.statusCode === 302 || res.statusCode === 301) {
+          // 处理重定向
+          https.get(res.headers.location, (res2) => {
+            const totalSize = parseInt(res2.headers['content-length'], 10)
+            let downloaded = 0
+            res2.on('data', chunk => {
+              downloaded += chunk.length
+              if (onProgress && totalSize) {
+                onProgress(Math.round(downloaded / totalSize * 100))
+              }
+            })
+            res2.pipe(file)
+          }).on('error', reject)
+        } else {
+          const totalSize = parseInt(res.headers['content-length'], 10)
+          let downloaded = 0
+          res.on('data', chunk => {
+            downloaded += chunk.length
+            if (onProgress && totalSize) {
+              onProgress(Math.round(downloaded / totalSize * 100))
+            }
+          })
+          res.pipe(file)
+        }
+      }).on('error', reject)
+      file.on('finish', () => file.close(resolve))
+    })
+
+    // 解压
+    const zip = new AdmZip(zipPath)
+    const extractDir = path.join(tempDir, slug)
+    zip.extractAllTo(extractDir, true)
+
+    // 读取 SKILL.md 获取 name
+    const skillMdPath = path.join(extractDir, 'SKILL.md')
+    if (!fs.existsSync(skillMdPath)) {
+      // 查找子目录中的 SKILL.md
+      const entries = fs.readdirSync(extractDir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const subSkillMd = path.join(extractDir, entry.name, 'SKILL.md')
+          if (fs.existsSync(subSkillMd)) {
+            const subDir = path.join(extractDir, entry.name)
+            // 移动文件到上级
+            const tempMove = path.join(tempDir, 'skill-temp')
+            fs.renameSync(subDir, tempMove)
+            fs.rmSync(extractDir, { recursive: true })
+            fs.renameSync(tempMove, extractDir)
+            break
+          }
+        }
+      }
+    }
+
+    // 再次尝试读取
+    if (!fs.existsSync(skillMdPath)) {
+      throw new Error('压缩包中未找到 SKILL.md 文件')
+    }
+
+    const skillMdContent = fs.readFileSync(skillMdPath, { encoding: 'utf-8' })
+    const nameMatch = skillMdContent.match(/^name:\s*(.+)$/m)
+    const skillName = nameMatch ? nameMatch[1].trim() : slug
+
+    // 目标目录
+    const targetDir = path.join(CLAUDE_SKILLS_PATH, skillName)
+
+    // 清理临时文件
+    fs.rmSync(zipPath, { force: true })
+
+    return {
+      skillName,
+      extractDir,
+      targetDir,
+      exists: fs.existsSync(targetDir)
+    }
+  },
+
+  // 完成 Skill 安装（移动到目标目录）
+  completeSkillInstall(skillName, extractDir) {
+    const targetDir = path.join(CLAUDE_SKILLS_PATH, skillName)
+
+    // 确保目标目录存在
+    if (!fs.existsSync(CLAUDE_SKILLS_PATH)) {
+      fs.mkdirSync(CLAUDE_SKILLS_PATH, { recursive: true })
+    }
+
+    // 如果目标存在，先删除
+    if (fs.existsSync(targetDir)) {
+      fs.rmSync(targetDir, { recursive: true })
+    }
+
+    // 移动目录
+    fs.renameSync(extractDir, targetDir)
+
+    // 清理临时目录
+    const tempDir = path.join(window.utools.getPath('temp'), 'ccswitch-skill-install')
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
+
+    return true
+  },
+
+  // 取消安装（清理临时文件）
+  cancelSkillInstall(extractDir) {
+    const tempDir = path.join(window.utools.getPath('temp'), 'ccswitch-skill-install')
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
+    return true
   },
 
   encryptKey: encrypt,

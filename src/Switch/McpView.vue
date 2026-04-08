@@ -260,6 +260,7 @@ onMounted(() => {
         </div>
 
         <Textarea
+          v-if="showDialog"
           v-model="jsonContent"
           :autosize="{ minRows: 12, maxRows: 20 }"
           :status="jsonError ? 'error' : 'default'"

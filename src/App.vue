@@ -3,17 +3,20 @@ import { ref, onMounted } from 'vue'
 import Switch from './Switch/index.vue'
 
 const route = ref('')
+const payload = ref('')
 
 onMounted(() => {
   window.utools.onPluginEnter((action) => {
     route.value = action.code
+    payload.value = action.payload || ''
   })
   window.utools.onPluginOut(() => {
     route.value = ''
+    payload.value = ''
   })
 })
 </script>
 
 <template>
-  <Switch v-if="route === 'switch'" />
+  <Switch v-if="route === 'switch' || route === 'installSkill'" :route="route" :payload="payload" />
 </template>

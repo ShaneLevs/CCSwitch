@@ -1,21 +1,43 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { Button } from "tdesign-vue-next";
 import {
   ChartIcon,
   DashboardIcon,
   ServerIcon,
+  BookIcon,
 } from "tdesign-icons-vue-next";
 import ConfigView from "./ConfigView.vue";
 import UsageView from "./UsageView.vue";
 import McpView from "./McpView.vue";
+import SkillView from "./SkillView.vue";
+
+const props = defineProps({
+  route: String,
+  payload: String,
+});
 
 const activeTab = ref("config");
+const skillViewRef = ref(null);
 
 const pageTitle = computed(() => {
   if (activeTab.value === 'usage') return 'Claude Code 使用统计';
   if (activeTab.value === 'mcp') return 'Claude Code MCP 配置';
+  if (activeTab.value === 'skill') return 'Claude Code Skill 配置';
   return 'Claude Code 配置切换';
+});
+
+onMounted(() => {
+  // 如果通过匹配指令进入，切换到 skill 标签并打开安装
+  if (props.route === 'installSkill' && props.payload) {
+    activeTab.value = 'skill';
+    // 等待 SkillView 渲染完成
+    setTimeout(() => {
+      if (skillViewRef.value) {
+        skillViewRef.value.openInstallWithUrl(props.payload);
+      }
+    }, 100);
+  }
 });
 </script>
 
@@ -34,6 +56,9 @@ const pageTitle = computed(() => {
           <Button size="small" :theme="activeTab === 'mcp' ? 'primary' : 'default'" :variant="activeTab === 'mcp' ? 'base' : 'outline'" @click="activeTab = 'mcp'">
             <template #icon><ServerIcon /></template> MCP
           </Button>
+          <Button size="small" :theme="activeTab === 'skill' ? 'primary' : 'default'" :variant="activeTab === 'skill' ? 'base' : 'outline'" @click="activeTab = 'skill'">
+            <template #icon><BookIcon /></template> Skill
+          </Button>
           <Button size="small" :theme="activeTab === 'usage' ? 'primary' : 'default'" :variant="activeTab === 'usage' ? 'base' : 'outline'" @click="activeTab = 'usage'">
             <template #icon><ChartIcon /></template> 使用统计
           </Button>
@@ -44,6 +69,7 @@ const pageTitle = computed(() => {
     <ConfigView v-if="activeTab === 'config'" />
     <UsageView v-else-if="activeTab === 'usage'" />
     <McpView v-else-if="activeTab === 'mcp'" />
+    <SkillView v-else-if="activeTab === 'skill'" ref="skillViewRef" />
   </div>
 </template>
 
