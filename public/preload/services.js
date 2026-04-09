@@ -340,16 +340,20 @@ window.services = {
   // 安装 Skill
   async installSkill(slug, version, onProgress) {
     const https = require('node:https')
-    const AdmZip = require('adm-zip')
+    const { execSync } = require('node:child_process')
 
     // 下载 zip
     const zipUrl = `https://skillhub-1388575217.cos.accelerate.myqcloud.com/skills/${slug}/${version}.zip`
     const tempDir = path.join(window.utools.getPath('temp'), 'ccswitch-skill-install')
     const zipPath = path.join(tempDir, `${slug}-${version}.zip`)
+    const extractDir = path.join(tempDir, slug)
 
     // 创建临时目录
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true })
+    }
+    if (!fs.existsSync(extractDir)) {
+      fs.mkdirSync(extractDir, { recursive: true })
     }
 
     // 下载文件
@@ -384,10 +388,14 @@ window.services = {
       file.on('finish', () => file.close(resolve))
     })
 
-    // 解压
-    const zip = new AdmZip(zipPath)
-    const extractDir = path.join(tempDir, slug)
-    zip.extractAllTo(extractDir, true)
+    // 使用系统自带工具解压
+    if (window.utools.isMacOS() || window.utools.isLinux()) {
+      // macOS/Linux 使用 unzip
+      execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { stdio: 'pipe' })
+    } else if (window.utools.isWindows()) {
+      // Windows 使用 PowerShell Expand-Archive
+      execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${extractDir}' -Force"`, { stdio: 'pipe' })
+    }
 
     // 读取 SKILL.md 获取 name
     const skillMdPath = path.join(extractDir, 'SKILL.md')

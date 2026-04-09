@@ -1,5 +1,5 @@
 {
-  "name": "CCSwitch",
+  "name": "CCConfig",
   "version": "1.0.0",
   "main": "index.html",
   "preload": "preload/services.js",
@@ -10,8 +10,8 @@
   "features": [
     {
       "code": "switch",
-      "explain": "Claude Code 配置切换工具",
-      "cmds": ["CCSwitch", "Claude配置切换", "切换Claude配置"]
+      "explain": "Claude Code 配置管理工具",
+      "cmds": ["CCConfig", "Claude配置切换", "切换Claude配置"]
     },
     {
       "code": "installSkill",
