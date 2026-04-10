@@ -215,17 +215,9 @@ const handleRefresh = async () => {
   loading.value = true;
   await nextTick();
 
-  // 清除缓存，强制全量刷新
-  try {
-    const nativeId = window.utools.getNativeId();
-    window.utools.db.remove(`ccswitch_usage_cache_${nativeId}`);
-  } catch (e) {
-    // 缓存可能不存在
-  }
-
   setTimeout(() => {
     try {
-      const data = window.services.readClaudeUsage(true); // forceRefresh = true
+      const data = window.services.readClaudeUsage(true); // forceRefresh = true，内部会清除所有缓存块
       usageData.value = data;
     } catch {
       // keep defaults

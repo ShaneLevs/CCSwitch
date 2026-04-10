@@ -719,20 +719,166 @@ window.services = {
     }).join('')
   },
 
-  // 获取缓存键（带 nativeId 区分不同电脑）
-  _getUsageCacheKey() {
+  // 补全贡献墙365天数据（缓存只存有数据的日期，返回时补全空格子）
+  _fillContributions(contributions) {
+    const now = new Date()
+    const totalDays = 365
+    const result = []
+
+    // 创建日期索引
+    const dateMap = new Map()
+    for (const day of contributions) {
+      dateMap.set(day.date, day)
+    }
+
+    // 补全365天
+    for (let i = totalDays - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i)
+      const dateKey = d.toISOString().split('T')[0]
+
+      if (dateMap.has(dateKey)) {
+        result.push(dateMap.get(dateKey))
+      } else {
+        result.push({ date: dateKey, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
+      }
+    }
+
+    return result
+  },
+
+  // 获取缓存 meta 键（存小块数据 + blockCount）
+  _getCacheMetaKey() {
     const nativeId = window.utools.getNativeId()
-    return `ccswitch_usage_cache_${nativeId}`
+    return `ccswitch_usage_cache_${nativeId}_meta`
+  },
+
+  // 获取缓存 records 键（分块存 messageRecords）
+  _getCacheRecordsKey(blockIndex) {
+    const nativeId = window.utools.getNativeId()
+    return `ccswitch_usage_cache_${nativeId}_records_${blockIndex}`
+  },
+
+  // 清除所有缓存块
+  _clearAllCacheBlocks() {
+    const metaKey = this._getCacheMetaKey()
+    const metaDoc = window.utools.db.get(metaKey)
+    if (metaDoc) {
+      window.utools.db.remove(metaKey)
+      // 清除所有 records 块
+      const blockCount = metaDoc.data?.blockCount || 0
+      for (let i = 0; i < blockCount; i++) {
+        const recordsKey = this._getCacheRecordsKey(i)
+        window.utools.db.remove(recordsKey)
+      }
+    }
+  },
+
+  // 写入分块缓存
+  _writeBlockCache(result) {
+    const BLOCK_SIZE_LIMIT = 500 * 1024 // 500KB per block
+
+    // 提取 messageRecords
+    const { messageRecords, ...metaData } = result
+
+    // 计算需要多少块
+    let blockCount = 0
+    const blocks = []
+    if (messageRecords && messageRecords.length > 0) {
+      // 按块拆分
+      let currentBlock = []
+      let currentSize = 0
+
+      for (const record of messageRecords) {
+        const recordSize = JSON.stringify(record).length
+        if (currentSize + recordSize > BLOCK_SIZE_LIMIT && currentBlock.length > 0) {
+          blocks.push(currentBlock)
+          currentBlock = []
+          currentSize = 0
+        }
+        currentBlock.push(record)
+        currentSize += recordSize
+      }
+
+      if (currentBlock.length > 0) {
+        blocks.push(currentBlock)
+      }
+
+      blockCount = blocks.length
+    }
+
+    // 写入 meta（不含 messageRecords，含 blockCount）
+    const metaKey = this._getCacheMetaKey()
+    const metaDoc = { ...metaData, blockCount }
+    const existingMeta = window.utools.db.get(metaKey)
+    window.utools.db.put({
+      _id: metaKey,
+      data: metaDoc,
+      _rev: existingMeta ? existingMeta._rev : undefined
+    })
+
+    // 写入各个 records 块
+    for (let i = 0; i < blockCount; i++) {
+      const recordsKey = this._getCacheRecordsKey(i)
+      const existingRecords = window.utools.db.get(recordsKey)
+      window.utools.db.put({
+        _id: recordsKey,
+        data: blocks[i],
+        _rev: existingRecords ? existingRecords._rev : undefined
+      })
+    }
+
+    console.log(`缓存写入完成: meta + ${blockCount} 块 records`)
+  },
+
+  // 读取分块缓存
+  _readBlockCache() {
+    const metaKey = this._getCacheMetaKey()
+    const metaDoc = window.utools.db.get(metaKey)
+
+    if (!metaDoc) {
+      return null
+    }
+
+    const metaData = metaDoc.data
+    const blockCount = metaData.blockCount || 0
+
+    // 合并所有 records 块
+    let messageRecords = []
+    for (let i = 0; i < blockCount; i++) {
+      const recordsKey = this._getCacheRecordsKey(i)
+      const recordsDoc = window.utools.db.get(recordsKey)
+      if (recordsDoc && recordsDoc.data) {
+        messageRecords = messageRecords.concat(recordsDoc.data)
+      }
+    }
+
+    // 返回完整数据
+    return {
+      ...metaData,
+      messageRecords
+    }
   },
 
   // 空结果模板
   _emptyResult() {
+    // 生成365天空贡献墙数据
+    const now = new Date()
+    const totalDays = 365
+    const emptyContributions = []
+    for (let i = totalDays - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i)
+      const dateKey = d.toISOString().split('T')[0]
+      emptyContributions.push({ date: dateKey, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
+    }
+
     return {
       records: [],
       summary: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 0, sessionCount: 0 },
       modelStats: [],
       projectStats: [],
-      contributions: [],
+      contributions: emptyContributions,
       avgTokensPerSession: 0,
       recentSessions: [],
       messageRecords: [],
@@ -985,31 +1131,25 @@ window.services = {
       .map(stat => ({ ...stat, sessions: stat.sessions.size }))
       .sort((a, b) => b.tokens - a.tokens)
 
-    // 计算贡献墙数据
-    const now = new Date()
+    // 计算贡献墙数据（只保留有数据的日期）
     const contributionMap = new Map()
-    const totalDays = 365
-    for (let i = totalDays - 1; i >= 0; i--) {
-      const d = new Date(now)
-      d.setDate(d.getDate() - i)
-      const dateKey = d.toISOString().split('T')[0]
-      contributionMap.set(dateKey, { date: dateKey, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
-    }
     messageRecords.forEach(record => {
       const dateKey = record.timestamp.split('T')[0]
-      if (contributionMap.has(dateKey)) {
-        const day = contributionMap.get(dateKey)
-        day.tokens += record.totalTokens
-        day.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
-        day.outputTokens += record.outputTokens
-        if (!day.models[record.model]) {
-          day.models[record.model] = { inputTokens: 0, outputTokens: 0 }
-        }
-        day.models[record.model].inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
-        day.models[record.model].outputTokens += record.outputTokens
+      if (!contributionMap.has(dateKey)) {
+        contributionMap.set(dateKey, { date: dateKey, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
       }
+      const day = contributionMap.get(dateKey)
+      day.tokens += record.totalTokens
+      day.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
+      day.outputTokens += record.outputTokens
+      if (!day.models[record.model]) {
+        day.models[record.model] = { inputTokens: 0, outputTokens: 0 }
+      }
+      day.models[record.model].inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
+      day.models[record.model].outputTokens += record.outputTokens
     })
     const contributions = Array.from(contributionMap.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
 
     // 平均每会话 tokens
     const avgTokensPerSession = sessionMap.size > 0 ? Math.round(summary.totalTokens / sessionMap.size) : 0
@@ -1051,7 +1191,7 @@ window.services = {
     return { messageRecords, sessionMap, projectMap }
   },
 
-  // 读取 Claude Code usage 数据（支持增量缓存）
+  // 读取 Claude Code usage 数据（支持增量缓存 + 分块存储）
   readClaudeUsage(forceRefresh = false) {
     try {
       const homeDir = window.utools.getPath('home')
@@ -1061,11 +1201,14 @@ window.services = {
         return this._emptyResult()
       }
 
+      // 强制刷新时清除所有缓存块
+      if (forceRefresh) {
+        this._clearAllCacheBlocks()
+        console.log('强制刷新：已清除所有缓存块')
+      }
+
       // 尝试获取缓存
-      const cacheKey = this._getUsageCacheKey()
-      const cachedRaw = window.utools.db.get(cacheKey)
-      console.log('db.get 结果:', cachedRaw ? { _id: cachedRaw._id, _rev: cachedRaw._rev, hasData: !!cachedRaw.data } : null)
-      const cachedData = cachedRaw ? cachedRaw.data : null
+      const cachedData = this._readBlockCache()
 
       // 如果强制刷新或无缓存，执行全量处理
       if (forceRefresh || !cachedData) {
@@ -1089,18 +1232,11 @@ window.services = {
           lastProcessedTime
         }
 
-        // 写入缓存
-        const putResult = window.utools.db.put({
-          _id: cacheKey,
-          data: result,
-          _rev: cachedRaw ? cachedRaw._rev : undefined
-        })
-        console.log('db.put 结果:', putResult)
-        if (!putResult || !putResult.ok) {
-          console.error('缓存写入失败:', putResult)
-        } else {
-          console.log('全量处理完成，已缓存')
-        }
+        // 写入分块缓存
+        this._writeBlockCache(result)
+        console.log('全量处理完成，已缓存')
+        // 返回前补全贡献墙365天数据
+        result.contributions = this._fillContributions(result.contributions)
         return result
       }
 
@@ -1109,6 +1245,8 @@ window.services = {
 
       if (newFiles.length === 0) {
         console.log('无新文件，直接返回缓存')
+        // 返回前补全贡献墙365天数据
+        cachedData.contributions = this._fillContributions(cachedData.contributions)
         return cachedData
       }
 
@@ -1183,14 +1321,12 @@ window.services = {
         lastProcessedTime: newLastProcessedTime
       }
 
-      // 更新缓存
-      window.utools.db.put({
-        _id: cacheKey,
-        data: result,
-        _rev: cachedRaw._rev
-      })
+      // 更新分块缓存
+      this._writeBlockCache(result)
 
       console.log('增量处理完成，已更新缓存')
+      // 返回前补全贡献墙365天数据
+      result.contributions = this._fillContributions(result.contributions)
       return result
     } catch (error) {
       console.error('读取 Claude usage 数据失败:', error)
