@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, nextTick, computed } from "vue";
-import { Card, Statistic, Empty, Button, Tag, Tooltip, MessagePlugin, DateRangePicker, Dropdown, DropdownMenu, DropdownItem } from "tdesign-vue-next";
+import { Card, Statistic, Empty, Button, Tag, Tooltip, MessagePlugin, DateRangePicker } from "tdesign-vue-next";
 import {
   RefreshIcon,
   ArrowDownIcon,
@@ -13,7 +13,6 @@ import {
   CheckCircleIcon,
   ChevronDownIcon,
   ChevronUpIcon,
-  CalendarIcon,
 } from "tdesign-icons-vue-next";
 import ContributionGrid from "./ContributionGrid.vue";
 
@@ -39,6 +38,20 @@ const usageData = ref({
 const dateRange = ref([]);
 const isFiltering = computed(() => dateRange.value && dateRange.value.length === 2);
 
+// 日期筛选快捷选项
+const datePresets = {
+  '最近7天': getRecentDaysRange(7),
+  '最近30天': getRecentDaysRange(30),
+};
+
+function getRecentDaysRange(days) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(today);
+  start.setDate(start.getDate() - days + 1);
+  return [start, today];
+}
+
 const stats = [
   // 第一行：总处理、会话数、平均每会话
   { key: "total", title: "总处理 Tokens", icon: SumIcon, colorClass: "stat-green", iconColor: "#52c41a" },
@@ -59,32 +72,23 @@ const formatNumber = (num) => {
   return num.toString();
 };
 
-const formatDateString = (date) => {
-  return date.toISOString().split('T')[0];
-};
-
-const handleQuickSelect = (type) => {
-  const today = new Date();
-  if (type === '7days') {
-    const start = new Date(today);
-    start.setDate(start.getDate() - 6);
-    dateRange.value = [formatDateString(start), formatDateString(today)];
-  } else if (type === '30days') {
-    const start = new Date(today);
-    start.setDate(start.getDate() - 29);
-    dateRange.value = [formatDateString(start), formatDateString(today)];
-  } else if (type === 'clear') {
-    dateRange.value = [];
-  }
-};
-
 const filteredData = computed(() => {
   const raw = usageData.value;
   if (!isFiltering.value) {
     return raw;
   }
 
-  const [startDate, endDate] = dateRange.value;
+  // 处理 dateRange（可能是 Date 对象或字符串）
+  let startDate, endDate;
+  const [start, end] = dateRange.value;
+  if (start instanceof Date) {
+    startDate = start.toISOString().split('T')[0];
+    endDate = end.toISOString().split('T')[0];
+  } else {
+    startDate = start;
+    endDate = end;
+  }
+
   const records = raw.messageRecords || [];
 
   const filteredRecords = records.filter(r => {
@@ -248,25 +252,13 @@ const handleProjectClick = (projectPath) => {
     <div class="usage-header">
       <span class="usage-tip">当前统计数据仅用于展示处理的 token 数量，不做其他参考。</span>
       <div class="usage-actions">
-        <Dropdown>
-          <template #dropdown>
-            <DropdownMenu>
-              <DropdownItem @click="handleQuickSelect('7days')">最近7天</DropdownItem>
-              <DropdownItem @click="handleQuickSelect('30days')">最近30天</DropdownItem>
-              <DropdownItem v-if="isFiltering" @click="handleQuickSelect('clear')">清除筛选</DropdownItem>
-            </DropdownMenu>
-          </template>
-          <Button size="small" variant="outline">
-            <template #icon><CalendarIcon /></template>
-            日期筛选
-          </Button>
-        </Dropdown>
         <DateRangePicker
           v-model="dateRange"
           size="small"
           placeholder="选择日期范围"
+          :presets="datePresets"
           :clearable="true"
-          @clear="dateRange = []"
+          style="width: 240px;"
         />
         <Button size="small" variant="outline" :loading="loading" @click="handleRefresh">
           <template #icon><RefreshIcon /></template>
