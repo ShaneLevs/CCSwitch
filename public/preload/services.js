@@ -719,37 +719,191 @@ window.services = {
     }).join('')
   },
 
-  // 读取 Claude Code usage 数据
-  readClaudeUsage() {
+  // 缓存键常量
+  USAGE_CACHE_KEY: 'ccswitch_usage_cache_v1',
+
+  // 空结果模板
+  _emptyResult() {
+    return {
+      records: [],
+      summary: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 0, sessionCount: 0 },
+      modelStats: [],
+      projectStats: [],
+      contributions: [],
+      avgTokensPerSession: 0,
+      recentSessions: [],
+      messageRecords: [],
+      lastProcessedTime: 0
+    }
+  },
+
+  // 查找新的 jsonl 文件（mtime > lastProcessedTime）
+  _findNewJsonlFiles(projectsDir, lastProcessedTime) {
+    const results = []
     try {
-      const homeDir = window.utools.getPath('home')
-      const projectsDir = path.join(homeDir, '.claude', 'projects')
-
-      const emptyResult = {
-        records: [],
-        summary: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0, sessionCount: 0 },
-        modelStats: [],
-        projectStats: [],
-        contributions: [],
-        avgTokensPerSession: 0,
-        recentSessions: []
-      }
-
       if (!fs.existsSync(projectsDir)) {
-        return emptyResult
+        return results
+      }
+      const entries = fs.readdirSync(projectsDir, { withFileTypes: true })
+      for (const entry of entries) {
+        const fullPath = path.join(projectsDir, entry.name)
+        if (entry.isDirectory()) {
+          results.push(...this._findNewJsonlFiles(fullPath, lastProcessedTime))
+        } else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
+          const stat = fs.statSync(fullPath)
+          if (stat.mtime.getTime() > lastProcessedTime) {
+            results.push({ path: fullPath, mtime: stat.mtime.getTime() })
+          }
+        }
+      }
+    } catch (error) {
+      console.error('查找新 jsonl 文件失败:', error)
+    }
+    return results
+  },
+
+  // 处理单个 jsonl 文件
+  _processSingleJsonlFile(filePath, messageRecords, sessionMap, projectMap, projectPathMap) {
+    const homeDir = window.utools.getPath('home')
+    const projectsDir = path.join(homeDir, '.claude', 'projects')
+
+    try {
+      // 从文件路径获取项目文件夹名
+      const relativePath = path.relative(projectsDir, filePath)
+      const folderName = relativePath.split(path.sep)[0] || 'unknown'
+
+      // 从映射中获取真实路径和项目名
+      const projectPath = projectPathMap.get(folderName) || 'unknown'
+      const projectName = projectPath !== 'unknown' ? path.basename(projectPath) : 'unknown'
+
+      // 读取文件内容
+      const content = fs.readFileSync(filePath, { encoding: 'utf-8' })
+      const lines = content.split('\n').filter(line => line.trim())
+
+      for (const line of lines) {
+        try {
+          const data = JSON.parse(line)
+
+          // 只处理 assistant 类型的响应（包含 usage 数据）
+          if (data.type !== 'assistant' || !data.message?.usage) continue
+
+          const usage = data.message.usage
+          const inputTokens = usage.input_tokens || 0
+          const outputTokens = usage.output_tokens || 0
+          const cacheReadTokens = usage.cache_read_input_tokens || 0
+          const cacheCreationTokens = usage.cache_creation_input_tokens || 0
+          const model = data.message.model || 'unknown'
+          const sessionId = data.sessionId || 'unknown'
+
+          // 只保留有意义的记录
+          if (inputTokens + outputTokens > 0) {
+            // 记录每条消息的信息（用于按消息时间准确统计）
+            messageRecords.push({
+              sessionId,
+              model,
+              project: projectName,
+              projectPath: projectPath,
+              timestamp: data.timestamp,
+              date: data.timestamp.split('T')[0], // YYYY-MM-DD 格式
+              inputTokens,
+              outputTokens,
+              cacheReadTokens,
+              cacheCreationTokens,
+              totalTokens: inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens
+            })
+
+            // 同时维护会话聚合数据（用于会话列表展示）
+            if (!sessionMap.has(sessionId)) {
+              sessionMap.set(sessionId, {
+                sessionId,
+                model,
+                project: projectName,
+                projectPath: projectPath,
+                timestamp: data.timestamp,
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheReadTokens: 0,
+                cacheCreationTokens: 0
+              })
+            }
+            const session = sessionMap.get(sessionId)
+            session.inputTokens += inputTokens
+            session.outputTokens += outputTokens
+            session.cacheReadTokens += cacheReadTokens
+            session.cacheCreationTokens += cacheCreationTokens
+            // 更新为最新时间戳
+            if (data.timestamp > session.timestamp) {
+              session.timestamp = data.timestamp
+            }
+          }
+        } catch (parseError) {
+          // 跳过解析失败的行
+        }
+      }
+    } catch (fileError) {
+      console.error('读取文件失败:', filePath, fileError)
+    }
+  },
+
+  // 处理指定文件列表
+  _processJsonlFiles(filePaths, existingMessageRecords, projectPathMap) {
+    const sessionMap = new Map()
+    const projectMap = new Map()
+    const messageRecords = [...existingMessageRecords]
+
+    // 从现有记录重建 sessionMap 和 projectMap
+    for (const record of existingMessageRecords) {
+      if (!sessionMap.has(record.sessionId)) {
+        sessionMap.set(record.sessionId, {
+          sessionId: record.sessionId,
+          model: record.model,
+          project: record.project,
+          projectPath: record.projectPath,
+          timestamp: record.timestamp,
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheCreationTokens: 0
+        })
+      }
+      const session = sessionMap.get(record.sessionId)
+      session.inputTokens += record.inputTokens
+      session.outputTokens += record.outputTokens
+      session.cacheReadTokens += record.cacheReadTokens
+      session.cacheCreationTokens += record.cacheCreationTokens
+      if (record.timestamp > session.timestamp) {
+        session.timestamp = record.timestamp
       }
 
-      const sessionMap = new Map() // sessionId -> { inputTokens, outputTokens, cacheReadTokens, model, timestamp, project }
-      const projectMap = new Map() // projectPath -> { inputTokens, outputTokens, totalTokens, sessions }
-      const messageRecords = [] // 每条消息的记录，用于按时间准确统计
+      // 重建 projectMap
+      const projectPathKey = record.projectPath || 'unknown'
+      if (!projectMap.has(projectPathKey)) {
+        projectMap.set(projectPathKey, { name: record.project, path: projectPathKey, sessions: new Set(), tokens: 0, inputTokens: 0, outputTokens: 0 })
+      }
+      const projectStat = projectMap.get(projectPathKey)
+      projectStat.sessions.add(record.sessionId)
+    }
 
-      // 先获取所有项目文件夹，为每个项目确定真实路径
+    // 处理新文件
+    for (const fileInfo of filePaths) {
+      this._processSingleJsonlFile(fileInfo.path, messageRecords, sessionMap, projectMap, projectPathMap)
+    }
+
+    return { messageRecords, sessionMap, projectMap }
+  },
+
+  // 构建项目路径映射
+  _buildProjectPathMap(projectsDir) {
+    const projectPathMap = new Map()
+
+    try {
+      if (!fs.existsSync(projectsDir)) {
+        return projectPathMap
+      }
+
       const projectFolders = fs.readdirSync(projectsDir, { withFileTypes: true })
         .filter(dirent => dirent.isDirectory())
         .map(dirent => dirent.name)
-
-      // 项目文件夹名 -> 真实路径的映射
-      const projectPathMap = new Map()
 
       for (const folderName of projectFolders) {
         const folderPath = path.join(projectsDir, folderName)
@@ -785,206 +939,279 @@ window.services = {
           }
         }
       }
+    } catch (error) {
+      console.error('构建项目路径映射失败:', error)
+    }
 
-      // 遍历所有 jsonl 文件处理 usage 数据
-      const jsonlFiles = findJsonlFiles(projectsDir)
+    return projectPathMap
+  },
 
-      for (const filePath of jsonlFiles) {
-        try {
-          // 从文件路径获取项目文件夹名
-          const relativePath = path.relative(projectsDir, filePath)
-          const folderName = relativePath.split(path.sep)[0] || 'unknown'
+  // 从 messageRecords 计算完整统计数据
+  _calculateStats(messageRecords, sessionMap) {
+    // 转换为数组并计算 totalTokens（四个字段相加）
+    const allRecords = Array.from(sessionMap.values()).map(session => ({
+      ...session,
+      totalTokens: session.inputTokens + session.outputTokens + session.cacheReadTokens + session.cacheCreationTokens
+    }))
 
-          // 从映射中获取真实路径和项目名
-          const projectPath = projectPathMap.get(folderName) || 'unknown'
-          const projectName = projectPath !== 'unknown' ? path.basename(projectPath) : 'unknown'
+    // 按时间排序
+    allRecords.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
 
-          // 读取文件内容
-          const content = fs.readFileSync(filePath, { encoding: 'utf-8' })
-          const lines = content.split('\n').filter(line => line.trim())
+    // 计算汇总数据
+    const summary = messageRecords.reduce((acc, record) => {
+      acc.inputTokens += record.inputTokens
+      acc.outputTokens += record.outputTokens
+      acc.cacheReadTokens += record.cacheReadTokens
+      acc.cacheCreationTokens += record.cacheCreationTokens
+      acc.totalTokens += record.totalTokens
+      return acc
+    }, { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 0, messageCount: messageRecords.length, sessionCount: sessionMap.size })
 
-          for (const line of lines) {
-            try {
-              const data = JSON.parse(line)
-
-              // 只处理 assistant 类型的响应（包含 usage 数据）
-              if (data.type !== 'assistant' || !data.message?.usage) continue
-
-              const usage = data.message.usage
-              const inputTokens = usage.input_tokens || 0
-              const outputTokens = usage.output_tokens || 0
-              const cacheReadTokens = usage.cache_read_input_tokens || 0
-              const cacheCreationTokens = usage.cache_creation_input_tokens || 0
-              const model = data.message.model || 'unknown'
-              const sessionId = data.sessionId || 'unknown'
-
-              // 只保留有意义的记录
-              if (inputTokens + outputTokens > 0) {
-                // 记录每条消息的信息（用于按消息时间准确统计）
-                messageRecords.push({
-                  sessionId,
-                  model,
-                  project: projectName,
-                  projectPath: projectPath,
-                  timestamp: data.timestamp,
-                  date: data.timestamp.split('T')[0], // YYYY-MM-DD 格式
-                  inputTokens,
-                  outputTokens,
-                  cacheReadTokens,
-                  cacheCreationTokens,
-                  totalTokens: inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens
-                })
-
-                // 同时维护会话聚合数据（用于会话列表展示）
-                if (!sessionMap.has(sessionId)) {
-                  sessionMap.set(sessionId, {
-                    sessionId,
-                    model,
-                    project: projectName,
-                    projectPath: projectPath,
-                    timestamp: data.timestamp,
-                    inputTokens: 0,
-                    outputTokens: 0,
-                    cacheReadTokens: 0,
-                    cacheCreationTokens: 0
-                  })
-                }
-                const session = sessionMap.get(sessionId)
-                session.inputTokens += inputTokens
-                session.outputTokens += outputTokens
-                session.cacheReadTokens += cacheReadTokens
-                session.cacheCreationTokens += cacheCreationTokens
-                // 更新为最新时间戳
-                if (data.timestamp > session.timestamp) {
-                  session.timestamp = data.timestamp
-                }
-              }
-            } catch (parseError) {
-              // 跳过解析失败的行
-            }
-          }
-        } catch (fileError) {
-          console.error('读取文件失败:', filePath, fileError)
-        }
+    // 计算模型使用分布
+    const modelMap = new Map()
+    messageRecords.forEach(record => {
+      if (!modelMap.has(record.model)) {
+        modelMap.set(record.model, { name: record.model, sessions: new Set(), tokens: 0, inputTokens: 0, outputTokens: 0 })
       }
+      const stat = modelMap.get(record.model)
+      stat.sessions.add(record.sessionId)
+      stat.tokens += record.totalTokens
+      stat.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
+      stat.outputTokens += record.outputTokens
+    })
+    const modelStats = Array.from(modelMap.values())
+      .map(stat => ({ ...stat, sessions: stat.sessions.size }))
+      .sort((a, b) => b.tokens - a.tokens)
 
-      // 转换为数组并计算 totalTokens（四个字段相加）
-      const allRecords = Array.from(sessionMap.values()).map(session => ({
+    // 计算项目使用分布
+    const projectMap = new Map()
+    messageRecords.forEach(record => {
+      const projectPathKey = record.projectPath || 'unknown'
+      const projectDisplayName = projectPathKey !== 'unknown' ? path.basename(projectPathKey) : 'unknown'
+      if (!projectMap.has(projectPathKey)) {
+        const exists = projectPathKey !== 'unknown' ? fs.existsSync(projectPathKey) : false
+        projectMap.set(projectPathKey, { name: projectDisplayName, path: projectPathKey, exists, sessions: new Set(), tokens: 0, inputTokens: 0, outputTokens: 0 })
+      }
+      const stat = projectMap.get(projectPathKey)
+      stat.sessions.add(record.sessionId)
+      stat.tokens += record.totalTokens
+      stat.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
+      stat.outputTokens += record.outputTokens
+    })
+    const projectStats = Array.from(projectMap.values())
+      .map(stat => ({ ...stat, sessions: stat.sessions.size }))
+      .sort((a, b) => b.tokens - a.tokens)
+
+    // 计算贡献墙数据
+    const now = new Date()
+    const contributionMap = new Map()
+    const totalDays = 365
+    for (let i = totalDays - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i)
+      const dateKey = d.toISOString().split('T')[0]
+      contributionMap.set(dateKey, { date: dateKey, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
+    }
+    messageRecords.forEach(record => {
+      const dateKey = record.timestamp.split('T')[0]
+      if (contributionMap.has(dateKey)) {
+        const day = contributionMap.get(dateKey)
+        day.tokens += record.totalTokens
+        day.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
+        day.outputTokens += record.outputTokens
+        if (!day.models[record.model]) {
+          day.models[record.model] = { inputTokens: 0, outputTokens: 0 }
+        }
+        day.models[record.model].inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
+        day.models[record.model].outputTokens += record.outputTokens
+      }
+    })
+    const contributions = Array.from(contributionMap.values())
+
+    // 平均每会话 tokens
+    const avgTokensPerSession = sessionMap.size > 0 ? Math.round(summary.totalTokens / sessionMap.size) : 0
+
+    // 最近 10 个会话
+    const recentSessions = Array.from(sessionMap.values())
+      .map(session => ({
         ...session,
         totalTokens: session.inputTokens + session.outputTokens + session.cacheReadTokens + session.cacheCreationTokens
       }))
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 10)
 
-      // 按时间排序
-      allRecords.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    return {
+      records: allRecords,
+      summary,
+      modelStats,
+      projectStats,
+      contributions,
+      avgTokensPerSession,
+      recentSessions
+    }
+  },
 
-      // 计算汇总数据（使用每条消息的记录）
-      const summary = messageRecords.reduce((acc, record) => {
-        acc.inputTokens += record.inputTokens
-        acc.outputTokens += record.outputTokens
-        acc.cacheReadTokens += record.cacheReadTokens
-        acc.cacheCreationTokens += record.cacheCreationTokens
-        acc.totalTokens += record.totalTokens
-        return acc
-      }, { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 0, messageCount: messageRecords.length, sessionCount: sessionMap.size })
+  // 合并缓存和新数据
+  _mergeUsageData(cachedData, incrementalData) {
+    // 合并 messageRecords
+    const mergedMessageRecords = [...cachedData.messageRecords, ...incrementalData.messageRecords]
 
-      // 计算模型使用分布（使用每条消息的记录）
-      const modelMap = new Map()
-      messageRecords.forEach(record => {
-        if (!modelMap.has(record.model)) {
-          modelMap.set(record.model, { name: record.model, sessions: new Set(), tokens: 0, inputTokens: 0, outputTokens: 0 })
+    // 合并 sessionMap
+    const mergedSessionMap = new Map()
+    for (const [sessionId, session] of cachedData.sessionMap) {
+      mergedSessionMap.set(sessionId, { ...session })
+    }
+    for (const [sessionId, session] of incrementalData.sessionMap) {
+      if (mergedSessionMap.has(sessionId)) {
+        const existing = mergedSessionMap.get(sessionId)
+        existing.inputTokens += session.inputTokens
+        existing.outputTokens += session.outputTokens
+        existing.cacheReadTokens += session.cacheReadTokens
+        existing.cacheCreationTokens += session.cacheCreationTokens
+        if (session.timestamp > existing.timestamp) {
+          existing.timestamp = session.timestamp
         }
-        const stat = modelMap.get(record.model)
-        stat.sessions.add(record.sessionId)
-        stat.tokens += record.totalTokens
-        // 输入 = input + cacheCreation + cacheRead
-        stat.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
-        stat.outputTokens += record.outputTokens
-      })
-      const modelStats = Array.from(modelMap.values())
-        .map(stat => ({ ...stat, sessions: stat.sessions.size }))
-        .sort((a, b) => b.tokens - a.tokens)
-
-      // 计算项目使用分布（使用 projectPath 作为 key，避免同名项目冲突）
-      messageRecords.forEach(record => {
-        const projectPathKey = record.projectPath || 'unknown'
-        const projectDisplayName = projectPathKey !== 'unknown' ? path.basename(projectPathKey) : 'unknown'
-        if (!projectMap.has(projectPathKey)) {
-          const exists = projectPathKey !== 'unknown' ? fs.existsSync(projectPathKey) : false
-          projectMap.set(projectPathKey, { name: projectDisplayName, path: projectPathKey, exists, sessions: new Set(), tokens: 0, inputTokens: 0, outputTokens: 0 })
-        }
-        const stat = projectMap.get(projectPathKey)
-        stat.sessions.add(record.sessionId) // 使用 Set 去重计数
-        stat.tokens += record.totalTokens
-        // 输入 = input + cacheCreation + cacheRead
-        stat.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
-        stat.outputTokens += record.outputTokens
-      })
-      const projectStats = Array.from(projectMap.values())
-        .map(stat => ({ ...stat, sessions: stat.sessions.size })) // Set 转为数量
-        .sort((a, b) => b.tokens - a.tokens)
-
-      // 计算贡献墙数据（按每条消息的时间准确统计）
-      const now = new Date()
-      const contributionMap = new Map() // date -> { tokens, inputTokens, outputTokens, models: { modelName: { inputTokens, outputTokens } } }
-      const totalDays = 365
-      for (let i = totalDays - 1; i >= 0; i--) {
-        const d = new Date(now)
-        d.setDate(d.getDate() - i)
-        const dateKey = d.toISOString().split('T')[0]
-        contributionMap.set(dateKey, { date: dateKey, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
+      } else {
+        mergedSessionMap.set(sessionId, { ...session })
       }
-      // 使用每条消息的记录，按消息实际时间归属日期
-      messageRecords.forEach(record => {
-        const dateKey = record.timestamp.split('T')[0]
-        if (contributionMap.has(dateKey)) {
-          const day = contributionMap.get(dateKey)
-          day.tokens += record.totalTokens
-          // 输入 = input + cacheCreation + cacheRead
-          day.inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
-          day.outputTokens += record.outputTokens
-          if (!day.models[record.model]) {
-            day.models[record.model] = { inputTokens: 0, outputTokens: 0 }
+    }
+
+    // 合并 projectMap（通过 _calculateStats 重新计算）
+    return { messageRecords: mergedMessageRecords, sessionMap: mergedSessionMap }
+  },
+
+  // 全量处理（复用原有逻辑）
+  _processAllUsageData(projectsDir) {
+    const projectPathMap = this._buildProjectPathMap(projectsDir)
+    const sessionMap = new Map()
+    const projectMap = new Map()
+    const messageRecords = []
+
+    // 遍历所有 jsonl 文件处理 usage 数据
+    const jsonlFiles = findJsonlFiles(projectsDir)
+
+    for (const filePath of jsonlFiles) {
+      this._processSingleJsonlFile(filePath, messageRecords, sessionMap, projectMap, projectPathMap)
+    }
+
+    return { messageRecords, sessionMap, projectMap }
+  },
+
+  // 读取 Claude Code usage 数据（支持增量缓存）
+  readClaudeUsage(forceRefresh = false) {
+    try {
+      const homeDir = window.utools.getPath('home')
+      const projectsDir = path.join(homeDir, '.claude', 'projects')
+
+      if (!fs.existsSync(projectsDir)) {
+        return this._emptyResult()
+      }
+
+      // 尝试获取缓存
+      const cachedRaw = window.utools.db.get(this.USAGE_CACHE_KEY)
+      const cachedData = cachedRaw ? cachedRaw.data : null
+
+      // 如果强制刷新或无缓存，执行全量处理
+      if (forceRefresh || !cachedData) {
+        console.log('执行全量处理...')
+        const processedData = this._processAllUsageData(projectsDir)
+        const stats = this._calculateStats(processedData.messageRecords, processedData.sessionMap)
+
+        // 计算最新的 mtime 作为 lastProcessedTime
+        const jsonlFiles = findJsonlFiles(projectsDir)
+        let lastProcessedTime = 0
+        for (const filePath of jsonlFiles) {
+          const stat = fs.statSync(filePath)
+          if (stat.mtime.getTime() > lastProcessedTime) {
+            lastProcessedTime = stat.mtime.getTime()
           }
-          day.models[record.model].inputTokens += record.inputTokens + record.cacheCreationTokens + record.cacheReadTokens
-          day.models[record.model].outputTokens += record.outputTokens
         }
-      })
-      const contributions = Array.from(contributionMap.values())
 
-      // 平均每会话 tokens
-      const avgTokensPerSession = sessionMap.size > 0 ? Math.round(summary.totalTokens / sessionMap.size) : 0
+        const result = {
+          ...stats,
+          messageRecords: processedData.messageRecords,
+          lastProcessedTime
+        }
 
-      // 最近 10 个会话
-      const recentSessions = Array.from(sessionMap.values())
-        .map(session => ({
-          ...session,
-          totalTokens: session.inputTokens + session.outputTokens + session.cacheReadTokens + session.cacheCreationTokens
-        }))
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(0, 10)
+        // 写入缓存
+        window.utools.db.put({
+          _id: this.USAGE_CACHE_KEY,
+          data: result,
+          _rev: cachedRaw ? cachedRaw._rev : undefined
+        })
 
-      return {
-        records: allRecords,
-        summary,
-        modelStats,
-        projectStats,
-        contributions,
-        avgTokensPerSession,
-        recentSessions,
-        messageRecords
+        console.log('全量处理完成，已缓存')
+        return result
       }
+
+      // 有缓存，检查是否有新文件
+      const newFiles = this._findNewJsonlFiles(projectsDir, cachedData.lastProcessedTime)
+
+      if (newFiles.length === 0) {
+        console.log('无新文件，直接返回缓存')
+        return cachedData
+      }
+
+      console.log(`发现 ${newFiles.length} 个新文件，执行增量处理...`)
+
+      // 增量处理
+      const projectPathMap = this._buildProjectPathMap(projectsDir)
+      // 先从缓存数据重建 sessionMap
+      const cachedSessionMap = new Map()
+      for (const record of cachedData.messageRecords) {
+        if (!cachedSessionMap.has(record.sessionId)) {
+          cachedSessionMap.set(record.sessionId, {
+            sessionId: record.sessionId,
+            model: record.model,
+            project: record.project,
+            projectPath: record.projectPath,
+            timestamp: record.timestamp,
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreationTokens: 0
+          })
+        }
+        const session = cachedSessionMap.get(record.sessionId)
+        session.inputTokens += record.inputTokens
+        session.outputTokens += record.outputTokens
+        session.cacheReadTokens += record.cacheReadTokens
+        session.cacheCreationTokens += record.cacheCreationTokens
+        if (record.timestamp > session.timestamp) {
+          session.timestamp = record.timestamp
+        }
+      }
+
+      const incrementalData = this._processJsonlFiles(newFiles, cachedData.messageRecords, projectPathMap)
+      const mergedData = this._mergeUsageData(cachedData, { messageRecords: incrementalData.messageRecords, sessionMap: incrementalData.sessionMap })
+      const stats = this._calculateStats(mergedData.messageRecords, mergedData.sessionMap)
+
+      // 更新 lastProcessedTime
+      let newLastProcessedTime = cachedData.lastProcessedTime
+      for (const fileInfo of newFiles) {
+        if (fileInfo.mtime > newLastProcessedTime) {
+          newLastProcessedTime = fileInfo.mtime
+        }
+      }
+
+      const result = {
+        ...stats,
+        messageRecords: mergedData.messageRecords,
+        lastProcessedTime: newLastProcessedTime
+      }
+
+      // 更新缓存
+      window.utools.db.put({
+        _id: this.USAGE_CACHE_KEY,
+        data: result,
+        _rev: cachedRaw._rev
+      })
+
+      console.log('增量处理完成，已更新缓存')
+      return result
     } catch (error) {
       console.error('读取 Claude usage 数据失败:', error)
-        return {
-          records: [],
-          summary: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 0, sessionCount: 0 },
-          modelStats: [],
-          projectStats: [],
-          contributions: [],
-          avgTokensPerSession: 0,
-          recentSessions: [],
-          messageRecords: []
-        }
+      return this._emptyResult()
     }
   },
 
