@@ -1100,6 +1100,7 @@ window.services = {
           console.error('缓存写入失败:', putResult)
         } else {
           console.log('全量处理完成，已缓存')
+        }
         return result
       }
 
