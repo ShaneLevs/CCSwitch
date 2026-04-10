@@ -217,7 +217,8 @@ const handleRefresh = async () => {
 
   // 清除缓存，强制全量刷新
   try {
-    window.utools.db.remove('ccswitch_usage_cache_v1');
+    const nativeId = window.utools.getNativeId();
+    window.utools.db.remove(`ccswitch_usage_cache_${nativeId}`);
   } catch (e) {
     // 缓存可能不存在
   }

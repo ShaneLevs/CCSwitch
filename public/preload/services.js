@@ -719,8 +719,11 @@ window.services = {
     }).join('')
   },
 
-  // 缓存键常量
-  USAGE_CACHE_KEY: 'ccswitch_usage_cache_v1',
+  // 获取缓存键（带 nativeId 区分不同电脑）
+  _getUsageCacheKey() {
+    const nativeId = window.utools.getNativeId()
+    return `ccswitch_usage_cache_${nativeId}`
+  },
 
   // 空结果模板
   _emptyResult() {
@@ -1059,7 +1062,9 @@ window.services = {
       }
 
       // 尝试获取缓存
-      const cachedRaw = window.utools.db.get(this.USAGE_CACHE_KEY)
+      const cacheKey = this._getUsageCacheKey()
+      const cachedRaw = window.utools.db.get(cacheKey)
+      console.log('db.get 结果:', cachedRaw ? { _id: cachedRaw._id, _rev: cachedRaw._rev, hasData: !!cachedRaw.data } : null)
       const cachedData = cachedRaw ? cachedRaw.data : null
 
       // 如果强制刷新或无缓存，执行全量处理
@@ -1085,13 +1090,16 @@ window.services = {
         }
 
         // 写入缓存
-        window.utools.db.put({
-          _id: this.USAGE_CACHE_KEY,
+        const putResult = window.utools.db.put({
+          _id: cacheKey,
           data: result,
           _rev: cachedRaw ? cachedRaw._rev : undefined
         })
-
-        console.log('全量处理完成，已缓存')
+        console.log('db.put 结果:', putResult)
+        if (!putResult || !putResult.ok) {
+          console.error('缓存写入失败:', putResult)
+        } else {
+          console.log('全量处理完成，已缓存')
         return result
       }
 
@@ -1176,7 +1184,7 @@ window.services = {
 
       // 更新缓存
       window.utools.db.put({
-        _id: this.USAGE_CACHE_KEY,
+        _id: cacheKey,
         data: result,
         _rev: cachedRaw._rev
       })
