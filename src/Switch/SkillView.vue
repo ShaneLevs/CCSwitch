@@ -36,18 +36,35 @@ const selectedSkill = ref(null);
 // 安装相关状态
 const showInstallDialog = ref(false);
 const installUrl = ref("");
-const installLoading = ref(false);
+const isFetchingInfo = ref(false);
+const isInstalling = ref(false);
 const installInfo = ref(null);
 const installProgress = ref(0);
 const pendingInstall = ref(null);
 const showOverwriteDialog = ref(false);
 
-// 监听链接输入，自动查询
+// 防抖定时器
+let fetchTimer = null;
+
+// 监听链接输入，自动查询（防抖 500ms）
 watch(installUrl, (newVal) => {
-  const slug = extractSlug(newVal.trim());
-  if (slug && !installInfo.value) {
-    doFetchSkillInfo(slug);
+  // 清除之前的定时器
+  if (fetchTimer) {
+    clearTimeout(fetchTimer);
   }
+
+  // 链接变化时清空已有信息
+  if (installInfo.value) {
+    installInfo.value = null;
+  }
+
+  // 防抖查询
+  fetchTimer = setTimeout(() => {
+    const result = extractSlug(newVal.trim());
+    if (result) {
+      doFetchSkillInfo(result);
+    }
+  }, 500);
 });
 
 // 解析 YAML frontmatter 提取字段
@@ -77,7 +94,8 @@ const openInstallDialog = () => {
   installUrl.value = "";
   installInfo.value = null;
   pendingInstall.value = null;
-  installLoading.value = false;
+  isFetchingInfo.value = false;
+  isInstalling.value = false;
   showInstallDialog.value = true;
 };
 
@@ -86,12 +104,13 @@ const openInstallWithUrl = (url) => {
   installUrl.value = url;
   installInfo.value = null;
   pendingInstall.value = null;
-  installLoading.value = false;
+  isFetchingInfo.value = false;
+  isInstalling.value = false;
   showInstallDialog.value = true;
   // 自动查询 skill 信息
-  const slug = extractSlug(url);
-  if (slug) {
-    doFetchSkillInfo(slug);
+  const result = extractSlug(url);
+  if (result) {
+    doFetchSkillInfo(result);
   }
 };
 
@@ -100,9 +119,19 @@ defineExpose({
 });
 
 const extractSlug = (url) => {
-  // 从 https://skillhub.tencent.com/skills/baidu-search 提取 baidu-search
-  const match = url.match(/skillhub\.tencent\.com\/skills\/([^/]+)/);
-  return match ? match[1] : null;
+  // SkillHub: https://skillhub.tencent.com/skills/baidu-search 或 https://skillhub.cn/skills/baidu-search
+  const skillhubMatch = url.match(/skillhub\.(tencent\.com|cn)\/skills\/([^/]+)/);
+  if (skillhubMatch) {
+    return { source: 'skillhub', slug: skillhubMatch[2] };
+  }
+
+  // 魔搭社区: https://www.modelscope.cn/skills/@MiniMax-AI/minimax-xlsx -> @MiniMax-AI/minimax-xlsx
+  const modelscopeMatch = url.match(/modelscope\.cn\/skills\/(@?[^/]+\/[^/]+)/);
+  if (modelscopeMatch) {
+    return { source: 'modelscope', slug: modelscopeMatch[1] };
+  }
+
+  return null;
 };
 
 const openExternal = (url) => {
@@ -113,48 +142,74 @@ const openSkillsDir = () => {
   window.utools.shellOpenPath(window.services.getSkillsPath());
 };
 
-const doFetchSkillInfo = async (slug) => {
-  installLoading.value = true;
+const doFetchSkillInfo = async ({ source, slug }) => {
+  isFetchingInfo.value = true;
   installInfo.value = null;
   try {
-    const info = await window.services.fetchSkillInfo(slug);
-    installInfo.value = {
-      slug,
-      displayName: info.skill?.displayName || slug,
-      summary: info.skill?.summary_zh || info.skill?.summary || "暂无描述",
-      version: info.latestVersion?.version || "unknown",
-      downloads: info.skill?.stats?.downloads || 0,
-      author: info.owner?.displayName || info.owner?.handle || "未知"
-    };
+    if (source === 'skillhub') {
+      const result = await window.services.fetchSkillInfo(slug);
+      const info = result.data;
+      installInfo.value = {
+        source: 'skillhub',
+        slug,
+        displayName: info.skill?.displayName || slug,
+        summary: info.skill?.summary_zh || info.skill?.summary || "暂无描述",
+        version: info.latestVersion?.version || "unknown",
+        downloads: info.skill?.stats?.downloads || 0,
+        author: info.owner?.displayName || info.owner?.handle || "未知"
+      };
+    } else if (source === 'modelscope') {
+      const result = await window.services.fetchModelScopeSkillInfo(slug);
+      const info = result.data;
+      installInfo.value = {
+        source: 'modelscope',
+        slug,
+        displayName: info.DisplayName || info.Name || slug.split('/').pop(),
+        summary: info.Description || "暂无描述",
+        version: "master",
+        downloads: info.DownloadCount || 0,
+        author: info.Owner || info.SourceDeveloper || "未知"
+      };
+    }
   } catch (e) {
     MessagePlugin.error("获取 Skill 信息失败: " + e.message);
   } finally {
-    installLoading.value = false;
+    isFetchingInfo.value = false;
   }
 };
 
 const fetchSkillInfo = async () => {
-  const slug = extractSlug(installUrl.value.trim());
-  if (!slug) {
-    return MessagePlugin.error("请输入有效的 SkillHub 链接");
+  const result = extractSlug(installUrl.value.trim());
+  if (!result) {
+    return MessagePlugin.error("请输入有效的 SkillHub 或魔搭社区链接");
   }
-  await doFetchSkillInfo(slug);
+  await doFetchSkillInfo(result);
 };
 
 const confirmInstall = async () => {
   if (!installInfo.value) return;
 
-  installLoading.value = true;
+  isInstalling.value = true;
   installProgress.value = 0;
 
   try {
-    const result = await window.services.installSkill(
-      installInfo.value.slug,
-      installInfo.value.version,
-      (progress) => {
-        installProgress.value = progress;
-      }
-    );
+    let result;
+    if (installInfo.value.source === 'skillhub') {
+      result = await window.services.installSkill(
+        installInfo.value.slug,
+        installInfo.value.version,
+        (progress) => {
+          installProgress.value = progress;
+        }
+      );
+    } else if (installInfo.value.source === 'modelscope') {
+      result = await window.services.installSkillFromModelScope(
+        installInfo.value.slug,
+        (progress) => {
+          installProgress.value = progress;
+        }
+      );
+    }
 
     pendingInstall.value = result;
 
@@ -173,7 +228,7 @@ const confirmInstall = async () => {
     MessagePlugin.error("安装失败: " + e.message);
     window.services.cancelSkillInstall();
   } finally {
-    installLoading.value = false;
+    isInstalling.value = false;
   }
 };
 
@@ -237,7 +292,7 @@ onMounted(() => {
 <template>
   <div class="skill-container">
     <div class="section-header">
-      <span class="skill-tip">仅展示 .claude/skills 文件夹下的 SKILL</span>
+      <span class="skill-tip">仅展示 <span class="hint-link" @click="openSkillsDir">.claude/skills</span> 文件夹下的 SKILL</span>
       <Button size="small" theme="primary" @click="openInstallDialog">
         <template #icon><DownloadIcon /></template> 安装 Skill
       </Button>
@@ -306,33 +361,31 @@ onMounted(() => {
       v-model:visible="showInstallDialog"
       header="安装 Skill"
       width="500px"
-      :confirm-btn="{ content: '安装', loading: installLoading, theme: 'primary' }"
+      :confirm-btn="{ content: '安装', loading: isInstalling, theme: 'primary', disabled: !installInfo }"
       @confirm="confirmInstall"
     >
       <div class="install-form">
         <div class="form-item">
-          <label>SkillHub 链接</label>
+          <label>Skill 链接</label>
           <Input
             v-model="installUrl"
-            placeholder="https://skillhub.tencent.com/skills/..."
-            :disabled="installLoading"
+            placeholder="输入 Skill 详情页面链接"
+            :disabled="isFetchingInfo || isInstalling"
           />
         </div>
         <div class="install-hint">
-          访问 <span class="hint-link" @click="openExternal('https://skillhub.tencent.com/skills')">SkillHub</span> 查找需要的 Skill，复制其地址粘贴到上方输入框
+          支持从 <span class="hint-link" @click="openExternal('https://skillhub.tencent.com/skills')">SkillHub</span> 或 <span class="hint-link" @click="openExternal('https://www.modelscope.cn/skills')">魔搭社区</span> 安装 Skill，复制其地址粘贴到上方输入框
         </div>
         <div class="install-hint">
           手动安装请将 Skill 文件夹放到 <span class="hint-link" @click="openSkillsDir">~/.claude/skills</span> 目录下
         </div>
 
-        <div v-if="installLoading" class="install-loading">
-          <Loading size="small" />
-          <span>正在查询...</span>
-        </div>
-
         <div v-if="installInfo" class="install-info-card">
           <div class="install-info-header">
             <span class="install-info-name">{{ installInfo.displayName }}</span>
+            <Tag size="small" :theme="installInfo.source === 'skillhub' ? 'primary' : 'warning'" variant="light">
+              {{ installInfo.source === 'skillhub' ? 'SkillHub' : '魔搭社区' }}
+            </Tag>
             <span class="install-info-version">v{{ installInfo.version }}</span>
           </div>
           <div class="install-info-meta">
@@ -481,15 +534,6 @@ onMounted(() => {
   color: var(--td-brand-color);
   cursor: pointer;
   text-decoration: underline;
-}
-
-.install-loading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--td-text-color-secondary);
 }
 
 .install-info-card {

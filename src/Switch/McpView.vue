@@ -47,6 +47,12 @@ const loadMcpServers = () => {
   mcpServers.value = window.services.getMcpServers();
 };
 
+// 打开 claude.json 文件
+const openClaudeJsonFile = () => {
+  const filePath = window.services.getClaudeJsonPath();
+  window.utools.shellOpenPath(filePath);
+};
+
 // 获取 MCP 服务器列表（带名称）
 const mcpServerList = computed(() => {
   return Object.entries(mcpServers.value).map(([name, config]) => ({
@@ -185,6 +191,7 @@ onMounted(() => {
 <template>
   <div class="mcp-container">
     <div class="section-header">
+      <span class="mcp-tip">仅展示 <span class="hint-link" @click="openClaudeJsonFile">.claude.json</span> 内自定义的 MCP</span>
       <Button size="small" theme="primary" @click="openCreateDialog">
         <template #icon><AddIcon /></template> 添加 MCP
       </Button>
@@ -294,10 +301,21 @@ onMounted(() => {
 
 .section-header {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
   margin-top: -4px;
+}
+
+.mcp-tip {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
+}
+
+.hint-link {
+  color: var(--td-brand-color);
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 .section-header :deep(.t-typography-title) {

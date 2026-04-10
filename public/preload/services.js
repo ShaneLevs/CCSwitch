@@ -117,6 +117,11 @@ window.services = {
     }
   },
 
+  // 获取 Claude JSON 文件路径
+  getClaudeJsonPath() {
+    return CLAUDE_JSON_PATH
+  },
+
   // 获取所有 MCP 配置
   getMcpServers() {
     const config = this.readClaudeJson()
@@ -328,7 +333,7 @@ window.services = {
         res.on('data', chunk => data += chunk)
         res.on('end', () => {
           try {
-            resolve(JSON.parse(data))
+            resolve({ source: 'skillhub', data: JSON.parse(data) })
           } catch (e) {
             reject(new Error('解析响应失败'))
           }
@@ -337,7 +342,40 @@ window.services = {
     })
   },
 
-  // 安装 Skill
+  // 从魔搭社区获取 skill 信息
+  fetchModelScopeSkillInfo(skillPath) {
+    const https = require('node:https')
+    return new Promise((resolve, reject) => {
+      // skillPath 格式: @MiniMax-AI/minimax-xlsx
+      const url = `https://www.modelscope.cn/api/v1/skills/${skillPath}`
+      const options = {
+        headers: {
+          'accept': 'application/json, text/plain, */*',
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
+          'x-modelscope-accept-language': 'zh_CN'
+        }
+      }
+
+      https.get(url, options, (res) => {
+        let data = ''
+        res.on('data', chunk => data += chunk)
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data)
+            if (json.Code !== 200 || !json.Data) {
+              reject(new Error(json.Message || '获取失败'))
+            } else {
+              resolve({ source: 'modelscope', data: json.Data })
+            }
+          } catch (e) {
+            reject(new Error('解析响应失败'))
+          }
+        })
+      }).on('error', reject)
+    })
+  },
+
+  // 安装 Skill (SkillHub)
   async installSkill(slug, version, onProgress) {
     const https = require('node:https')
     const { execSync } = require('node:child_process')
@@ -437,7 +475,116 @@ window.services = {
       skillName,
       extractDir,
       targetDir,
-      exists: fs.existsSync(targetDir)
+      exists: fs.existsSync(targetDir),
+      source: 'skillhub'
+    }
+  },
+
+  // 安装 Skill (魔搭社区)
+  async installSkillFromModelScope(skillPath, onProgress) {
+    const https = require('node:https')
+    const { execSync } = require('node:child_process')
+
+    // skillPath 格式: @MiniMax-AI/minimax-xlsx
+    // URL encode the path for the download URL
+    const encodedPath = skillPath.replace(/@/g, '%40')
+    const zipUrl = `https://www.modelscope.cn/skills/${encodedPath}/archive/zip/master.zip`
+
+    const tempDir = path.join(window.utools.getPath('temp'), 'ccswitch-skill-install')
+    const zipPath = path.join(tempDir, `${skillPath.replace(/[\/@]/g, '-')}.zip`)
+    const extractDir = path.join(tempDir, skillPath.replace(/[\/@]/g, '-'))
+
+    // 创建临时目录
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true })
+    }
+    if (!fs.existsSync(extractDir)) {
+      fs.mkdirSync(extractDir, { recursive: true })
+    }
+
+    // 下载文件 (魔搭社区会重定向)
+    await new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(zipPath)
+
+      const downloadWithRedirect = (url, redirectCount = 0) => {
+        if (redirectCount > 5) {
+          return reject(new Error('重定向次数过多'))
+        }
+
+        https.get(url, {
+          headers: {
+            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'accept': '*/*'
+          }
+        }, (res) => {
+          if (res.statusCode === 301 || res.statusCode === 302) {
+            const location = res.headers.location
+            downloadWithRedirect(location, redirectCount + 1)
+            return
+          }
+
+          const totalSize = parseInt(res.headers['content-length'], 10)
+          let downloaded = 0
+          res.on('data', chunk => {
+            downloaded += chunk.length
+            if (onProgress && totalSize) {
+              onProgress(Math.round(downloaded / totalSize * 100))
+            }
+          })
+          res.pipe(file)
+          res.on('end', resolve)
+        }).on('error', reject)
+      }
+
+      downloadWithRedirect(zipUrl)
+      file.on('finish', () => file.close())
+    })
+
+    // 使用系统自带工具解压
+    if (window.utools.isMacOS() || window.utools.isLinux()) {
+      execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { stdio: 'pipe' })
+    } else if (window.utools.isWindows()) {
+      execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${extractDir}' -Force"`, { stdio: 'pipe' })
+    }
+
+    // 魔搭社区的压缩包结构：通常包含 skill 名称目录
+    let skillMdPath = path.join(extractDir, 'SKILL.md')
+    if (!fs.existsSync(skillMdPath)) {
+      // 查找子目录中的 SKILL.md
+      const entries = fs.readdirSync(extractDir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const subSkillMd = path.join(extractDir, entry.name, 'SKILL.md')
+          if (fs.existsSync(subSkillMd)) {
+            // 使用子目录作为 skill 目录
+            skillMdPath = subSkillMd
+            break
+          }
+        }
+      }
+    }
+
+    if (!fs.existsSync(skillMdPath)) {
+      throw new Error('压缩包中未找到 SKILL.md 文件')
+    }
+
+    const skillMdContent = fs.readFileSync(skillMdPath, { encoding: 'utf-8' })
+    const nameMatch = skillMdContent.match(/^name:\s*(.+)$/m)
+    const skillName = nameMatch ? nameMatch[1].trim() : skillPath.split('/').pop()
+
+    // 确定最终要移动的目录（包含 SKILL.md 的目录）
+    const finalExtractDir = path.dirname(skillMdPath)
+    const targetDir = path.join(CLAUDE_SKILLS_PATH, skillName)
+
+    // 清理临时文件
+    fs.rmSync(zipPath, { force: true })
+
+    return {
+      skillName,
+      extractDir: finalExtractDir,
+      targetDir,
+      exists: fs.existsSync(targetDir),
+      source: 'modelscope'
     }
   },
 

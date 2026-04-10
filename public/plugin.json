@@ -15,12 +15,12 @@
     },
     {
       "code": "installSkill",
-      "explain": "从 SkillHub 安装 Skill",
+      "explain": "从 SkillHub/魔搭社区 安装 Skill",
       "cmds": [
         {
           "type": "regex",
           "label": "安装 Skill",
-          "match": "/^https://skillhub.tencent.com/skills/[\\w-]+$/",
+          "match": "/^https:\\/\\/(www\\.)?(skillhub\\.(tencent\\.com|cn)\\/skills\\/[\\w-]+|modelscope\\.cn\\/skills\\/@[\\w-]+\\/[\\w-]+)$/",
           "minLength": 30,
           "maxLength": 200
         }

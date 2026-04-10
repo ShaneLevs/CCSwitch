@@ -466,9 +466,9 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
           <span class="current-config-label">BASE_URL</span>
           <span class="current-config-value">{{ currentConfig.baseUrl || '未设置' }}</span>
         </div>
-        <div class="current-config-item">
+        <div v-if="currentConfig.model" class="current-config-item">
           <span class="current-config-label">MODEL</span>
-          <span class="current-config-value">{{ currentConfig.model || '未设置' }}</span>
+          <span class="current-config-value">{{ currentConfig.model }}</span>
         </div>
         <div v-if="currentConfig.defaultHaikuModel" class="current-config-item">
           <span class="current-config-label">HAIKU_MODEL</span>
