@@ -46,11 +46,12 @@ const showOverwriteDialog = ref(false);
 // 防抖定时器
 let fetchTimer = null;
 
-// 监听链接输入，自动查询（防抖 500ms）
+// 监听链接输入，自动查询
 watch(installUrl, (newVal) => {
   // 清除之前的定时器
   if (fetchTimer) {
     clearTimeout(fetchTimer);
+    fetchTimer = null;
   }
 
   // 链接变化时清空已有信息
@@ -58,13 +59,19 @@ watch(installUrl, (newVal) => {
     installInfo.value = null;
   }
 
-  // 防抖查询
-  fetchTimer = setTimeout(() => {
-    const result = extractSlug(newVal.trim());
-    if (result) {
+  const result = extractSlug(newVal.trim());
+  if (!result) return;
+
+  // 如果是完整有效的 URL（指令触发），立即查询
+  const isCompleteUrl = newVal.includes('skillhub.') || newVal.includes('modelscope.cn');
+  if (isCompleteUrl) {
+    doFetchSkillInfo(result);
+  } else {
+    // 用户手动输入时防抖 500ms
+    fetchTimer = setTimeout(() => {
       doFetchSkillInfo(result);
-    }
-  }, 500);
+    }, 500);
+  }
 });
 
 // 解析 YAML frontmatter 提取字段
@@ -107,11 +114,7 @@ const openInstallWithUrl = (url) => {
   isFetchingInfo.value = false;
   isInstalling.value = false;
   showInstallDialog.value = true;
-  // 自动查询 skill 信息
-  const result = extractSlug(url);
-  if (result) {
-    doFetchSkillInfo(result);
-  }
+  // 不需要手动调用查询，watch 会自动触发
 };
 
 defineExpose({

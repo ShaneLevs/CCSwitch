@@ -435,33 +435,38 @@ window.services = {
       execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${extractDir}' -Force"`, { stdio: 'pipe' })
     }
 
-    // 读取 SKILL.md 获取 name
-    const skillMdPath = path.join(extractDir, 'SKILL.md')
-    if (!fs.existsSync(skillMdPath)) {
-      // 查找子目录中的 SKILL.md
-      const entries = fs.readdirSync(extractDir, { withFileTypes: true })
+    // 递归查找 SKILL.md，返回最浅层的（层级越浅越可能是主 skill）
+    const findSkillMd = (dir, depth = 0) => {
+      const results = []
+
+      // 检查当前目录
+      const skillMd = path.join(dir, 'SKILL.md')
+      if (fs.existsSync(skillMd)) {
+        results.push({ skillMdPath: skillMd, skillDir: dir, depth })
+      }
+
+      // 检查子目录
+      const entries = fs.readdirSync(dir, { withFileTypes: true })
       for (const entry of entries) {
         if (entry.isDirectory()) {
-          const subSkillMd = path.join(extractDir, entry.name, 'SKILL.md')
-          if (fs.existsSync(subSkillMd)) {
-            const subDir = path.join(extractDir, entry.name)
-            // 移动文件到上级
-            const tempMove = path.join(tempDir, 'skill-temp')
-            fs.renameSync(subDir, tempMove)
-            fs.rmSync(extractDir, { recursive: true })
-            fs.renameSync(tempMove, extractDir)
-            break
-          }
+          const subResults = findSkillMd(path.join(dir, entry.name), depth + 1)
+          results.push(...subResults)
         }
       }
+
+      return results
     }
 
-    // 再次尝试读取
-    if (!fs.existsSync(skillMdPath)) {
+    const allSkillMds = findSkillMd(extractDir)
+    if (allSkillMds.length === 0) {
       throw new Error('压缩包中未找到 SKILL.md 文件')
     }
 
-    const skillMdContent = fs.readFileSync(skillMdPath, { encoding: 'utf-8' })
+    // 按深度排序，取最浅的
+    allSkillMds.sort((a, b) => a.depth - b.depth)
+    const skillInfo = allSkillMds[0]
+
+    const skillMdContent = fs.readFileSync(skillInfo.skillMdPath, { encoding: 'utf-8' })
     const nameMatch = skillMdContent.match(/^name:\s*(.+)$/m)
     const skillName = nameMatch ? nameMatch[1].trim() : slug
 
@@ -473,7 +478,7 @@ window.services = {
 
     return {
       skillName,
-      extractDir,
+      extractDir: skillInfo.skillDir,
       targetDir,
       exists: fs.existsSync(targetDir),
       source: 'skillhub'
@@ -486,28 +491,23 @@ window.services = {
     const { execSync } = require('node:child_process')
 
     // skillPath 格式: @MiniMax-AI/minimax-xlsx
-    // URL encode the path for the download URL
     const encodedPath = skillPath.replace(/@/g, '%40')
     const zipUrl = `https://www.modelscope.cn/skills/${encodedPath}/archive/zip/master.zip`
 
     const tempDir = path.join(window.utools.getPath('temp'), 'ccswitch-skill-install')
-    const zipPath = path.join(tempDir, `${skillPath.replace(/[\/@]/g, '-')}.zip`)
-    const extractDir = path.join(tempDir, skillPath.replace(/[\/@]/g, '-'))
+    const safeName = skillPath.replace(/[\/@]/g, '-')
+    const zipPath = path.join(tempDir, `${safeName}.zip`)
+    const extractDir = path.join(tempDir, safeName)
 
     // 创建临时目录
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true })
     }
-    if (!fs.existsSync(extractDir)) {
-      fs.mkdirSync(extractDir, { recursive: true })
-    }
 
-    // 下载文件 (魔搭社区会重定向)
+    // 下载文件（处理重定向）
     await new Promise((resolve, reject) => {
-      const file = fs.createWriteStream(zipPath)
-
-      const downloadWithRedirect = (url, redirectCount = 0) => {
-        if (redirectCount > 5) {
+      const doDownload = (url, redirectCount = 0) => {
+        if (redirectCount > 10) {
           return reject(new Error('重定向次数过多'))
         }
 
@@ -517,28 +517,56 @@ window.services = {
             'accept': '*/*'
           }
         }, (res) => {
-          if (res.statusCode === 301 || res.statusCode === 302) {
+          // 处理重定向
+          if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 303 || res.statusCode === 307 || res.statusCode === 308) {
             const location = res.headers.location
-            downloadWithRedirect(location, redirectCount + 1)
+            if (!location) {
+              return reject(new Error('重定向缺少 location'))
+            }
+            res.resume() // 清空当前响应
+            doDownload(location, redirectCount + 1)
             return
           }
 
-          const totalSize = parseInt(res.headers['content-length'], 10)
+          if (res.statusCode !== 200) {
+            return reject(new Error(`下载失败: HTTP ${res.statusCode}`))
+          }
+
+          const totalSize = parseInt(res.headers['content-length'], 10) || 0
           let downloaded = 0
+          const file = fs.createWriteStream(zipPath)
+
           res.on('data', chunk => {
             downloaded += chunk.length
-            if (onProgress && totalSize) {
+            if (onProgress && totalSize > 0) {
               onProgress(Math.round(downloaded / totalSize * 100))
             }
           })
+
           res.pipe(file)
-          res.on('end', resolve)
+
+          file.on('finish', () => {
+            file.close(resolve)
+          })
+
+          file.on('error', (err) => {
+            fs.unlinkSync(zipPath)
+            reject(err)
+          })
         }).on('error', reject)
       }
 
-      downloadWithRedirect(zipUrl)
-      file.on('finish', () => file.close())
+      doDownload(zipUrl)
     })
+
+    // 验证文件是否下载成功
+    if (!fs.existsSync(zipPath)) {
+      throw new Error('下载文件不存在')
+    }
+    const stats = fs.statSync(zipPath)
+    if (stats.size < 1000) {
+      throw new Error('下载文件过小，可能下载失败')
+    }
 
     // 使用系统自带工具解压
     if (window.utools.isMacOS() || window.utools.isLinux()) {
@@ -547,41 +575,49 @@ window.services = {
       execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${extractDir}' -Force"`, { stdio: 'pipe' })
     }
 
-    // 魔搭社区的压缩包结构：通常包含 skill 名称目录
-    let skillMdPath = path.join(extractDir, 'SKILL.md')
-    if (!fs.existsSync(skillMdPath)) {
-      // 查找子目录中的 SKILL.md
-      const entries = fs.readdirSync(extractDir, { withFileTypes: true })
+    // 递归查找 SKILL.md，返回最浅层的（层级越浅越可能是主 skill）
+    const findSkillMd = (dir, depth = 0) => {
+      const results = []
+
+      // 检查当前目录
+      const skillMd = path.join(dir, 'SKILL.md')
+      if (fs.existsSync(skillMd)) {
+        results.push({ skillMdPath: skillMd, skillDir: dir, depth })
+      }
+
+      // 检查子目录
+      const entries = fs.readdirSync(dir, { withFileTypes: true })
       for (const entry of entries) {
         if (entry.isDirectory()) {
-          const subSkillMd = path.join(extractDir, entry.name, 'SKILL.md')
-          if (fs.existsSync(subSkillMd)) {
-            // 使用子目录作为 skill 目录
-            skillMdPath = subSkillMd
-            break
-          }
+          const subResults = findSkillMd(path.join(dir, entry.name), depth + 1)
+          results.push(...subResults)
         }
       }
+
+      return results
     }
 
-    if (!fs.existsSync(skillMdPath)) {
+    const allSkillMds = findSkillMd(extractDir)
+    if (allSkillMds.length === 0) {
       throw new Error('压缩包中未找到 SKILL.md 文件')
     }
 
-    const skillMdContent = fs.readFileSync(skillMdPath, { encoding: 'utf-8' })
+    // 按深度排序，取最浅的
+    allSkillMds.sort((a, b) => a.depth - b.depth)
+    const skillInfo = allSkillMds[0]
+
+    const skillMdContent = fs.readFileSync(skillInfo.skillMdPath, { encoding: 'utf-8' })
     const nameMatch = skillMdContent.match(/^name:\s*(.+)$/m)
     const skillName = nameMatch ? nameMatch[1].trim() : skillPath.split('/').pop()
 
-    // 确定最终要移动的目录（包含 SKILL.md 的目录）
-    const finalExtractDir = path.dirname(skillMdPath)
     const targetDir = path.join(CLAUDE_SKILLS_PATH, skillName)
 
-    // 清理临时文件
-    fs.rmSync(zipPath, { force: true })
+    // 清理临时 zip 文件
+    fs.unlinkSync(zipPath)
 
     return {
       skillName,
-      extractDir: finalExtractDir,
+      extractDir: skillInfo.skillDir,
       targetDir,
       exists: fs.existsSync(targetDir),
       source: 'modelscope'
