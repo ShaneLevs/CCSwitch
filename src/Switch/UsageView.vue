@@ -53,36 +53,10 @@ const stats = [
 
 const displayLimit = 5;
 
-const displayedModelStats = computed(() => {
-  if (showAllModels.value) return usageData.value.modelStats;
-  return usageData.value.modelStats.slice(0, displayLimit);
-});
-
-const displayedProjectStats = computed(() => {
-  if (showAllProjects.value) return usageData.value.projectStats;
-  return usageData.value.projectStats.slice(0, displayLimit);
-});
-
-const hasMoreModels = computed(() => usageData.value.modelStats.length > displayLimit);
-const hasMoreProjects = computed(() => usageData.value.projectStats.length > displayLimit);
-
 const formatNumber = (num) => {
   if (num >= 1000000) return (num / 1000000).toFixed(2) + "M";
   if (num >= 1000) return (num / 1000).toFixed(1) + "K";
   return num.toString();
-};
-
-const getStatValue = (key) => {
-  switch (key) {
-    case "total": return usageData.value.summary.totalTokens;
-    case "input": return usageData.value.summary.inputTokens;
-    case "cacheCreation": return usageData.value.summary.cacheCreationTokens;
-    case "cacheRead": return usageData.value.summary.cacheReadTokens;
-    case "output": return usageData.value.summary.outputTokens;
-    case "sessions": return usageData.value.summary.sessionCount;
-    case "avg": return usageData.value.avgTokensPerSession;
-    default: return 0;
-  }
 };
 
 const formatDateString = (date) => {
@@ -101,6 +75,121 @@ const handleQuickSelect = (type) => {
     dateRange.value = [formatDateString(start), formatDateString(today)];
   } else if (type === 'clear') {
     dateRange.value = [];
+  }
+};
+
+const filteredData = computed(() => {
+  const raw = usageData.value;
+  if (!isFiltering.value) {
+    return raw;
+  }
+
+  const [startDate, endDate] = dateRange.value;
+  const records = raw.messageRecords || [];
+
+  const filteredRecords = records.filter(r => {
+    return r.date >= startDate && r.date <= endDate;
+  });
+
+  if (filteredRecords.length === 0) {
+    return {
+      summary: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 0, sessionCount: 0 },
+      modelStats: [],
+      projectStats: [],
+      avgTokensPerSession: 0,
+    };
+  }
+
+  // 重新计算汇总
+  const summary = filteredRecords.reduce((acc, r) => {
+    acc.inputTokens += r.inputTokens;
+    acc.outputTokens += r.outputTokens;
+    acc.cacheReadTokens += r.cacheReadTokens;
+    acc.cacheCreationTokens += r.cacheCreationTokens;
+    acc.totalTokens += r.totalTokens;
+    return acc;
+  }, { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 0 });
+
+  const sessionSet = new Set(filteredRecords.map(r => r.sessionId));
+  summary.sessionCount = sessionSet.size;
+
+  // 重新计算模型分布
+  const modelMap = new Map();
+  filteredRecords.forEach(r => {
+    if (!modelMap.has(r.model)) {
+      modelMap.set(r.model, { name: r.model, sessions: new Set(), tokens: 0, inputTokens: 0, outputTokens: 0 });
+    }
+    const stat = modelMap.get(r.model);
+    stat.sessions.add(r.sessionId);
+    stat.tokens += r.totalTokens;
+    stat.inputTokens += r.inputTokens + r.cacheCreationTokens + r.cacheReadTokens;
+    stat.outputTokens += r.outputTokens;
+  });
+  const modelStats = Array.from(modelMap.values())
+    .map(s => ({ ...s, sessions: s.sessions.size }))
+    .sort((a, b) => b.tokens - a.tokens);
+
+  // 重新计算项目分布
+  const projectMap = new Map();
+  filteredRecords.forEach(r => {
+    const key = r.projectPath || 'unknown';
+    if (!projectMap.has(key)) {
+      projectMap.set(key, {
+        name: r.project,
+        path: key,
+        exists: key !== 'unknown' ? true : false,
+        sessions: new Set(),
+        tokens: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+      });
+    }
+    const stat = projectMap.get(key);
+    stat.sessions.add(r.sessionId);
+    stat.tokens += r.totalTokens;
+    stat.inputTokens += r.inputTokens + r.cacheCreationTokens + r.cacheReadTokens;
+    stat.outputTokens += r.outputTokens;
+  });
+  const projectStats = Array.from(projectMap.values())
+    .map(s => ({ ...s, sessions: s.sessions.size }))
+    .sort((a, b) => b.tokens - a.tokens);
+
+  const avgTokensPerSession = summary.sessionCount > 0
+    ? Math.round(summary.totalTokens / summary.sessionCount)
+    : 0;
+
+  return {
+    summary,
+    modelStats,
+    projectStats,
+    avgTokensPerSession,
+  };
+});
+
+const displayedModelStats = computed(() => {
+  if (showAllModels.value) return filteredData.value.modelStats;
+  return filteredData.value.modelStats.slice(0, displayLimit);
+});
+
+const displayedProjectStats = computed(() => {
+  if (showAllProjects.value) return filteredData.value.projectStats;
+  return filteredData.value.projectStats.slice(0, displayLimit);
+});
+
+const hasMoreModels = computed(() => filteredData.value.modelStats.length > displayLimit);
+const hasMoreProjects = computed(() => filteredData.value.projectStats.length > displayLimit);
+
+const getStatValue = (key) => {
+  const data = filteredData.value;
+  switch (key) {
+    case "total": return data.summary.totalTokens;
+    case "input": return data.summary.inputTokens;
+    case "cacheCreation": return data.summary.cacheCreationTokens;
+    case "cacheRead": return data.summary.cacheReadTokens;
+    case "output": return data.summary.outputTokens;
+    case "sessions": return data.summary.sessionCount;
+    case "avg": return data.avgTokensPerSession;
+    default: return 0;
   }
 };
 
@@ -213,7 +302,7 @@ const handleProjectClick = (projectPath) => {
       <div v-if="loading" class="empty-small">
         <Empty description="加载中..." size="small" />
       </div>
-      <div v-else-if="usageData.modelStats.length === 0" class="empty-small">
+      <div v-else-if="filteredData.value.modelStats.length === 0" class="empty-small">
         <Empty description="暂无数据" size="small" />
       </div>
       <div v-else class="model-list">
@@ -226,7 +315,7 @@ const handleProjectClick = (projectPath) => {
             <span class="model-tokens">{{ formatNumber(model.tokens) }} Tokens · In {{ formatNumber(model.inputTokens) }} · Out {{ formatNumber(model.outputTokens) }}</span>
           </div>
           <div class="model-bar-bg">
-            <div class="model-bar" :style="{ width: (model.tokens / (usageData.summary.totalTokens || 1) * 100) + '%' }"></div>
+            <div class="model-bar" :style="{ width: (model.tokens / (filteredData.value.summary.totalTokens || 1) * 100) + '%' }"></div>
           </div>
         </div>
         <div v-if="hasMoreModels" class="expand-btn-wrapper">
@@ -234,7 +323,7 @@ const handleProjectClick = (projectPath) => {
             <template #icon>
               <component :is="showAllModels ? ChevronUpIcon : ChevronDownIcon" size="14px" />
             </template>
-            {{ showAllModels ? '收起' : `查看更多 (${usageData.modelStats.length - displayLimit})` }}
+            {{ showAllModels ? '收起' : `查看更多 (${filteredData.value.modelStats.length - displayLimit})` }}
           </Button>
         </div>
       </div>
@@ -245,7 +334,7 @@ const handleProjectClick = (projectPath) => {
       <div v-if="loading" class="empty-small">
         <Empty description="加载中..." size="small" />
       </div>
-      <div v-else-if="usageData.projectStats.length === 0" class="empty-small">
+      <div v-else-if="filteredData.value.projectStats.length === 0" class="empty-small">
         <Empty description="暂无数据" size="small" />
       </div>
       <div v-else class="project-list">
@@ -269,7 +358,7 @@ const handleProjectClick = (projectPath) => {
             <span class="project-tokens">{{ formatNumber(project.tokens) }} Tokens · {{ project.sessions }} 次会话</span>
           </div>
           <div class="project-bar-bg">
-            <div class="project-bar" :style="{ width: (project.tokens / (usageData.summary.totalTokens || 1) * 100) + '%' }"></div>
+            <div class="project-bar" :style="{ width: (project.tokens / (filteredData.value.summary.totalTokens || 1) * 100) + '%' }"></div>
           </div>
         </div>
         <div v-if="hasMoreProjects" class="expand-btn-wrapper">
@@ -277,7 +366,7 @@ const handleProjectClick = (projectPath) => {
             <template #icon>
               <component :is="showAllProjects ? ChevronUpIcon : ChevronDownIcon" size="14px" />
             </template>
-            {{ showAllProjects ? '收起' : `查看更多 (${usageData.projectStats.length - displayLimit})` }}
+            {{ showAllProjects ? '收起' : `查看更多 (${filteredData.value.projectStats.length - displayLimit})` }}
           </Button>
         </div>
       </div>
