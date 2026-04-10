@@ -835,6 +835,21 @@ window.services = {
             if (data.timestamp > session.timestamp) {
               session.timestamp = data.timestamp
             }
+
+            // 更新 projectMap（修复 projectMap 参数未被使用的问题）
+            const projectPathKey = projectPath || 'unknown'
+            if (!projectMap.has(projectPathKey)) {
+              projectMap.set(projectPathKey, {
+                name: projectName,
+                path: projectPathKey,
+                sessions: new Set(),
+                tokens: 0,
+                inputTokens: 0,
+                outputTokens: 0
+              })
+            }
+            const projectStat = projectMap.get(projectPathKey)
+            projectStat.sessions.add(sessionId)
           }
         } catch (parseError) {
           // 跳过解析失败的行
@@ -845,44 +860,9 @@ window.services = {
     }
   },
 
-  // 处理指定文件列表
-  _processJsonlFiles(filePaths, existingMessageRecords, projectPathMap) {
-    const sessionMap = new Map()
-    const projectMap = new Map()
-    const messageRecords = [...existingMessageRecords]
-
-    // 从现有记录重建 sessionMap 和 projectMap
-    for (const record of existingMessageRecords) {
-      if (!sessionMap.has(record.sessionId)) {
-        sessionMap.set(record.sessionId, {
-          sessionId: record.sessionId,
-          model: record.model,
-          project: record.project,
-          projectPath: record.projectPath,
-          timestamp: record.timestamp,
-          inputTokens: 0,
-          outputTokens: 0,
-          cacheReadTokens: 0,
-          cacheCreationTokens: 0
-        })
-      }
-      const session = sessionMap.get(record.sessionId)
-      session.inputTokens += record.inputTokens
-      session.outputTokens += record.outputTokens
-      session.cacheReadTokens += record.cacheReadTokens
-      session.cacheCreationTokens += record.cacheCreationTokens
-      if (record.timestamp > session.timestamp) {
-        session.timestamp = record.timestamp
-      }
-
-      // 重建 projectMap
-      const projectPathKey = record.projectPath || 'unknown'
-      if (!projectMap.has(projectPathKey)) {
-        projectMap.set(projectPathKey, { name: record.project, path: projectPathKey, sessions: new Set(), tokens: 0, inputTokens: 0, outputTokens: 0 })
-      }
-      const projectStat = projectMap.get(projectPathKey)
-      projectStat.sessions.add(record.sessionId)
-    }
+  // 处理指定文件列表（只处理新文件，不包含旧数据）
+  _processJsonlFiles(filePaths, sessionMap, projectMap, projectPathMap) {
+    const messageRecords = [] // 只包含新数据，不包含旧数据
 
     // 处理新文件
     for (const fileInfo of filePaths) {
@@ -1051,35 +1031,6 @@ window.services = {
     }
   },
 
-  // 合并缓存和新数据
-  _mergeUsageData(cachedData, incrementalData) {
-    // 合并 messageRecords
-    const mergedMessageRecords = [...cachedData.messageRecords, ...incrementalData.messageRecords]
-
-    // 合并 sessionMap
-    const mergedSessionMap = new Map()
-    for (const [sessionId, session] of cachedData.sessionMap) {
-      mergedSessionMap.set(sessionId, { ...session })
-    }
-    for (const [sessionId, session] of incrementalData.sessionMap) {
-      if (mergedSessionMap.has(sessionId)) {
-        const existing = mergedSessionMap.get(sessionId)
-        existing.inputTokens += session.inputTokens
-        existing.outputTokens += session.outputTokens
-        existing.cacheReadTokens += session.cacheReadTokens
-        existing.cacheCreationTokens += session.cacheCreationTokens
-        if (session.timestamp > existing.timestamp) {
-          existing.timestamp = session.timestamp
-        }
-      } else {
-        mergedSessionMap.set(sessionId, { ...session })
-      }
-    }
-
-    // 合并 projectMap（通过 _calculateStats 重新计算）
-    return { messageRecords: mergedMessageRecords, sessionMap: mergedSessionMap }
-  },
-
   // 全量处理（复用原有逻辑）
   _processAllUsageData(projectsDir) {
     const projectPathMap = this._buildProjectPathMap(projectsDir)
@@ -1156,9 +1107,12 @@ window.services = {
 
       // 增量处理
       const projectPathMap = this._buildProjectPathMap(projectsDir)
-      // 先从缓存数据重建 sessionMap
+
+      // 从缓存数据重建 cachedSessionMap 和 cachedProjectMap
       const cachedSessionMap = new Map()
+      const cachedProjectMap = new Map()
       for (const record of cachedData.messageRecords) {
+        // 重建 cachedSessionMap
         if (!cachedSessionMap.has(record.sessionId)) {
           cachedSessionMap.set(record.sessionId, {
             sessionId: record.sessionId,
@@ -1180,11 +1134,31 @@ window.services = {
         if (record.timestamp > session.timestamp) {
           session.timestamp = record.timestamp
         }
+
+        // 重建 cachedProjectMap
+        const projectPathKey = record.projectPath || 'unknown'
+        if (!cachedProjectMap.has(projectPathKey)) {
+          cachedProjectMap.set(projectPathKey, {
+            name: record.project,
+            path: projectPathKey,
+            sessions: new Set(),
+            tokens: 0,
+            inputTokens: 0,
+            outputTokens: 0
+          })
+        }
+        const projectStat = cachedProjectMap.get(projectPathKey)
+        projectStat.sessions.add(record.sessionId)
       }
 
-      const incrementalData = this._processJsonlFiles(newFiles, cachedData.messageRecords, projectPathMap)
-      const mergedData = this._mergeUsageData(cachedData, { messageRecords: incrementalData.messageRecords, sessionMap: incrementalData.sessionMap })
-      const stats = this._calculateStats(mergedData.messageRecords, mergedData.sessionMap)
+      // 只处理新文件，传入已重建的 sessionMap 和 projectMap
+      const incrementalData = this._processJsonlFiles(newFiles, cachedSessionMap, cachedProjectMap, projectPathMap)
+
+      // 合并 messageRecords：缓存数据 + 新数据（增量数据已包含在 sessionMap 中）
+      const mergedMessageRecords = [...cachedData.messageRecords, ...incrementalData.messageRecords]
+
+      // 计算完整统计（使用合并后的 messageRecords 和已更新的 sessionMap）
+      const stats = this._calculateStats(mergedMessageRecords, incrementalData.sessionMap)
 
       // 更新 lastProcessedTime
       let newLastProcessedTime = cachedData.lastProcessedTime
@@ -1196,7 +1170,7 @@ window.services = {
 
       const result = {
         ...stats,
-        messageRecords: mergedData.messageRecords,
+        messageRecords: mergedMessageRecords,
         lastProcessedTime: newLastProcessedTime
       }
 
