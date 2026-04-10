@@ -207,6 +207,28 @@ const loadData = async () => {
   }, 50);
 };
 
+const handleRefresh = async () => {
+  loading.value = true;
+  await nextTick();
+
+  // 清除缓存，强制全量刷新
+  try {
+    window.utools.db.remove('ccswitch_usage_cache_v1');
+  } catch (e) {
+    // 缓存可能不存在
+  }
+
+  setTimeout(() => {
+    try {
+      const data = window.services.readClaudeUsage(true); // forceRefresh = true
+      usageData.value = data;
+    } catch {
+      // keep defaults
+    }
+    loading.value = false;
+  }, 50);
+};
+
 onMounted(() => loadData());
 
 defineExpose({ loadData });
@@ -246,7 +268,7 @@ const handleProjectClick = (projectPath) => {
           :clearable="true"
           @clear="dateRange = []"
         />
-        <Button size="small" variant="outline" :loading="loading" @click="loadData">
+        <Button size="small" variant="outline" :loading="loading" @click="handleRefresh">
           <template #icon><RefreshIcon /></template>
           刷新数据
         </Button>
