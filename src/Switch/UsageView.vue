@@ -217,7 +217,7 @@ const handleRefresh = async () => {
 
   setTimeout(() => {
     try {
-      const data = window.services.readClaudeUsage(true); // forceRefresh = true，内部会清除所有缓存块
+      const data = window.services.readClaudeUsage();
       usageData.value = data;
     } catch {
       // keep defaults
@@ -251,6 +251,7 @@ const handleProjectClick = (projectPath) => {
           placeholder="选择日期范围"
           :presets="datePresets"
           :clearable="true"
+          :disable-date="(date) => date > new Date()"
           style="width: 240px;"
         />
         <Button size="small" variant="outline" :loading="loading" @click="handleRefresh">

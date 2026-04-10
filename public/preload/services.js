@@ -719,150 +719,8 @@ window.services = {
     }).join('')
   },
 
-  // 补全贡献墙365天数据（缓存只存有数据的日期，返回时补全空格子）
-  _fillContributions(contributions) {
-    const now = new Date()
-    const totalDays = 365
-    const result = []
-
-    // 创建日期索引
-    const dateMap = new Map()
-    for (const day of contributions) {
-      dateMap.set(day.date, day)
-    }
-
-    // 补全365天
-    for (let i = totalDays - 1; i >= 0; i--) {
-      const d = new Date(now)
-      d.setDate(d.getDate() - i)
-      const dateKey = d.toISOString().split('T')[0]
-
-      if (dateMap.has(dateKey)) {
-        result.push(dateMap.get(dateKey))
-      } else {
-        result.push({ date: dateKey, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
-      }
-    }
-
-    return result
-  },
-
-  // 获取缓存 meta 键（存小块数据 + blockCount）
-  _getCacheMetaKey() {
-    const nativeId = window.utools.getNativeId()
-    return `ccswitch_usage_cache_${nativeId}_meta`
-  },
-
-  // 获取缓存 records 键（分块存 messageRecords）
-  _getCacheRecordsKey(blockIndex) {
-    const nativeId = window.utools.getNativeId()
-    return `ccswitch_usage_cache_${nativeId}_records_${blockIndex}`
-  },
-
-  // 清除所有缓存块
-  _clearAllCacheBlocks() {
-    const metaKey = this._getCacheMetaKey()
-    const metaDoc = window.utools.db.get(metaKey)
-    if (metaDoc) {
-      window.utools.db.remove(metaKey)
-      // 清除所有 records 块
-      const blockCount = metaDoc.data?.blockCount || 0
-      for (let i = 0; i < blockCount; i++) {
-        const recordsKey = this._getCacheRecordsKey(i)
-        window.utools.db.remove(recordsKey)
-      }
-    }
-  },
-
-  // 写入分块缓存
-  _writeBlockCache(result) {
-    const BLOCK_SIZE_LIMIT = 500 * 1024 // 500KB per block
-
-    // 提取 messageRecords
-    const { messageRecords, ...metaData } = result
-
-    // 计算需要多少块
-    let blockCount = 0
-    const blocks = []
-    if (messageRecords && messageRecords.length > 0) {
-      // 按块拆分
-      let currentBlock = []
-      let currentSize = 0
-
-      for (const record of messageRecords) {
-        const recordSize = JSON.stringify(record).length
-        if (currentSize + recordSize > BLOCK_SIZE_LIMIT && currentBlock.length > 0) {
-          blocks.push(currentBlock)
-          currentBlock = []
-          currentSize = 0
-        }
-        currentBlock.push(record)
-        currentSize += recordSize
-      }
-
-      if (currentBlock.length > 0) {
-        blocks.push(currentBlock)
-      }
-
-      blockCount = blocks.length
-    }
-
-    // 写入 meta（不含 messageRecords，含 blockCount）
-    const metaKey = this._getCacheMetaKey()
-    const metaDoc = { ...metaData, blockCount }
-    const existingMeta = window.utools.db.get(metaKey)
-    window.utools.db.put({
-      _id: metaKey,
-      data: metaDoc,
-      _rev: existingMeta ? existingMeta._rev : undefined
-    })
-
-    // 写入各个 records 块
-    for (let i = 0; i < blockCount; i++) {
-      const recordsKey = this._getCacheRecordsKey(i)
-      const existingRecords = window.utools.db.get(recordsKey)
-      window.utools.db.put({
-        _id: recordsKey,
-        data: blocks[i],
-        _rev: existingRecords ? existingRecords._rev : undefined
-      })
-    }
-
-    console.log(`缓存写入完成: meta + ${blockCount} 块 records`)
-  },
-
-  // 读取分块缓存
-  _readBlockCache() {
-    const metaKey = this._getCacheMetaKey()
-    const metaDoc = window.utools.db.get(metaKey)
-
-    if (!metaDoc) {
-      return null
-    }
-
-    const metaData = metaDoc.data
-    const blockCount = metaData.blockCount || 0
-
-    // 合并所有 records 块
-    let messageRecords = []
-    for (let i = 0; i < blockCount; i++) {
-      const recordsKey = this._getCacheRecordsKey(i)
-      const recordsDoc = window.utools.db.get(recordsKey)
-      if (recordsDoc && recordsDoc.data) {
-        messageRecords = messageRecords.concat(recordsDoc.data)
-      }
-    }
-
-    // 返回完整数据
-    return {
-      ...metaData,
-      messageRecords
-    }
-  },
-
-  // 空结果模板
+  // 空结果模板（包含365天空贡献墙）
   _emptyResult() {
-    // 生成365天空贡献墙数据
     const now = new Date()
     const totalDays = 365
     const emptyContributions = []
@@ -874,20 +732,18 @@ window.services = {
     }
 
     return {
-      records: [],
       summary: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 0, sessionCount: 0 },
       modelStats: [],
       projectStats: [],
       contributions: emptyContributions,
       avgTokensPerSession: 0,
       recentSessions: [],
-      messageRecords: [],
-      lastProcessedTime: 0
+      messageRecords: []
     }
   },
 
-  // 查找新的 jsonl 文件（mtime > lastProcessedTime）
-  _findNewJsonlFiles(projectsDir, lastProcessedTime) {
+  // 查找所有 jsonl 文件
+  _findAllJsonlFiles(projectsDir) {
     const results = []
     try {
       if (!fs.existsSync(projectsDir)) {
@@ -897,16 +753,13 @@ window.services = {
       for (const entry of entries) {
         const fullPath = path.join(projectsDir, entry.name)
         if (entry.isDirectory()) {
-          results.push(...this._findNewJsonlFiles(fullPath, lastProcessedTime))
+          results.push(...this._findAllJsonlFiles(fullPath))
         } else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
-          const stat = fs.statSync(fullPath)
-          if (stat.mtime.getTime() > lastProcessedTime) {
-            results.push({ path: fullPath, mtime: stat.mtime.getTime() })
-          }
+          results.push(fullPath)
         }
       }
     } catch (error) {
-      console.error('查找新 jsonl 文件失败:', error)
+      console.error('查找 jsonl 文件失败:', error)
     }
     return results
   },
@@ -1009,13 +862,12 @@ window.services = {
     }
   },
 
-  // 处理指定文件列表（只处理新文件，不包含旧数据）
+  // 处理指定文件列表
   _processJsonlFiles(filePaths, sessionMap, projectMap, projectPathMap) {
-    const messageRecords = [] // 只包含新数据，不包含旧数据
+    const messageRecords = []
 
-    // 处理新文件
-    for (const fileInfo of filePaths) {
-      this._processSingleJsonlFile(fileInfo.path, messageRecords, sessionMap, projectMap, projectPathMap)
+    for (const filePath of filePaths) {
+      this._processSingleJsonlFile(filePath, messageRecords, sessionMap, projectMap, projectPathMap)
     }
 
     return { messageRecords, sessionMap, projectMap }
@@ -1174,15 +1026,14 @@ window.services = {
     }
   },
 
-  // 全量处理（复用原有逻辑）
+  // 全量处理所有数据
   _processAllUsageData(projectsDir) {
     const projectPathMap = this._buildProjectPathMap(projectsDir)
     const sessionMap = new Map()
     const projectMap = new Map()
     const messageRecords = []
 
-    // 遍历所有 jsonl 文件处理 usage 数据
-    const jsonlFiles = findJsonlFiles(projectsDir)
+    const jsonlFiles = this._findAllJsonlFiles(projectsDir)
 
     for (const filePath of jsonlFiles) {
       this._processSingleJsonlFile(filePath, messageRecords, sessionMap, projectMap, projectPathMap)
@@ -1191,8 +1042,8 @@ window.services = {
     return { messageRecords, sessionMap, projectMap }
   },
 
-  // 读取 Claude Code usage 数据（支持增量缓存 + 分块存储）
-  readClaudeUsage(forceRefresh = false) {
+  // 读取 Claude Code usage 数据（每次全量处理）
+  readClaudeUsage() {
     try {
       const homeDir = window.utools.getPath('home')
       const projectsDir = path.join(homeDir, '.claude', 'projects')
@@ -1201,137 +1052,50 @@ window.services = {
         return this._emptyResult()
       }
 
-      // 强制刷新时清除所有缓存块
-      if (forceRefresh) {
-        this._clearAllCacheBlocks()
-        console.log('强制刷新：已清除所有缓存块')
-      }
+      console.log('开始全量处理...')
+      const processedData = this._processAllUsageData(projectsDir)
+      const stats = this._calculateStats(processedData.messageRecords, processedData.sessionMap)
 
-      // 尝试获取缓存
-      const cachedData = this._readBlockCache()
+      // 补全365天贡献墙数据
+      const contributions = this._fillEmptyContributions(stats.contributions)
 
-      // 如果强制刷新或无缓存，执行全量处理
-      if (forceRefresh || !cachedData) {
-        console.log('执行全量处理...')
-        const processedData = this._processAllUsageData(projectsDir)
-        const stats = this._calculateStats(processedData.messageRecords, processedData.sessionMap)
+      console.log(`处理完成: ${processedData.messageRecords.length} 条消息记录`)
 
-        // 计算最新的 mtime 作为 lastProcessedTime
-        const jsonlFiles = findJsonlFiles(projectsDir)
-        let lastProcessedTime = 0
-        for (const filePath of jsonlFiles) {
-          const stat = fs.statSync(filePath)
-          if (stat.mtime.getTime() > lastProcessedTime) {
-            lastProcessedTime = stat.mtime.getTime()
-          }
-        }
-
-        const result = {
-          ...stats,
-          messageRecords: processedData.messageRecords,
-          lastProcessedTime
-        }
-
-        // 写入分块缓存
-        this._writeBlockCache(result)
-        console.log('全量处理完成，已缓存')
-        // 返回前补全贡献墙365天数据
-        result.contributions = this._fillContributions(result.contributions)
-        return result
-      }
-
-      // 有缓存，检查是否有新文件
-      const newFiles = this._findNewJsonlFiles(projectsDir, cachedData.lastProcessedTime)
-
-      if (newFiles.length === 0) {
-        console.log('无新文件，直接返回缓存')
-        // 返回前补全贡献墙365天数据
-        cachedData.contributions = this._fillContributions(cachedData.contributions)
-        return cachedData
-      }
-
-      console.log(`发现 ${newFiles.length} 个新文件，执行增量处理...`)
-
-      // 增量处理
-      const projectPathMap = this._buildProjectPathMap(projectsDir)
-
-      // 从缓存数据重建 cachedSessionMap 和 cachedProjectMap
-      const cachedSessionMap = new Map()
-      const cachedProjectMap = new Map()
-      for (const record of cachedData.messageRecords) {
-        // 重建 cachedSessionMap
-        if (!cachedSessionMap.has(record.sessionId)) {
-          cachedSessionMap.set(record.sessionId, {
-            sessionId: record.sessionId,
-            model: record.model,
-            project: record.project,
-            projectPath: record.projectPath,
-            timestamp: record.timestamp,
-            inputTokens: 0,
-            outputTokens: 0,
-            cacheReadTokens: 0,
-            cacheCreationTokens: 0
-          })
-        }
-        const session = cachedSessionMap.get(record.sessionId)
-        session.inputTokens += record.inputTokens
-        session.outputTokens += record.outputTokens
-        session.cacheReadTokens += record.cacheReadTokens
-        session.cacheCreationTokens += record.cacheCreationTokens
-        if (record.timestamp > session.timestamp) {
-          session.timestamp = record.timestamp
-        }
-
-        // 重建 cachedProjectMap
-        const projectPathKey = record.projectPath || 'unknown'
-        if (!cachedProjectMap.has(projectPathKey)) {
-          cachedProjectMap.set(projectPathKey, {
-            name: record.project,
-            path: projectPathKey,
-            sessions: new Set(),
-            tokens: 0,
-            inputTokens: 0,
-            outputTokens: 0
-          })
-        }
-        const projectStat = cachedProjectMap.get(projectPathKey)
-        projectStat.sessions.add(record.sessionId)
-      }
-
-      // 只处理新文件，传入已重建的 sessionMap 和 projectMap
-      const incrementalData = this._processJsonlFiles(newFiles, cachedSessionMap, cachedProjectMap, projectPathMap)
-
-      // 合并 messageRecords：缓存数据 + 新数据（增量数据已包含在 sessionMap 中）
-      const mergedMessageRecords = [...cachedData.messageRecords, ...incrementalData.messageRecords]
-
-      // 计算完整统计（使用合并后的 messageRecords 和已更新的 sessionMap）
-      const stats = this._calculateStats(mergedMessageRecords, incrementalData.sessionMap)
-
-      // 更新 lastProcessedTime
-      let newLastProcessedTime = cachedData.lastProcessedTime
-      for (const fileInfo of newFiles) {
-        if (fileInfo.mtime > newLastProcessedTime) {
-          newLastProcessedTime = fileInfo.mtime
-        }
-      }
-
-      const result = {
+      return {
         ...stats,
-        messageRecords: mergedMessageRecords,
-        lastProcessedTime: newLastProcessedTime
+        contributions,
+        messageRecords: processedData.messageRecords
       }
-
-      // 更新分块缓存
-      this._writeBlockCache(result)
-
-      console.log('增量处理完成，已更新缓存')
-      // 返回前补全贡献墙365天数据
-      result.contributions = this._fillContributions(result.contributions)
-      return result
     } catch (error) {
       console.error('读取 Claude usage 数据失败:', error)
       return this._emptyResult()
     }
+  },
+
+  // 补全365天贡献墙空格子
+  _fillEmptyContributions(contributions) {
+    const now = new Date()
+    const totalDays = 365
+    const dateMap = new Map()
+
+    for (const day of contributions) {
+      dateMap.set(day.date, day)
+    }
+
+    const result = []
+    for (let i = totalDays - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i)
+      const dateKey = d.toISOString().split('T')[0]
+
+      if (dateMap.has(dateKey)) {
+        result.push(dateMap.get(dateKey))
+      } else {
+        result.push({ date: dateKey, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
+      }
+    }
+
+    return result
   },
 
   copyClaudeCommand(projectPath) {
