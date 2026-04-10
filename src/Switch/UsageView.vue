@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, nextTick, computed } from "vue";
-import { Card, Statistic, Empty, Button, Tag, Tooltip, MessagePlugin } from "tdesign-vue-next";
+import { Card, Statistic, Empty, Button, Tag, Tooltip, MessagePlugin, DateRangePicker, Dropdown, DropdownMenu, DropdownItem } from "tdesign-vue-next";
 import {
   RefreshIcon,
   ArrowDownIcon,
@@ -13,6 +13,7 @@ import {
   CheckCircleIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  CalendarIcon,
 } from "tdesign-icons-vue-next";
 import ContributionGrid from "./ContributionGrid.vue";
 
@@ -34,6 +35,9 @@ const usageData = ref({
   contributions: [],
   avgTokensPerSession: 0,
 });
+
+const dateRange = ref([]);
+const isFiltering = computed(() => dateRange.value && dateRange.value.length === 2);
 
 const stats = [
   // 第一行：总处理、会话数、平均每会话
@@ -81,6 +85,25 @@ const getStatValue = (key) => {
   }
 };
 
+const formatDateString = (date) => {
+  return date.toISOString().split('T')[0];
+};
+
+const handleQuickSelect = (type) => {
+  const today = new Date();
+  if (type === '7days') {
+    const start = new Date(today);
+    start.setDate(start.getDate() - 6);
+    dateRange.value = [formatDateString(start), formatDateString(today)];
+  } else if (type === '30days') {
+    const start = new Date(today);
+    start.setDate(start.getDate() - 29);
+    dateRange.value = [formatDateString(start), formatDateString(today)];
+  } else if (type === 'clear') {
+    dateRange.value = [];
+  }
+};
+
 const loadData = async () => {
   loading.value = true;
   await nextTick();
@@ -113,10 +136,32 @@ const handleProjectClick = (projectPath) => {
   <div class="usage-view">
     <div class="usage-header">
       <span class="usage-tip">当前统计数据仅用于展示处理的 token 数量，不做其他参考。</span>
-      <Button size="small" variant="outline" :loading="loading" @click="loadData">
-        <template #icon><RefreshIcon /></template>
-        刷新数据
-      </Button>
+      <div class="usage-actions">
+        <Dropdown>
+          <template #dropdown>
+            <DropdownMenu>
+              <DropdownItem @click="handleQuickSelect('7days')">最近7天</DropdownItem>
+              <DropdownItem @click="handleQuickSelect('30days')">最近30天</DropdownItem>
+              <DropdownItem v-if="isFiltering" @click="handleQuickSelect('clear')">清除筛选</DropdownItem>
+            </DropdownMenu>
+          </template>
+          <Button size="small" variant="outline">
+            <template #icon><CalendarIcon /></template>
+            日期筛选
+          </Button>
+        </Dropdown>
+        <DateRangePicker
+          v-model="dateRange"
+          size="small"
+          placeholder="选择日期范围"
+          :clearable="true"
+          @clear="dateRange = []"
+        />
+        <Button size="small" variant="outline" :loading="loading" @click="loadData">
+          <template #icon><RefreshIcon /></template>
+          刷新数据
+        </Button>
+      </div>
     </div>
 
     <!-- 统计卡片 -->
@@ -476,5 +521,15 @@ const handleProjectClick = (projectPath) => {
   padding-top: 8px;
   border-top: 1px solid var(--td-component-stroke);
   margin-top: 4px;
+}
+
+.usage-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.usage-actions :deep(.t-date-picker) {
+  width: 220px;
 }
 </style>
