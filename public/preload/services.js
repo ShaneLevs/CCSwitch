@@ -827,6 +827,7 @@ window.services = {
                   project: projectName,
                   projectPath: projectPath,
                   timestamp: data.timestamp,
+                  date: data.timestamp.split('T')[0], // YYYY-MM-DD 格式
                   inputTokens,
                   outputTokens,
                   cacheReadTokens,
@@ -969,7 +970,8 @@ window.services = {
         projectStats,
         contributions,
         avgTokensPerSession,
-        recentSessions
+        recentSessions,
+        messageRecords
       }
     } catch (error) {
       console.error('读取 Claude usage 数据失败:', error)
@@ -980,7 +982,8 @@ window.services = {
           projectStats: [],
           contributions: [],
           avgTokensPerSession: 0,
-          recentSessions: []
+          recentSessions: [],
+          messageRecords: []
         }
     }
   },
