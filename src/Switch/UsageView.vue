@@ -302,7 +302,7 @@ const handleProjectClick = (projectPath) => {
       <div v-if="loading" class="empty-small">
         <Empty description="加载中..." size="small" />
       </div>
-      <div v-else-if="filteredData.value.modelStats.length === 0" class="empty-small">
+      <div v-else-if="filteredData.modelStats.length === 0" class="empty-small">
         <Empty description="暂无数据" size="small" />
       </div>
       <div v-else class="model-list">
@@ -315,7 +315,7 @@ const handleProjectClick = (projectPath) => {
             <span class="model-tokens">{{ formatNumber(model.tokens) }} Tokens · In {{ formatNumber(model.inputTokens) }} · Out {{ formatNumber(model.outputTokens) }}</span>
           </div>
           <div class="model-bar-bg">
-            <div class="model-bar" :style="{ width: (model.tokens / (filteredData.value.summary.totalTokens || 1) * 100) + '%' }"></div>
+            <div class="model-bar" :style="{ width: (model.tokens / (filteredData.summary.totalTokens || 1) * 100) + '%' }"></div>
           </div>
         </div>
         <div v-if="hasMoreModels" class="expand-btn-wrapper">
@@ -323,7 +323,7 @@ const handleProjectClick = (projectPath) => {
             <template #icon>
               <component :is="showAllModels ? ChevronUpIcon : ChevronDownIcon" size="14px" />
             </template>
-            {{ showAllModels ? '收起' : `查看更多 (${filteredData.value.modelStats.length - displayLimit})` }}
+            {{ showAllModels ? '收起' : `查看更多 (${filteredData.modelStats.length - displayLimit})` }}
           </Button>
         </div>
       </div>
@@ -334,7 +334,7 @@ const handleProjectClick = (projectPath) => {
       <div v-if="loading" class="empty-small">
         <Empty description="加载中..." size="small" />
       </div>
-      <div v-else-if="filteredData.value.projectStats.length === 0" class="empty-small">
+      <div v-else-if="filteredData.projectStats.length === 0" class="empty-small">
         <Empty description="暂无数据" size="small" />
       </div>
       <div v-else class="project-list">
@@ -358,7 +358,7 @@ const handleProjectClick = (projectPath) => {
             <span class="project-tokens">{{ formatNumber(project.tokens) }} Tokens · {{ project.sessions }} 次会话</span>
           </div>
           <div class="project-bar-bg">
-            <div class="project-bar" :style="{ width: (project.tokens / (filteredData.value.summary.totalTokens || 1) * 100) + '%' }"></div>
+            <div class="project-bar" :style="{ width: (project.tokens / (filteredData.summary.totalTokens || 1) * 100) + '%' }"></div>
           </div>
         </div>
         <div v-if="hasMoreProjects" class="expand-btn-wrapper">
@@ -366,7 +366,7 @@ const handleProjectClick = (projectPath) => {
             <template #icon>
               <component :is="showAllProjects ? ChevronUpIcon : ChevronDownIcon" size="14px" />
             </template>
-            {{ showAllProjects ? '收起' : `查看更多 (${filteredData.value.projectStats.length - displayLimit})` }}
+            {{ showAllProjects ? '收起' : `查看更多 (${filteredData.projectStats.length - displayLimit})` }}
           </Button>
         </div>
       </div>
