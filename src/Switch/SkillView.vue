@@ -74,17 +74,90 @@ watch(installUrl, (newVal) => {
   }
 });
 
-// 解析 YAML frontmatter 提取字段
+// 解析 YAML frontmatter 提取字段（支持多行字符串）
 const parseFrontmatter = (yamlStr) => {
   if (!yamlStr) return {};
   const result = {};
   const lines = yamlStr.split('\n');
+
+  let currentKey = null;
+  let currentValue = [];
+  let isMultiline = false;
+  let multilineType = null; // '>' 或 '|'
+
   for (const line of lines) {
-    const match = line.match(/^(\w+):\s*(.*)$/);
-    if (match) {
-      result[match[1]] = match[2];
+    // 检测新键开始
+    const keyMatch = line.match(/^(\w+):\s*(.*)$/);
+
+    if (keyMatch && !isMultiline) {
+      // 保存上一个键值
+      if (currentKey) {
+        result[currentKey] = currentValue.join('\n').trim();
+      }
+
+      currentKey = keyMatch[1];
+      const valuePart = keyMatch[2];
+
+      // 检测多行字符串开始
+      if (valuePart === '>' || valuePart === '|') {
+        isMultiline = true;
+        multilineType = valuePart;
+        currentValue = [];
+      } else if (valuePart.startsWith('>') || valuePart.startsWith('|')) {
+        // 处理 >text 或 |text 的情况（同一行有内容）
+        isMultiline = true;
+        multilineType = valuePart[0];
+        currentValue = [valuePart.slice(1).trim()];
+      } else {
+        // 单行值
+        currentValue = [valuePart];
+      }
+    } else if (isMultiline && currentKey) {
+      // 多行内容
+      // 检测是否遇到新键（缩进为0且包含 :）
+      if (line.match(/^\w+:\s/) && !line.startsWith(' ') && !line.startsWith('\t')) {
+        // 保存当前多行值
+        if (multilineType === '>') {
+          // > 会把换行替换为空格
+          result[currentKey] = currentValue.join(' ').trim();
+        } else {
+          // | 保留换行
+          result[currentKey] = currentValue.join('\n').trim();
+        }
+        // 开始新键
+        const newKeyMatch = line.match(/^(\w+):\s*(.*)$/);
+        currentKey = newKeyMatch[1];
+        const newValuePart = newKeyMatch[2];
+        if (newValuePart === '>' || newValuePart === '|') {
+          isMultiline = true;
+          multilineType = newValuePart;
+          currentValue = [];
+        } else if (newValuePart.startsWith('>') || newValuePart.startsWith('|')) {
+          isMultiline = true;
+          multilineType = newValuePart[0];
+          currentValue = [newValuePart.slice(1).trim()];
+        } else {
+          isMultiline = false;
+          currentValue = [newValuePart];
+        }
+      } else {
+        // 续行内容
+        currentValue.push(line.trim());
+      }
     }
   }
+
+  // 保存最后一个键值
+  if (currentKey) {
+    if (isMultiline && multilineType === '>') {
+      result[currentKey] = currentValue.join(' ').trim();
+    } else if (isMultiline && multilineType === '|') {
+      result[currentKey] = currentValue.join('\n').trim();
+    } else {
+      result[currentKey] = currentValue.join('\n').trim();
+    }
+  }
+
   return result;
 };
 
