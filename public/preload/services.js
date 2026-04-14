@@ -169,6 +169,41 @@ window.services = {
     }
   },
 
+  // 获取所有 MCP 配置及其状态（合并开启和关闭的）
+  getAllMcpServersWithStatus() {
+    try {
+      const enabledServers = this.getMcpServers()
+      const disabledServers = this.getDisabledMcpServers()
+      const result = []
+
+      // 开启的 MCP
+      for (const [name, config] of Object.entries(enabledServers)) {
+        result.push({
+          name,
+          config,
+          enabled: true
+        })
+      }
+
+      // 关闭的 MCP（排除已在开启列表中的同名配置）
+      for (const server of disabledServers) {
+        if (!enabledServers[server.name]) {
+          result.push({
+            name: server.name,
+            config: server.config,
+            enabled: false,
+            updatedAt: server.updatedAt
+          })
+        }
+      }
+
+      return result.sort((a, b) => a.name.localeCompare(b.name))
+    } catch (error) {
+      console.error('获取 MCP 状态列表失败:', error)
+      return []
+    }
+  },
+
   readClaudeSettings() {
     try {
       if (!fs.existsSync(CLAUDE_SETTINGS_PATH)) {
