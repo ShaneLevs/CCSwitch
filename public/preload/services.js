@@ -85,6 +85,44 @@ window.services = {
     }
   },
 
+  // 关闭 MCP：从 .claude.json 移除，保存到 uTools DB
+  disableMcpServer(name) {
+    try {
+      // 1. 读取当前配置
+      const config = this.getMcpServers()
+      if (!config[name]) {
+        return { success: false, error: 'MCP 配置不存在' }
+      }
+
+      // 2. 保存到 DB
+      const nativeId = this.getNativeId()
+      const docId = `ccswitch_mcp_disabled_${nativeId}_${name}`
+      const existingDoc = window.utools.db.get(docId)
+
+      const doc = {
+        _id: docId,
+        name: name,
+        config: config[name],
+        nativeId: nativeId,
+        updatedAt: Date.now()
+      }
+      if (existingDoc) doc._rev = existingDoc._rev
+
+      const result = window.utools.db.put(doc)
+      if (!result.ok) {
+        return { success: false, error: '保存到 DB 失败' }
+      }
+
+      // 3. 从 .claude.json 删除
+      this.deleteMcpServer(name)
+
+      return { success: true }
+    } catch (error) {
+      console.error('关闭 MCP 失败:', error)
+      return { success: false, error: error.message }
+    }
+  },
+
   readClaudeSettings() {
     try {
       if (!fs.existsSync(CLAUDE_SETTINGS_PATH)) {
