@@ -123,6 +123,33 @@ window.services = {
     }
   },
 
+  // 开启 MCP：从 DB 恢复，写入 .claude.json
+  enableMcpServer(name) {
+    try {
+      const nativeId = this.getNativeId()
+      const docId = `ccswitch_mcp_disabled_${nativeId}_${name}`
+      const doc = window.utools.db.get(docId)
+
+      if (!doc) {
+        return { success: false, error: 'DB 中未找到该 MCP 配置' }
+      }
+
+      // 写入 .claude.json
+      const success = this.upsertMcpServer(name, doc.config)
+      if (!success) {
+        return { success: false, error: '写入配置文件失败' }
+      }
+
+      // 删除 DB 记录
+      window.utools.db.remove(docId)
+
+      return { success: true }
+    } catch (error) {
+      console.error('开启 MCP 失败:', error)
+      return { success: false, error: error.message }
+    }
+  },
+
   readClaudeSettings() {
     try {
       if (!fs.existsSync(CLAUDE_SETTINGS_PATH)) {
