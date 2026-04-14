@@ -48,6 +48,29 @@ const loadMcpServers = () => {
   mcpServerList.value = window.services.getAllMcpServersWithStatus();
 };
 
+// 切换 MCP 状态
+const toggleMcpStatus = (server) => {
+  if (server.enabled) {
+    // 关闭
+    const result = window.services.disableMcpServer(server.name);
+    if (result.success) {
+      MessagePlugin.success("MCP 已关闭");
+      loadMcpServers();
+    } else {
+      MessagePlugin.error(result.error || "关闭失败");
+    }
+  } else {
+    // 开启
+    const result = window.services.enableMcpServer(server.name);
+    if (result.success) {
+      MessagePlugin.success("MCP 已开启");
+      loadMcpServers();
+    } else {
+      MessagePlugin.error(result.error || "开启失败");
+    }
+  }
+};
+
 // 打开 claude.json 文件
 const openClaudeJsonFile = () => {
   const filePath = window.services.getClaudeJsonPath();
@@ -152,12 +175,18 @@ const saveMcpServer = () => {
 };
 
 // 删除 MCP 配置
-const deleteMcpServer = (name) => {
-  if (window.services.deleteMcpServer(name)) {
+const deleteMcpServer = (server) => {
+  let result;
+  if (server.enabled) {
+    result = window.services.deleteMcpServer(server.name);
+  } else {
+    result = window.services.deleteDisabledMcpServer(server.name);
+  }
+  if (result.success) {
     MessagePlugin.success("MCP 配置已删除");
     loadMcpServers();
   } else {
-    MessagePlugin.error("删除失败");
+    MessagePlugin.error(result.error || "删除失败");
   }
 };
 
