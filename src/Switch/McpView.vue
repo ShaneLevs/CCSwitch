@@ -232,20 +232,39 @@ onMounted(() => {
     <div v-else class="mcp-list">
       <Card
         v-for="server in mcpServerList"
-        :key="server.name"
+        :key="server.name + '-' + (server.enabled ? 'on' : 'off')"
         :title="server.name"
         :bordered="true"
         class="mcp-card"
       >
         <template #actions>
           <Space>
-            <Tag :theme="getTypeTagTheme(server.type)" variant="light">
-              {{ getTypeTag(server.type) }}
+            <Switch
+              :value="server.enabled"
+              @change="toggleMcpStatus(server)"
+              size="small"
+            />
+            <Tag :theme="getTypeTagTheme(server.config.type)" variant="light">
+              {{ getTypeTag(server.config.type) }}
             </Tag>
-            <Button size="small" theme="default" variant="text" @click="openEditDialog(server)" title="编辑">
+            <Tag v-if="!server.enabled" theme="default" variant="light" size="small">
+              已关闭
+            </Tag>
+            <Button
+              size="small"
+              theme="default"
+              variant="text"
+              :disabled="!server.enabled"
+              @click="openEditDialog(server)"
+              title="编辑"
+            >
               <EditIcon />
             </Button>
-            <Popconfirm theme="danger" content="确定要删除这个 MCP 配置吗？" @confirm="deleteMcpServer(server.name)">
+            <Popconfirm
+              theme="danger"
+              content="确定要删除这个 MCP 配置吗？"
+              @confirm="deleteMcpServer(server)"
+            >
               <Button size="small" theme="danger" variant="text" title="删除">
                 <DeleteIcon />
               </Button>
@@ -255,7 +274,7 @@ onMounted(() => {
 
         <div class="mcp-info">
           <div class="info-item config-summary">
-            {{ getConfigSummary(server) || '无详细配置' }}
+            {{ getConfigSummary(server.config) || '无详细配置' }}
           </div>
         </div>
       </Card>
