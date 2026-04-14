@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted } from "vue";
 import {
   Card,
   Button,
@@ -11,6 +11,7 @@ import {
   Empty,
   Textarea,
   Popconfirm,
+  Switch,
 } from "tdesign-vue-next";
 import {
   AddIcon,
@@ -18,7 +19,7 @@ import {
   DeleteIcon,
 } from "tdesign-icons-vue-next";
 
-const mcpServers = ref({});
+const mcpServerList = ref([]);
 const showDialog = ref(false);
 const editingName = ref("");
 const dialogMode = ref("create"); // 'create' or 'edit'
@@ -42,9 +43,9 @@ const EXAMPLE_HTTP = `{
   "env": {}
 }`;
 
-// 加载 MCP 配置
+// 加载 MCP 配置（带状态）
 const loadMcpServers = () => {
-  mcpServers.value = window.services.getMcpServers();
+  mcpServerList.value = window.services.getAllMcpServersWithStatus();
 };
 
 // 打开 claude.json 文件
@@ -52,14 +53,6 @@ const openClaudeJsonFile = () => {
   const filePath = window.services.getClaudeJsonPath();
   window.utools.shellOpenPath(filePath);
 };
-
-// 获取 MCP 服务器列表（带名称）
-const mcpServerList = computed(() => {
-  return Object.entries(mcpServers.value).map(([name, config]) => ({
-    name,
-    ...config,
-  }));
-});
 
 // 获取类型标签
 const getTypeTag = (type) => {
