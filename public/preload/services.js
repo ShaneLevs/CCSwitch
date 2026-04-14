@@ -150,6 +150,25 @@ window.services = {
     }
   },
 
+  // 删除关闭状态的 MCP 配置（从 DB 删除）
+  deleteDisabledMcpServer(name) {
+    try {
+      const nativeId = this.getNativeId()
+      const docId = `ccswitch_mcp_disabled_${nativeId}_${name}`
+      const doc = window.utools.db.get(docId)
+
+      if (!doc) {
+        return { success: false, error: '配置不存在' }
+      }
+
+      const result = window.utools.db.remove(docId)
+      return { success: result.ok, error: result.ok ? null : '删除失败' }
+    } catch (error) {
+      console.error('删除关闭的 MCP 配置失败:', error)
+      return { success: false, error: error.message }
+    }
+  },
+
   readClaudeSettings() {
     try {
       if (!fs.existsSync(CLAUDE_SETTINGS_PATH)) {
