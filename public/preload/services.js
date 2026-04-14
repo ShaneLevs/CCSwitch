@@ -66,6 +66,25 @@ window.services = {
     return window.utools.getNativeId()
   },
 
+  // 获取本机关闭的 MCP 配置列表
+  getDisabledMcpServers() {
+    try {
+      const nativeId = this.getNativeId()
+      const prefix = `ccswitch_mcp_disabled_${nativeId}_`
+      const docs = window.utools.db.allDocs()
+        .filter(d => d._id.startsWith(prefix))
+        .map(d => ({
+          name: d.name,
+          config: d.config,
+          updatedAt: d.updatedAt
+        }))
+      return docs.sort((a, b) => b.updatedAt - a.updatedAt)
+    } catch (error) {
+      console.error('获取关闭的 MCP 配置失败:', error)
+      return []
+    }
+  },
+
   readClaudeSettings() {
     try {
       if (!fs.existsSync(CLAUDE_SETTINGS_PATH)) {
