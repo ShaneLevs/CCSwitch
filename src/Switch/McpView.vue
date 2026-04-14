@@ -109,11 +109,13 @@ const openCreateDialog = () => {
 
 // 打开编辑对话框
 const openEditDialog = (server) => {
+  if (!server.enabled) {
+    return MessagePlugin.warning("请先开启 MCP 后再编辑");
+  }
   dialogMode.value = "edit";
   editingName.value = server.name;
   mcpName.value = server.name;
-  const config = { ...server };
-  delete config.name;
+  const config = { ...server.config };
   jsonContent.value = JSON.stringify(config, null, 2);
   jsonError.value = "";
   showDialog.value = true;
