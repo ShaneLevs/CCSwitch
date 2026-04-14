@@ -61,6 +61,11 @@ const findJsonlFiles = (dir) => {
 }
 
 window.services = {
+  // 获取电脑唯一标识
+  getNativeId() {
+    return window.utools.getNativeId()
+  },
+
   readClaudeSettings() {
     try {
       if (!fs.existsSync(CLAUDE_SETTINGS_PATH)) {
