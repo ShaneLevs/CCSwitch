@@ -191,16 +191,16 @@ const deleteMcpServer = (server) => {
 };
 
 // 在卡片上显示的配置摘要
-const getConfigSummary = (server) => {
+const getConfigSummary = (config) => {
   const parts = [];
-  if (server.command) {
-    parts.push(`cmd: ${server.command}`);
+  if (config.command) {
+    parts.push(`cmd: ${config.command}`);
   }
-  if (server.url) {
-    parts.push(`url: ${server.url}`);
+  if (config.url) {
+    parts.push(`url: ${config.url}`);
   }
-  if (server.args?.length) {
-    parts.push(`args: ${server.args.length} 个`);
+  if (config.args?.length) {
+    parts.push(`args: ${config.args.length} 个`);
   }
   return parts.join(" | ");
 };
