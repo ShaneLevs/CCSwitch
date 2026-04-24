@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, watch } from "vue";
-import { Card, Empty, Dialog, Input, Button, MessagePlugin, Loading, Switch, Popconfirm, Space, Tag } from "tdesign-vue-next";
+import { Card, Empty, Dialog, Input, Button, MessagePlugin, Loading, Switch, Popconfirm, Space, Tag, Tooltip } from "tdesign-vue-next";
 import { DownloadIcon, DeleteIcon } from "tdesign-icons-vue-next";
 
 // 格式化最近使用时间
@@ -163,6 +163,16 @@ const parseFrontmatter = (yamlStr) => {
 
 const loadSkills = () => {
   skills.value = window.services.getSkills();
+};
+
+// 复制 skill 名称
+const copySkillName = (skillName) => {
+  try {
+    window.utools.copyText(skillName);
+    MessagePlugin.success("名称已复制");
+  } catch (e) {
+    MessagePlugin.error("复制失败");
+  }
 };
 
 const openDetail = (skill) => {
@@ -382,33 +392,42 @@ onMounted(() => {
       <Card
         v-for="skill in skills"
         :key="skill.name + (skill.disabled ? '-disabled' : '')"
-        :title="skill.name"
         :bordered="true"
         class="skill-card"
         :class="{ 'skill-card-disabled': skill.disabled }"
         hover
       >
-        <template #actions>
-          <Space size="small">
-            <Switch
-              :value="!skill.disabled"
-              @change="(val) => toggleSkill(skill, val)"
-            />
-            <Popconfirm
-              theme="danger"
-              content="删除后不可恢复，确认删除？"
-              @confirm="deleteSkill(skill)"
-            >
-              <Button
-                size="small"
-                theme="danger"
-                variant="text"
-                title="删除"
+        <template #header>
+          <div class="skill-header-wrapper">
+            <Tooltip content="点击复制名称" placement="top">
+              <span
+                class="skill-name-link"
+                @click.stop="copySkillName(skill.name)"
               >
-                <DeleteIcon />
-              </Button>
-            </Popconfirm>
-          </Space>
+                {{ skill.name }}
+              </span>
+            </Tooltip>
+            <Space size="small">
+              <Switch
+                :value="!skill.disabled"
+                @change="(val) => toggleSkill(skill, val)"
+              />
+              <Popconfirm
+                theme="danger"
+                content="删除后不可恢复，确认删除？"
+                @confirm="deleteSkill(skill)"
+              >
+                <Button
+                  size="small"
+                  theme="danger"
+                  variant="text"
+                  title="删除"
+                >
+                  <DeleteIcon />
+                </Button>
+              </Popconfirm>
+            </Space>
+          </div>
         </template>
         <div class="skill-description" @click="openDetail(skill)">
           {{ parseFrontmatter(skill.frontmatter).description || '暂无描述' }}
@@ -539,6 +558,24 @@ onMounted(() => {
 .skill-card :deep(.t-card__header) {
   padding: 10px 16px 6px;
   border-bottom: none;
+}
+
+.skill-header-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.skill-name-link {
+  color: var(--td-brand-color);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.skill-name-link:hover {
+  text-decoration: underline;
 }
 
 .skill-card :deep(.t-card__body) {
