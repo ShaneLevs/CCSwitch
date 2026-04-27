@@ -13,15 +13,15 @@ import {
   DropdownMenu,
   DropdownItem,
   Textarea,
-  Tabs,
-  TabPanel,
+  Tooltip,
 } from "tdesign-vue-next";
 import {
   AddIcon,
   RefreshIcon,
   DownloadIcon,
   UploadIcon,
-  CheckCircleIcon,
+  PlayIcon,
+  PauseIcon,
   EditIcon,
   DeleteIcon,
   SettingIcon,
@@ -36,6 +36,7 @@ const currentConfig = ref({
   defaultHaikuModel: "",
   defaultSonnetModel: "",
   defaultOpusModel: "",
+  subagentModel: "",
 });
 const savedConfigs = ref([]);
 const showDialog = ref(false);
@@ -46,7 +47,6 @@ const showPreviewDialog = ref(false);
 const previewConfig = ref(null);
 const showExtraFieldsDialog = ref(false);
 const extraFields = ref([]);
-const formTab = ref("fixed");
 const managedFields = [
   'ANTHROPIC_AUTH_TOKEN',
   'ANTHROPIC_BASE_URL',
@@ -54,6 +54,7 @@ const managedFields = [
   'ANTHROPIC_DEFAULT_HAIKU_MODEL',
   'ANTHROPIC_DEFAULT_SONNET_MODEL',
   'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'CLAUDE_CODE_SUBAGENT_MODEL',
 ];
 const formData = ref({
   name: "",
@@ -63,6 +64,7 @@ const formData = ref({
   defaultHaikuModel: "",
   defaultSonnetModel: "",
   defaultOpusModel: "",
+  subagentModel: "",
 });
 
 const dialogTitle = computed(() => (editingConfig.value ? "编辑配置" : "新建配置"));
@@ -77,6 +79,7 @@ const loadCurrentConfig = () => {
       defaultHaikuModel: settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL || "",
       defaultSonnetModel: settings.env.ANTHROPIC_DEFAULT_SONNET_MODEL || "",
       defaultOpusModel: settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL || "",
+      subagentModel: settings.env.CLAUDE_CODE_SUBAGENT_MODEL || "",
     };
   }
 };
@@ -99,6 +102,7 @@ const loadSavedConfigs = () => {
           defaultHaikuModel: d.defaultHaikuModel || "",
           defaultSonnetModel: d.defaultSonnetModel || "",
           defaultOpusModel: d.defaultOpusModel || "",
+          subagentModel: d.subagentModel || "",
           updatedAt: d.updatedAt,
         };
         window.utools.db.put(cleanDoc);
@@ -112,6 +116,7 @@ const loadSavedConfigs = () => {
         defaultHaikuModel: d.defaultHaikuModel || "",
         defaultSonnetModel: d.defaultSonnetModel || "",
         defaultOpusModel: d.defaultOpusModel || "",
+        subagentModel: d.subagentModel || "",
         updatedAt: d.updatedAt,
       };
     })
@@ -159,8 +164,8 @@ const openCreateDialog = () => {
     defaultHaikuModel: "",
     defaultSonnetModel: "",
     defaultOpusModel: "",
+    subagentModel: "",
   };
-  formTab.value = "fixed";
   showDialog.value = true;
 };
 
@@ -174,8 +179,8 @@ const openEditDialog = (config) => {
     defaultHaikuModel: config.defaultHaikuModel || "",
     defaultSonnetModel: config.defaultSonnetModel || "",
     defaultOpusModel: config.defaultOpusModel || "",
+    subagentModel: config.subagentModel || "",
   };
-  formTab.value = "fixed";
   showDialog.value = true;
 };
 
@@ -186,6 +191,7 @@ const fillCurrentConfig = () => {
   formData.value.defaultHaikuModel = currentConfig.value.defaultHaikuModel;
   formData.value.defaultSonnetModel = currentConfig.value.defaultSonnetModel;
   formData.value.defaultOpusModel = currentConfig.value.defaultOpusModel;
+  formData.value.subagentModel = currentConfig.value.subagentModel;
 };
 
 const saveConfig = () => {
@@ -204,6 +210,7 @@ const saveConfig = () => {
     defaultHaikuModel: formData.value.defaultHaikuModel.trim(),
     defaultSonnetModel: formData.value.defaultSonnetModel.trim(),
     defaultOpusModel: formData.value.defaultOpusModel.trim(),
+    subagentModel: formData.value.subagentModel.trim(),
     updatedAt: now,
   };
   if (editingConfig.value) doc._rev = window.utools.db.get(id)._rev;
@@ -253,6 +260,11 @@ const switchConfig = (config) => {
   } else {
     delete settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL;
   }
+  if (config.subagentModel?.trim()) {
+    settings.env.CLAUDE_CODE_SUBAGENT_MODEL = config.subagentModel.trim();
+  } else {
+    delete settings.env.CLAUDE_CODE_SUBAGENT_MODEL;
+  }
 
   if (window.services.writeClaudeSettings(settings)) {
     MessagePlugin.success("配置已切换");
@@ -268,7 +280,8 @@ const isCurrentConfig = (config) =>
   (config.model || "") === (currentConfig.value.model || "") &&
   (config.defaultHaikuModel || "") === (currentConfig.value.defaultHaikuModel || "") &&
   (config.defaultSonnetModel || "") === (currentConfig.value.defaultSonnetModel || "") &&
-  (config.defaultOpusModel || "") === (currentConfig.value.defaultOpusModel || "");
+  (config.defaultOpusModel || "") === (currentConfig.value.defaultOpusModel || "") &&
+  (config.subagentModel || "") === (currentConfig.value.subagentModel || "");
 
 const handleExport = () => {
   if (!savedConfigs.value.length) return MessagePlugin.warning("没有可导出的配置");
@@ -288,6 +301,7 @@ const handleExport = () => {
       defaultHaikuModel: c.defaultHaikuModel,
       defaultSonnetModel: c.defaultSonnetModel,
       defaultOpusModel: c.defaultOpusModel,
+      subagentModel: c.subagentModel,
     }))
   );
   MessagePlugin.success("配置已导出");
@@ -311,6 +325,7 @@ const handleImport = () => {
       defaultHaikuModel: c.defaultHaikuModel?.trim() || "",
       defaultSonnetModel: c.defaultSonnetModel?.trim() || "",
       defaultOpusModel: c.defaultOpusModel?.trim() || "",
+      subagentModel: c.subagentModel?.trim() || "",
       updatedAt: Date.now(),
     };
     window.utools.db.put(doc).ok ? ok++ : fail++;
@@ -331,6 +346,7 @@ const handleExportAsString = () => {
     if (c.defaultHaikuModel) cfg[`h${idx}`] = c.defaultHaikuModel;
     if (c.defaultSonnetModel) cfg[`s${idx}`] = c.defaultSonnetModel;
     if (c.defaultOpusModel) cfg[`o${idx}`] = c.defaultOpusModel;
+    if (c.subagentModel) cfg[`g${idx}`] = c.subagentModel;
     list.push(cfg);
   });
   window.utools.copyText(window.services.encryptString(window.services.compressConfigs(list)));
@@ -359,6 +375,7 @@ const handleImportFromString = () => {
       defaultHaikuModel: raw[`h${idx}`],
       defaultSonnetModel: raw[`s${idx}`],
       defaultOpusModel: raw[`o${idx}`],
+      subagentModel: raw[`g${idx}`],
     });
   });
 
@@ -374,6 +391,7 @@ const handleImportFromString = () => {
       defaultHaikuModel: c.defaultHaikuModel?.trim() || "",
       defaultSonnetModel: c.defaultSonnetModel?.trim() || "",
       defaultOpusModel: c.defaultOpusModel?.trim() || "",
+      subagentModel: c.subagentModel?.trim() || "",
       updatedAt: Date.now(),
     };
     window.utools.db.put(doc).ok ? ok++ : fail++;
@@ -455,7 +473,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
     <div class="current-config-card">
       <div class="current-config-header">
         <span class="current-config-title">当前生效配置</span>
-        <Button size="small" theme="primary" variant="text" @click="openExtraFieldsDialog"><template #icon><SettingIcon /></template> 全局设置</Button>
+        <Button size="small" theme="primary" variant="text" @click="openExtraFieldsDialog"><template #icon><SettingIcon /></template>env其他字段设置</Button>
       </div>
       <div class="current-config-content">
         <div class="current-config-item">
@@ -482,6 +500,10 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
           <span class="current-config-label">OPUS_MODEL</span>
           <span class="current-config-value">{{ currentConfig.defaultOpusModel }}</span>
         </div>
+        <div v-if="currentConfig.subagentModel" class="current-config-item">
+          <span class="current-config-label">SUBAGENT_MODEL</span>
+          <span class="current-config-value">{{ currentConfig.subagentModel }}</span>
+        </div>
       </div>
     </div>
 
@@ -500,11 +522,15 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
             </div>
             <Space size="small" :key="config.id + '-actions'" @click.stop>
               <Tag v-if="isCurrentConfig(config)" theme="success" variant="light" size="small">当前</Tag>
-              <Button size="small" theme="primary" variant="text" @click="switchConfig(config)" :disabled="isCurrentConfig(config)" title="切换配置"><CheckCircleIcon /></Button>
-              <Button size="small" theme="default" variant="text" @click="openEditDialog(config)" title="编辑"><EditIcon /></Button>
-              <Popconfirm theme="danger" content="确定要删除这个配置吗？" @confirm="deleteConfig(config)">
-                <Button size="small" theme="danger" variant="text" title="删除"><DeleteIcon /></Button>
-              </Popconfirm>
+              <Button size="small" theme="primary" variant="text" @click="switchConfig(config)" :disabled="isCurrentConfig(config)"><template #icon><component :is="isCurrentConfig(config) ? PauseIcon : PlayIcon" /></template>启用</Button>
+              <Tooltip content="编辑" placement="top">
+                <Button size="small" theme="default" variant="text" @click="openEditDialog(config)"><EditIcon /></Button>
+              </Tooltip>
+              <Tooltip content="删除" placement="top">
+                <Popconfirm theme="danger" content="确定要删除这个配置吗？" @confirm="deleteConfig(config)">
+                  <Button size="small" theme="danger" variant="text"><DeleteIcon /></Button>
+                </Popconfirm>
+              </Tooltip>
             </Space>
           </div>
         </div>
@@ -513,19 +539,14 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
 
     <Dialog v-model:visible="showDialog" :header="dialogTitle" @confirm="saveConfig" width="560px">
       <div class="form">
-        <div class="form-item"><label>配置名称 <span class="required">*</span></label><Input v-model="formData.name" placeholder="方便分辨的名字" /></div>
-        <div class="form-item"><label>ANTHROPIC_AUTH_TOKEN <span class="required">*</span></label><Input v-model="formData.key" type="password" placeholder="sk-ant-..." /></div>
-        <div class="form-item"><label>ANTHROPIC_BASE_URL <span class="required">*</span></label><Input v-model="formData.baseUrl" placeholder="https://api.anthropic.com" /></div>
-        <Tabs v-model="formTab" class="form-tabs">
-          <TabPanel value="fixed" label="固定模型">
-            <div class="form-item"><label>ANTHROPIC_MODEL</label><Input v-model="formData.model" placeholder="claude-sonnet-4-20250514" /></div>
-          </TabPanel>
-          <TabPanel value="mapping" label="模型映射">
-            <div class="form-item"><label>ANTHROPIC_DEFAULT_HAIKU_MODEL</label><Input v-model="formData.defaultHaikuModel" placeholder="claude-haiku-4-20250514" /></div>
-            <div class="form-item"><label>ANTHROPIC_DEFAULT_SONNET_MODEL</label><Input v-model="formData.defaultSonnetModel" placeholder="claude-sonnet-4-20250514" /></div>
-            <div class="form-item"><label>ANTHROPIC_DEFAULT_OPUS_MODEL</label><Input v-model="formData.defaultOpusModel" placeholder="claude-opus-4-20250514" /></div>
-          </TabPanel>
-        </Tabs>
+        <div class="form-item"><label>名称 <span class="required">*</span></label><Input v-model="formData.name" placeholder="方便分辨的名字" /></div>
+        <div class="form-item"><label>URL <span class="required">*</span></label><Input v-model="formData.baseUrl" placeholder="ANTHROPIC_BASE_URL" /></div>
+        <div class="form-item"><label>TOKEN <span class="required">*</span></label><Input v-model="formData.key" type="password" placeholder="ANTHROPIC_AUTH_TOKEN" /></div>
+        <div class="form-item"><label>MODEL</label><Input v-model="formData.model" placeholder="ANTHROPIC_MODEL" /></div>
+        <div class="form-item"><label>HAIKU</label><Input v-model="formData.defaultHaikuModel" placeholder="ANTHROPIC_DEFAULT_HAIKU_MODEL" /></div>
+        <div class="form-item"><label>SONNET</label><Input v-model="formData.defaultSonnetModel" placeholder="ANTHROPIC_DEFAULT_SONNET_MODEL" /></div>
+        <div class="form-item"><label>OPUS</label><Input v-model="formData.defaultOpusModel" placeholder="ANTHROPIC_DEFAULT_OPUS_MODEL" /></div>
+        <div class="form-item"><label>SUBAGENT</label><Input v-model="formData.subagentModel" placeholder="CLAUDE_CODE_SUBAGENT_MODEL" /></div>
       </div>
       <template #footer>
         <div class="dialog-footer">
@@ -549,10 +570,11 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
         <div v-if="previewConfig.defaultHaikuModel" class="preview-item"><span class="preview-label">HAIKU_MODEL</span><span class="preview-value">{{ previewConfig.defaultHaikuModel }}</span></div>
         <div v-if="previewConfig.defaultSonnetModel" class="preview-item"><span class="preview-label">SONNET_MODEL</span><span class="preview-value">{{ previewConfig.defaultSonnetModel }}</span></div>
         <div v-if="previewConfig.defaultOpusModel" class="preview-item"><span class="preview-label">OPUS_MODEL</span><span class="preview-value">{{ previewConfig.defaultOpusModel }}</span></div>
+        <div v-if="previewConfig.subagentModel" class="preview-item"><span class="preview-label">SUBAGENT_MODEL</span><span class="preview-value">{{ previewConfig.subagentModel }}</span></div>
       </div>
     </Dialog>
 
-    <Dialog v-model:visible="showExtraFieldsDialog" header="全局设置（额外字段）" width="600px" @confirm="saveExtraFields">
+    <Dialog v-model:visible="showExtraFieldsDialog" header="env其他字段设置" width="600px" @confirm="saveExtraFields">
       <div class="extra-fields-dialog">
         <div class="extra-fields-hint">
           <p>这些字段保存在 settings.json 的 env 中，不随配置切换而改变。</p>
@@ -623,13 +645,9 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
 
 /* 表单样式 */
 .form { display: flex; flex-direction: column; gap: 16px; }
-.form-item { display: flex; flex-direction: column; gap: 8px; }
-.form-item label { font-size: 14px; color: var(--td-text-color-primary); }
+.form-item { display: flex; align-items: center; gap: 12px; }
+.form-item label { font-size: 14px; color: var(--td-text-color-primary); flex-shrink: 0; width: 80px; text-align: right; }
 .form-item .required { color: var(--td-error-color); }
-.form-tabs { margin-top: 8px; }
-.form-tabs :deep(.t-tab-panel) { padding: 16px 0 0 0; }
-.form-tabs :deep(.t-tab-panel) .form-item { margin-bottom: 16px; }
-.form-tabs :deep(.t-tab-panel) .form-item:last-child { margin-bottom: 0; }
 .dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .dialog-footer-right { display: flex; gap: 8px; }
 </style>
