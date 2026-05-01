@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from "vue";
 import {
   Button,
   Input,
+  AutoComplete,
   Dialog,
   MessagePlugin,
   Tag,
@@ -47,6 +48,14 @@ const previewConfig = ref(null);
 const showExtraFieldsDialog = ref(false);
 const extraFields = ref([]);
 const formTab = ref("fixed");
+const extraFieldKeyOptions = [
+  { label: "API_TIMEOUT_MS", value: "API_TIMEOUT_MS" },
+  { label: "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", value: "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC" },
+  { label: "CLAUDE_CODE_NO_FLICKER", value: "CLAUDE_CODE_NO_FLICKER" },
+  { label: "CLAUDE_CODE_EFFORT_LEVEL", value: "CLAUDE_CODE_EFFORT_LEVEL" },
+  { label: "CLAUDE_CODE_ATTRIBUTION_HEADER", value: "CLAUDE_CODE_ATTRIBUTION_HEADER" },
+];
+
 const managedFields = [
   'ANTHROPIC_AUTH_TOKEN',
   'ANTHROPIC_BASE_URL',
@@ -455,7 +464,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
     <div class="current-config-card">
       <div class="current-config-header">
         <span class="current-config-title">当前生效配置</span>
-        <Button size="small" theme="primary" variant="text" @click="openExtraFieldsDialog"><template #icon><SettingIcon /></template> 全局设置</Button>
+        <Button size="small" theme="primary" variant="text" @click="openExtraFieldsDialog"><template #icon><SettingIcon /></template> ENV其他字段设置</Button>
       </div>
       <div class="current-config-content">
         <div class="current-config-item">
@@ -552,7 +561,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
       </div>
     </Dialog>
 
-    <Dialog v-model:visible="showExtraFieldsDialog" header="全局设置（额外字段）" width="600px" @confirm="saveExtraFields">
+    <Dialog v-model:visible="showExtraFieldsDialog" header="ENV其他字段设置" width="600px" @confirm="saveExtraFields">
       <div class="extra-fields-dialog">
         <div class="extra-fields-hint">
           <p>这些字段保存在 settings.json 的 env 中，不随配置切换而改变。</p>
@@ -560,7 +569,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
         </div>
         <div class="extra-fields-list">
           <div v-for="(field, idx) in extraFields" :key="idx" class="extra-field-item">
-            <Input v-model="field.key" class="field-key" placeholder="字段名（如 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC）" />
+            <AutoComplete v-model="field.key" class="field-key" :options="extraFieldKeyOptions" filterable placeholder="字段名（如 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC）" />
             <Input v-model="field.value" class="field-value" placeholder="字段值" />
             <Button size="small" theme="danger" variant="text" @click="removeExtraField(idx)"><DeleteIcon /></Button>
           </div>
