@@ -49,13 +49,24 @@ const previewConfig = ref(null);
 const showExtraFieldsDialog = ref(false);
 const extraFields = ref([]);
 const formTab = ref("fixed");
-const extraFieldKeyOptions = [
-  { label: "API_TIMEOUT_MS", value: "API_TIMEOUT_MS" },
-  { label: "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", value: "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC" },
-  { label: "CLAUDE_CODE_NO_FLICKER", value: "CLAUDE_CODE_NO_FLICKER" },
-  { label: "CLAUDE_CODE_EFFORT_LEVEL", value: "CLAUDE_CODE_EFFORT_LEVEL" },
-  { label: "CLAUDE_CODE_ATTRIBUTION_HEADER", value: "CLAUDE_CODE_ATTRIBUTION_HEADER" },
+const SAVED_FIELD_KEYS_ID = "extra_field_keys";
+const fixedFieldKeyOptions = [
+  "API_TIMEOUT_MS",
+  "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+  "CLAUDE_CODE_NO_FLICKER",
+  "CLAUDE_CODE_EFFORT_LEVEL",
+  "CLAUDE_CODE_ATTRIBUTION_HEADER",
 ];
+const savedExtraFieldKeys = ref([]);
+const extraFieldKeyOptions = computed(() => {
+  const all = [...fixedFieldKeyOptions, ...savedExtraFieldKeys.value];
+  const unique = [...new Set(all)];
+  return unique.map(k => ({ label: k, value: k }));
+});
+const loadExtraFieldKeys = () => {
+  const doc = window.utools.db.get(SAVED_FIELD_KEYS_ID);
+  savedExtraFieldKeys.value = doc?.keys || [];
+};
 
 const managedFields = [
   'ANTHROPIC_AUTH_TOKEN',
@@ -412,6 +423,7 @@ const handleImportFromString = () => {
 };
 
 const openExtraFieldsDialog = () => {
+  loadExtraFieldKeys();
   const settings = window.services.readClaudeSettings() || {};
   const env = settings.env || {};
   extraFields.value = [];
@@ -443,13 +455,25 @@ const saveExtraFields = () => {
     }
   });
 
+  const userKeys = [];
   extraFields.value.forEach(field => {
     const key = field.key.trim();
     const value = field.value.trim();
     if (key) {
       settings.env[key] = value;
+      if (!fixedFieldKeyOptions.includes(key)) {
+        userKeys.push(key);
+      }
     }
   });
+
+  // Save user-entered keys to db (merge with existing)
+  const existing = savedExtraFieldKeys.value;
+  const merged = [...new Set([...existing, ...userKeys])];
+  const doc = { _id: SAVED_FIELD_KEYS_ID, keys: merged };
+  const existingDoc = window.utools.db.get(SAVED_FIELD_KEYS_ID);
+  if (existingDoc) doc._rev = existingDoc._rev;
+  window.utools.db.put(doc);
 
   if (window.services.writeClaudeSettings(settings)) {
     MessagePlugin.success("全局设置已保存");
@@ -460,7 +484,7 @@ const saveExtraFields = () => {
   }
 };
 
-onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); });
+onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys(); });
 </script>
 
 <template>
