@@ -293,6 +293,9 @@ const handleProjectClick = (projectPath) => {
 
     <!-- 贡献墙 -->
     <Card title="Usage Heatmap">
+      <template #actions>
+        <span class="model-hint">仅统计本地保留的会话数据，早期数据可能因文件清理而缺失</span>
+      </template>
       <div v-if="loading" class="empty-small">
         <Empty description="加载中..." size="small" />
       </div>
