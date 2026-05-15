@@ -11,6 +11,8 @@ import ConfigView from "./ConfigView.vue";
 import UsageView from "./UsageView.vue";
 import McpView from "./McpView.vue";
 import SkillView from "./SkillView.vue";
+import wavingDark from '../assets/waving-dark.gif';
+import wavingLight from '../assets/waving-light.gif';
 
 const props = defineProps({
   route: String,
@@ -19,6 +21,11 @@ const props = defineProps({
 
 const activeTab = ref("config");
 const skillViewRef = ref(null);
+const showWaving = ref(true);
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const wavingSrc = isDark ? wavingDark : wavingLight;
+
+setTimeout(() => { showWaving.value = false; }, 3000);
 
 const pageTitle = computed(() => {
   if (activeTab.value === 'usage') return 'Claude Code 使用统计';
@@ -45,7 +52,8 @@ onMounted(() => {
   <div class="container">
     <div class="header">
       <div class="header-left">
-        <img src="/logo.png" alt="logo" class="logo" />
+        <img v-if="showWaving" :src="wavingSrc" alt="logo" class="logo" />
+        <img v-else src="/logo.png" alt="logo" class="logo" />
         <t-typography-title level="h5">{{ pageTitle }}</t-typography-title>
       </div>
       <div class="header-right">
@@ -78,7 +86,7 @@ onMounted(() => {
 .header { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
 .header-left { display: flex; align-items: center; gap: 12px; }
 .header-right { display: flex; align-items: center; }
-.header .logo { width: 32px; height: 32px; border-radius: 6px; }
+.header .logo { width: 32px; height: 32px; border-radius: var(--td-radius-default); }
 .header :deep(.t-typography-title) { margin: 0; }
 .tab-buttons { display: flex; gap: 4px; }
 </style>

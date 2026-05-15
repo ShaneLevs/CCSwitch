@@ -10,9 +10,6 @@ import {
   Space,
   Empty,
   Popconfirm,
-  Dropdown,
-  DropdownMenu,
-  DropdownItem,
   Textarea,
   Tooltip,
 } from "tdesign-vue-next";
@@ -304,57 +301,6 @@ const isCurrentConfig = (config) =>
   (config.defaultOpusModel || "") === (currentConfig.value.defaultOpusModel || "") &&
   (config.subagentModel || "") === (currentConfig.value.subagentModel || "");
 
-const handleExport = () => {
-  if (!savedConfigs.value.length) return MessagePlugin.warning("没有可导出的配置");
-  const filePath = window.utools.showSaveDialog({
-    title: "导出配置",
-    defaultPath: `ccswitch-configs-${new Date().toISOString().split("T")[0].replace(/-/g, "")}.json`,
-    filters: [{ name: "JSON 文件", extensions: ["json"] }],
-  });
-  if (!filePath) return;
-  window.services.exportConfigsToFile(
-    filePath,
-    savedConfigs.value.map((c) => ({
-      name: c.name,
-      key: window.services.encryptKey(c.key),
-      baseUrl: c.baseUrl,
-      model: c.model,
-      defaultHaikuModel: c.defaultHaikuModel,
-      defaultSonnetModel: c.defaultSonnetModel,
-      defaultOpusModel: c.defaultOpusModel,
-      subagentModel: c.subagentModel,
-    }))
-  );
-  MessagePlugin.success("配置已导出");
-};
-
-const handleImport = () => {
-  const filePaths = window.utools.showOpenDialog({ title: "导入配置", filters: [{ name: "JSON 文件", extensions: ["json"] }], properties: ["openFile"] });
-  if (!filePaths?.length) return;
-  const data = window.services.importConfigsFromFile(filePaths[0]);
-  if (!data || data.app !== "ccswitch" || !Array.isArray(data.configs)) return MessagePlugin.error("文件格式不正确");
-
-  let ok = 0, fail = 0;
-  for (const c of data.configs) {
-    if (!c.name || !c.key) { fail++; continue; }
-    const doc = {
-      _id: DB_PREFIX + Date.now() + "_" + Math.random().toString(36).substr(2, 9),
-      name: c.name.trim(),
-      key: window.services.encryptKey(window.services.decryptKey(c.key)),
-      baseUrl: c.baseUrl?.trim() || "",
-      model: c.model?.trim() || "",
-      defaultHaikuModel: c.defaultHaikuModel?.trim() || "",
-      defaultSonnetModel: c.defaultSonnetModel?.trim() || "",
-      defaultOpusModel: c.defaultOpusModel?.trim() || "",
-      subagentModel: c.subagentModel?.trim() || "",
-      updatedAt: Date.now(),
-    };
-    window.utools.db.put(doc).ok ? ok++ : fail++;
-  }
-  loadSavedConfigs();
-  ok > 0 && fail === 0 ? MessagePlugin.success(`成功导入 ${ok} 个配置`) : ok > 0 ? MessagePlugin.warning(`成功导入 ${ok} 个，失败 ${fail} 个`) : MessagePlugin.error("导入失败");
-};
-
 const handleExportAsString = () => {
   if (!savedConfigs.value.length) return MessagePlugin.warning("没有可导出的配置");
   const keyDict = new Map(), urlDict = new Map(), list = [];
@@ -484,21 +430,21 @@ const saveExtraFields = () => {
   }
 };
 
+const openSettingsFile = () => {
+  const filePath = window.services.getClaudeSettingsPath();
+  window.utools.shellOpenPath(filePath);
+};
+
 onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys(); });
 </script>
 
 <template>
   <div class="config-view">
     <div class="section-header">
+      <span class="section-tip">直接编辑 <span class="hint-link" @click="openSettingsFile">settings.json</span></span>
       <Space size="small">
-        <Dropdown>
-          <template #dropdown><DropdownMenu><DropdownItem @click="handleExport">导出到文件</DropdownItem><DropdownItem @click="handleExportAsString">复制配置</DropdownItem></DropdownMenu></template>
-          <Button size="small" variant="outline"><template #icon><DownloadIcon /></template> 导出</Button>
-        </Dropdown>
-        <Dropdown>
-          <template #dropdown><DropdownMenu><DropdownItem @click="handleImport">从文件导入</DropdownItem><DropdownItem @click="openImportStringDialog">从字符串导入</DropdownItem></DropdownMenu></template>
-          <Button size="small" variant="outline"><template #icon><UploadIcon /></template> 导入</Button>
-        </Dropdown>
+        <Button size="small" variant="outline" @click="handleExportAsString"><template #icon><DownloadIcon /></template> 导出</Button>
+        <Button size="small" variant="outline" @click="openImportStringDialog"><template #icon><UploadIcon /></template> 导入</Button>
         <Button size="small" theme="primary" @click="openCreateDialog"><template #icon><AddIcon /></template> 新建配置</Button>
       </Space>
     </div>
@@ -556,7 +502,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
             </div>
             <Space size="small" :key="config.id + '-actions'" @click.stop>
               <Tag v-if="isCurrentConfig(config)" theme="success" variant="light" size="small">当前</Tag>
-              <Button size="small" theme="primary" variant="text" @click="switchConfig(config)" :disabled="isCurrentConfig(config)"><template #icon><component :is="isCurrentConfig(config) ? PauseIcon : PlayIcon" /></template>启用</Button>
+              <Button size="small" theme="success" variant="text" @click="switchConfig(config)" :disabled="isCurrentConfig(config)"><template #icon><component :is="isCurrentConfig(config) ? PauseIcon : PlayIcon" /></template>启用</Button>
               <Tooltip content="编辑" placement="top">
                 <Button size="small" theme="default" variant="text" @click="openEditDialog(config)"><EditIcon /></Button>
               </Tooltip>
@@ -591,7 +537,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
     </Dialog>
 
     <Dialog v-model:visible="showImportStringDialog" header="从字符串导入" @confirm="handleImportFromString" width="480px">
-      <div class="form"><div class="form-item"><label>配置字符串</label><Textarea v-if="showImportStringDialog" v-model="importString" placeholder="粘贴配置字符串" :autosize="{ minRows: 4, maxRows: 8 }" /></div></div>
+      <div class="form"><div class="form-item-vertical"><label>配置字符串</label><Textarea v-if="showImportStringDialog" v-model="importString" placeholder="粘贴配置字符串" :autosize="{ minRows: 4, maxRows: 8 }" /></div></div>
     </Dialog>
 
     <Dialog v-model:visible="showPreviewDialog" header="配置详情" width="560px" :footer="false">
@@ -633,12 +579,14 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
 
 <style scoped>
 .config-view { display: flex; flex-direction: column; }
-.section-header { display: flex; justify-content: flex-end; align-items: center; margin-bottom: 16px; }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.section-tip { font-size: 12px; color: var(--td-text-color-placeholder); }
+.hint-link { color: var(--td-brand-color); cursor: pointer; text-decoration: underline; }
 .empty-state { padding: 40px 0; }
 
 /* 配置分组样式 */
 .config-groups { display: flex; flex-direction: column; gap: 12px; }
-.config-group { background: var(--td-bg-color-container); border-radius: 8px; overflow: hidden; border: 1px solid var(--td-component-border); }
+.config-group { background: var(--td-bg-color-container); border-radius: var(--td-radius-medium); overflow: hidden; border: 1px solid var(--td-component-border); }
 .group-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--td-bg-color-container-hover); border-bottom: 1px solid var(--td-component-border); }
 .group-url { font-size: 13px; color: var(--td-text-color-primary); font-family: monospace; }
 .group-items { padding: 8px 0; }
@@ -658,7 +606,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
 .preview-divider { margin: 8px 0; border-top: 1px solid var(--td-component-border); }
 
 /* 当前配置展示 */
-.current-config-card { margin-bottom: 16px; padding: 16px; background: var(--td-bg-color-container); border-radius: 8px; border: 1px solid var(--td-component-border); }
+.current-config-card { margin-bottom: 16px; padding: 16px; background: var(--td-bg-color-container); border-radius: var(--td-radius-medium); border: 1px solid var(--td-component-border); }
 .current-config-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .current-config-title { font-size: 14px; font-weight: 500; color: var(--td-text-color-primary); }
 .current-config-content { display: flex; flex-direction: column; gap: 8px; }
@@ -668,7 +616,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
 
 /* 额外字段弹窗样式 */
 .extra-fields-dialog { display: flex; flex-direction: column; gap: 16px; }
-.extra-fields-hint { padding: 12px 16px; background: var(--td-bg-color-container-hover); border-radius: 6px; font-size: 13px; color: var(--td-text-color-secondary); }
+.extra-fields-hint { padding: 12px 16px; background: var(--td-bg-color-container-hover); border-radius: var(--td-radius-default); font-size: 13px; color: var(--td-text-color-secondary); }
 .extra-fields-hint p { margin: 0 0 4px 0; }
 .extra-fields-hint p:last-child { margin-bottom: 0; }
 .extra-fields-list { display: flex; flex-direction: column; gap: 12px; }
@@ -681,6 +629,8 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
 .form { display: flex; flex-direction: column; gap: 16px; }
 .form-item { display: flex; align-items: center; gap: 12px; }
 .form-item label { font-size: 14px; color: var(--td-text-color-primary); flex-shrink: 0; width: 80px; text-align: right; }
+.form-item-vertical { display: flex; flex-direction: column; gap: 8px; }
+.form-item-vertical label { font-size: 14px; color: var(--td-text-color-primary); }
 .form-item .required { color: var(--td-error-color); }
 .dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .dialog-footer-right { display: flex; gap: 8px; }

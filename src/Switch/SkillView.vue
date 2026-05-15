@@ -548,7 +548,7 @@ onMounted(() => {
 }
 
 .skill-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--td-shadow-1);
 }
 
 .skill-card-disabled {
@@ -609,7 +609,7 @@ onMounted(() => {
   margin: 0;
   padding: 16px;
   background: var(--td-bg-color-container-hover);
-  border-radius: 8px;
+  border-radius: var(--td-radius-medium);
   font-size: 13px;
   font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
   color: var(--td-text-color-primary);
@@ -653,7 +653,7 @@ onMounted(() => {
   margin-top: 12px;
   padding: 12px;
   background: var(--td-bg-color-container-hover);
-  border-radius: 8px;
+  border-radius: var(--td-radius-medium);
 }
 
 .install-info-header {
@@ -674,7 +674,7 @@ onMounted(() => {
   padding: 2px 6px;
   background: var(--td-brand-color);
   color: #fff;
-  border-radius: 4px;
+  border-radius: var(--td-radius-small);
 }
 
 .install-info-meta {

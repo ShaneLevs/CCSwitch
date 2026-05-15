@@ -318,11 +318,6 @@ onMounted(() => {
           class="json-textarea"
         />
 
-        <div class="editor-hints">
-          <div class="hint-item">
-            <strong>提示:</strong> 直接编辑 JSON 内容，支持任意 MCP 配置格式
-          </div>
-        </div>
       </div>
 
       <template #footer>
@@ -448,22 +443,6 @@ onMounted(() => {
 
 .json-textarea :deep(textarea) {
   font-family: inherit;
-}
-
-.editor-hints {
-  background: var(--td-bg-color-container-hover);
-  border-radius: 6px;
-  padding: 12px;
-  font-size: 12px;
-  color: var(--td-text-color-secondary);
-}
-
-.hint-item {
-  margin-bottom: 4px;
-}
-
-.hint-item:last-child {
-  margin-bottom: 0;
 }
 
 .dialog-footer {
