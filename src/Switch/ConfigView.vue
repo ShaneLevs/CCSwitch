@@ -680,6 +680,11 @@ const openSettingsFile = () => {
   window.utools.shellOpenPath(filePath);
 };
 
+const copyModelName = (name) => {
+  window.utools.copyText(name);
+  MessagePlugin.success('已复制: ' + name);
+};
+
 onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys(); loadGroupOrder(); });
 </script>
 
@@ -708,11 +713,11 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
           <span class="current-config-url">{{ currentConfig.baseUrl || '未设置' }}</span>
         </div>
         <div v-if="hasModelFields" class="current-config-models">
-          <Tag v-if="currentConfig.model" size="medium" variant="outline">MODEL: {{ currentConfig.model }}</Tag>
-          <Tag v-if="currentConfig.defaultHaikuModel" size="medium" variant="outline">HAIKU: {{ currentConfig.defaultHaikuModel }}</Tag>
-          <Tag v-if="currentConfig.defaultSonnetModel" size="medium" variant="outline">SONNET: {{ currentConfig.defaultSonnetModel }}</Tag>
-          <Tag v-if="currentConfig.defaultOpusModel" size="medium" variant="outline">OPUS: {{ currentConfig.defaultOpusModel }}</Tag>
-          <Tag v-if="currentConfig.subagentModel" size="medium" variant="outline">SUBAGENT: {{ currentConfig.subagentModel }}</Tag>
+          <Tag v-if="currentConfig.model" size="medium" variant="outline" class="model-tag" @click="copyModelName(currentConfig.model)">MODEL: {{ currentConfig.model }}</Tag>
+          <Tag v-if="currentConfig.defaultHaikuModel" size="medium" variant="outline" class="model-tag" @click="copyModelName(currentConfig.defaultHaikuModel)">HAIKU: {{ currentConfig.defaultHaikuModel }}</Tag>
+          <Tag v-if="currentConfig.defaultSonnetModel" size="medium" variant="outline" class="model-tag" @click="copyModelName(currentConfig.defaultSonnetModel)">SONNET: {{ currentConfig.defaultSonnetModel }}</Tag>
+          <Tag v-if="currentConfig.defaultOpusModel" size="medium" variant="outline" class="model-tag" @click="copyModelName(currentConfig.defaultOpusModel)">OPUS: {{ currentConfig.defaultOpusModel }}</Tag>
+          <Tag v-if="currentConfig.subagentModel" size="medium" variant="outline" class="model-tag" @click="copyModelName(currentConfig.subagentModel)">SUBAGENT: {{ currentConfig.subagentModel }}</Tag>
         </div>
       </div>
     </div>
@@ -879,6 +884,8 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
 .current-config-arrow { color: var(--td-text-color-placeholder); }
 .current-config-url { color: var(--td-brand-color); word-break: break-all; }
 .current-config-models { display: flex; flex-wrap: wrap; gap: 6px; }
+.model-tag { cursor: pointer; transition: opacity 0.15s; }
+.model-tag:hover { opacity: 0.75; }
 
 /* 额外字段弹窗样式 */
 .extra-fields-dialog { display: flex; flex-direction: column; gap: 16px; }

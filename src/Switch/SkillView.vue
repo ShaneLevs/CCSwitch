@@ -1,7 +1,7 @@
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, computed } from "vue";
 import { Card, Empty, Dialog, Input, Button, MessagePlugin, Loading, Switch, Popconfirm, Space, Tag, Tooltip } from "tdesign-vue-next";
-import { DownloadIcon, DeleteIcon } from "tdesign-icons-vue-next";
+import { DownloadIcon, DeleteIcon, FileExportIcon, FolderOpen1Icon } from "tdesign-icons-vue-next";
 
 // 格式化最近使用时间
 const formatLastUsed = (timestamp) => {
@@ -344,33 +344,66 @@ const cancelInstall = () => {
 
 // 切换 Skill 状态
 const toggleSkill = (skill, enabled) => {
-  if (enabled) {
-    const result = window.services.enableSkill(skill.name);
-    if (result.success) {
-      MessagePlugin.success(`已启用 "${skill.name}"`);
-      loadSkills();
-    } else {
-      MessagePlugin.error(result.error || "启用失败");
-    }
+  let result;
+  if (skill.scope === 'project') {
+    result = enabled
+      ? window.services.enableProjectSkill(skill.name, skill.projectPath)
+      : window.services.disableProjectSkill(skill.name, skill.projectPath);
   } else {
-    const result = window.services.disableSkill(skill.name);
-    if (result.success) {
-      MessagePlugin.success(`已禁用 "${skill.name}"`);
-      loadSkills();
-    } else {
-      MessagePlugin.error(result.error || "禁用失败");
-    }
+    result = enabled
+      ? window.services.enableSkill(skill.name)
+      : window.services.disableSkill(skill.name);
+  }
+  if (result.success) {
+    MessagePlugin.success(enabled ? `已启用 "${skill.name}"` : `已禁用 "${skill.name}"`);
+    loadSkills();
+  } else {
+    MessagePlugin.error(result.error || (enabled ? "启用失败" : "禁用失败"));
   }
 };
 
 // 删除 Skill
 const deleteSkill = (skill) => {
-  const result = window.services.deleteSkill(skill.name, skill.disabled);
+  let result;
+  if (skill.scope === 'project') {
+    result = window.services.deleteProjectSkill(skill.name, skill.projectPath, skill.disabled);
+  } else {
+    result = window.services.deleteSkill(skill.name, skill.disabled);
+  }
   if (result.success) {
     MessagePlugin.success(`已删除 "${skill.name}"`);
     loadSkills();
   } else {
     MessagePlugin.error(result.error || "删除失败");
+  }
+};
+
+// 转移项目级 Skill 到用户目录
+const showMoveDialog = ref(false);
+const moveTarget = ref(null);
+const moveToGlobal = (skill) => {
+  moveTarget.value = skill;
+  showMoveDialog.value = true;
+};
+const confirmMoveToGlobal = () => {
+  if (!moveTarget.value) return;
+  const result = window.services.moveProjectSkillToGlobal(moveTarget.value.name, moveTarget.value.projectPath);
+  if (result.success) {
+    MessagePlugin.success(`"${moveTarget.value.name}" 已转移到用户目录`);
+    showMoveDialog.value = false;
+    loadSkills();
+  } else {
+    MessagePlugin.error(result.error || "转移失败");
+  }
+};
+
+// 打开 SKILL.md 文件
+const openSkillMd = (skill) => {
+  const result = window.services.getSkillMdPath(skill.name, skill.scope, skill.projectPath, skill.disabled);
+  if (result.success) {
+    window.utools.shellOpenPath(result.path);
+  } else {
+    MessagePlugin.error(result.error || "无法打开 SKILL.md");
   }
 };
 
@@ -424,11 +457,22 @@ onMounted(() => {
                 </Tag>
               </Tooltip>
             </div>
-            <Space v-if="skill.scope === 'global'" size="small">
+            <Space size="small">
               <Switch
                 :value="!skill.disabled"
                 @change="(val) => toggleSkill(skill, val)"
               />
+              <Tooltip v-if="skill.scope === 'project'" content="转移到用户目录" placement="top">
+                <Button
+                  size="small"
+                  theme="default"
+                  variant="text"
+                  :disabled="skill.disabled"
+                  @click.stop="moveToGlobal(skill)"
+                >
+                  <FileExportIcon />
+                </Button>
+              </Tooltip>
               <Popconfirm
                 theme="danger"
                 content="删除后不可恢复，确认删除？"
@@ -462,11 +506,63 @@ onMounted(() => {
     <!-- 详情弹窗 -->
     <Dialog
       v-model:visible="showDetailDialog"
-      :header="selectedSkill?.name || 'Skill 详情'"
       width="600px"
       :footer="false"
     >
-      <pre class="skill-detail-content">{{ selectedSkill?.frontmatter || '无 YAML frontmatter' }}</pre>
+      <template #header>
+        <div class="detail-dialog-header">
+          <span>{{ selectedSkill?.name || 'Skill 详情' }}</span>
+          <Tooltip content="用编辑器打开 SKILL.md" placement="top">
+            <Button size="small" variant="outline" @click="openSkillMd(selectedSkill)">
+              <template #icon><FolderOpen1Icon style="font-size: 14px" /></template> SKILL.md
+            </Button>
+          </Tooltip>
+        </div>
+      </template>
+      <div v-if="selectedSkill" class="skill-detail">
+        <div class="detail-info-grid">
+          <div class="detail-info-item">
+            <span class="detail-info-label">名称</span>
+            <span class="detail-info-value">{{ selectedSkill.name }}</span>
+          </div>
+          <div class="detail-info-item">
+            <span class="detail-info-label">作用域</span>
+            <Tag size="small" :theme="selectedSkill.scope === 'project' ? 'success' : 'primary'" variant="light">
+              {{ selectedSkill.scope === 'project' ? '项目' : '全局' }}
+            </Tag>
+          </div>
+          <div v-if="selectedSkill.scope === 'project'" class="detail-info-item">
+            <span class="detail-info-label">所属项目</span>
+            <span class="detail-info-value">{{ selectedSkill.projectName }}</span>
+          </div>
+          <div class="detail-info-item">
+            <span class="detail-info-label">状态</span>
+            <Tag size="small" :theme="selectedSkill.disabled ? 'default' : 'success'" variant="light">
+              {{ selectedSkill.disabled ? '已禁用' : '已启用' }}
+            </Tag>
+          </div>
+          <div class="detail-info-item">
+            <span class="detail-info-label">文件数</span>
+            <span class="detail-info-value">{{ selectedSkill.fileCount || '-' }}</span>
+          </div>
+          <div class="detail-info-item">
+            <span class="detail-info-label">使用次数</span>
+            <span class="detail-info-value">{{ selectedSkill.usageCount || 0 }} 次</span>
+          </div>
+          <div class="detail-info-item">
+            <span class="detail-info-label">最近使用</span>
+            <span class="detail-info-value">{{ formatLastUsed(selectedSkill.lastUsedAt) }}</span>
+          </div>
+        </div>
+        <div v-if="parseFrontmatter(selectedSkill.frontmatter).description" class="detail-section">
+          <div class="detail-section-title">描述</div>
+          <div class="detail-desc">{{ parseFrontmatter(selectedSkill.frontmatter).description }}</div>
+        </div>
+        <div v-if="parseFrontmatter(selectedSkill.frontmatter).instructions" class="detail-section">
+          <div class="detail-section-title">指令</div>
+          <div class="detail-desc">{{ parseFrontmatter(selectedSkill.frontmatter).instructions }}</div>
+        </div>
+      </div>
     </Dialog>
 
     <!-- 安装弹窗 -->
@@ -526,6 +622,21 @@ onMounted(() => {
     >
       <div class="overwrite-hint">
         Skill "{{ pendingInstall?.skillName }}" 已存在，是否覆盖安装？
+      </div>
+    </Dialog>
+
+    <!-- 转移确认弹窗 -->
+    <Dialog
+      v-model:visible="showMoveDialog"
+      header="转移到用户目录"
+      width="400px"
+      :confirm-btn="{ content: '确认转移', theme: 'primary' }"
+      :cancel-btn="{ content: '取消' }"
+      @confirm="confirmMoveToGlobal"
+    >
+      <div class="move-hint">
+        将 Skill "{{ moveTarget?.name }}" 从项目 <strong>{{ moveTarget?.projectName }}</strong> 转移到 <strong>~/.claude/skills</strong>？
+        <br />转移后该项目下将不再保留此 Skill。
       </div>
     </Dialog>
   </div>
@@ -635,20 +746,6 @@ onMounted(() => {
   color: var(--td-text-color-placeholder);
 }
 
-.skill-detail-content {
-  margin: 0;
-  padding: 16px;
-  background: var(--td-bg-color-container-hover);
-  border-radius: var(--td-radius-medium);
-  font-size: 13px;
-  font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
-  color: var(--td-text-color-primary);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-x: auto;
-  max-height: 60vh;
-}
-
 /* 安装弹窗样式 */
 .install-form {
   display: flex;
@@ -734,5 +831,68 @@ onMounted(() => {
 .overwrite-hint {
   font-size: 14px;
   color: var(--td-text-color-primary);
+}
+
+/* 转移确认弹窗 */
+.move-hint {
+  font-size: 14px;
+  color: var(--td-text-color-primary);
+  line-height: 1.8;
+}
+
+/* 详情弹窗 */
+.detail-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.skill-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.detail-info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-info-label {
+  font-size: 13px;
+  color: var(--td-text-color-placeholder);
+  white-space: nowrap;
+  min-width: 64px;
+}
+
+.detail-info-value {
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+  word-break: break-all;
+}
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--td-text-color-secondary);
+}
+
+.detail-desc {
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+  line-height: 1.6;
 }
 </style>

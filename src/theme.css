@@ -383,3 +383,14 @@
 :root[theme-mode="dark"] .t-button--theme-primary.t-button--variant-base:hover {
   color: #000;
 }
+
+/* Switch 开启状态使用绿色 */
+.t-switch.t-is-checked {
+  background-color: var(--td-success-color) !important;
+}
+.t-switch.t-is-checked:hover {
+  background-color: var(--td-success-color-hover) !important;
+}
+.t-switch.t-is-loading.t-is-checked {
+  background-color: var(--td-success-color-focus) !important;
+}

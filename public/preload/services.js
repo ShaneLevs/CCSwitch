@@ -7,8 +7,8 @@ const zlib = require('node:zlib')
 let _mcpClient, _mcpStdio, _mcpStreamableHttp
 try {
   _mcpClient = require('@modelcontextprotocol/sdk/client')
-  _mcpStdio = require('@modelcontextprotocol/sdk/dist/cjs/client/stdio.js')
-  _mcpStreamableHttp = require('@modelcontextprotocol/sdk/dist/cjs/client/streamableHttp.js')
+  _mcpStdio = require('@modelcontextprotocol/sdk/client/stdio.js')
+  _mcpStreamableHttp = require('@modelcontextprotocol/sdk/client/streamableHttp.js')
 } catch (e) {
   console.warn('MCP SDK not available, tool discovery will be disabled:', e.message)
 }
@@ -401,11 +401,14 @@ window.services = {
           const frontmatter = frontmatterMatch ? frontmatterMatch[1] : ''
 
           const usage = skillUsage[skillName] || {}
+          const skillFiles = fs.readdirSync(skillPath)
           skills.push({
             name: skillName,
             frontmatter,
             disabled: false,
             scope: 'global',
+            skillMdPath,
+            fileCount: skillFiles.length,
             usageCount: usage.usageCount || 0,
             lastUsedAt: usage.lastUsedAt || null
           })
@@ -432,11 +435,14 @@ window.services = {
             const frontmatter = frontmatterMatch ? frontmatterMatch[1] : ''
 
             const usage = skillUsage[skillName] || {}
+            const skillFiles = fs.readdirSync(skillPath)
             skills.push({
               name: skillName,
               frontmatter,
               disabled: true,
               scope: 'global',
+              skillMdPath,
+              fileCount: skillFiles.length,
               usageCount: usage.usageCount || 0,
               lastUsedAt: usage.lastUsedAt || null
             })
@@ -471,6 +477,8 @@ window.services = {
                 const frontmatter = frontmatterMatch ? frontmatterMatch[1] : ''
 
                 const usage = skillUsage[skillName] || {}
+                const skillDir = path.join(projectSkillsDir, skillName)
+                const skillFiles = fs.readdirSync(skillDir)
                 skills.push({
                   name: skillName,
                   frontmatter,
@@ -478,11 +486,50 @@ window.services = {
                   scope: 'project',
                   projectName: path.basename(projectPath),
                   projectPath: projectPath,
+                  skillMdPath,
+                  fileCount: skillFiles.length,
                   usageCount: usage.usageCount || 0,
                   lastUsedAt: usage.lastUsedAt || null
                 })
               } catch (e) {
                 console.error('读取项目 skill 文件失败:', skillMdPath, e)
+              }
+            }
+
+            // 读取项目级禁用的 skills
+            const projectDisabledDir = path.join(projectSkillsDir, '.disabled')
+            if (fs.existsSync(projectDisabledDir)) {
+              const disabledEntries = fs.readdirSync(projectDisabledDir, { withFileTypes: true })
+              for (const entry of disabledEntries) {
+                if (!entry.isDirectory()) continue
+
+                const skillName = entry.name
+                const skillMdPath = path.join(projectDisabledDir, skillName, 'SKILL.md')
+                if (!fs.existsSync(skillMdPath)) continue
+
+                try {
+                  const content = fs.readFileSync(skillMdPath, { encoding: 'utf-8' })
+                  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/)
+                  const frontmatter = frontmatterMatch ? frontmatterMatch[1] : ''
+
+                  const usage = skillUsage[skillName] || {}
+                  const skillDir = path.join(projectDisabledDir, skillName)
+                  const skillFiles = fs.readdirSync(skillDir)
+                  skills.push({
+                    name: skillName,
+                    frontmatter,
+                    disabled: true,
+                    scope: 'project',
+                    projectName: path.basename(projectPath),
+                    projectPath: projectPath,
+                    skillMdPath,
+                    fileCount: skillFiles.length,
+                    usageCount: usage.usageCount || 0,
+                    lastUsedAt: usage.lastUsedAt || null
+                  })
+                } catch (e) {
+                  console.error('读取项目 disabled skill 文件失败:', skillMdPath, e)
+                }
               }
             }
           }
@@ -568,6 +615,120 @@ window.services = {
       fs.rmSync(skillPath, { recursive: true, force: true })
 
       return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  },
+
+  // 禁用项目级 Skill
+  disableProjectSkill(skillName, projectPath) {
+    try {
+      const skillPath = path.join(projectPath, '.claude', 'skills', skillName)
+      const disabledDir = path.join(projectPath, '.claude', 'skills', '.disabled')
+      const targetPath = path.join(disabledDir, skillName)
+
+      if (!fs.existsSync(skillPath)) {
+        return { success: false, error: 'Skill 不存在' }
+      }
+
+      if (!fs.existsSync(disabledDir)) {
+        fs.mkdirSync(disabledDir, { recursive: true })
+      }
+
+      fs.renameSync(skillPath, targetPath)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  },
+
+  // 启用项目级 Skill
+  enableProjectSkill(skillName, projectPath) {
+    try {
+      const disabledDir = path.join(projectPath, '.claude', 'skills', '.disabled')
+      const skillPath = path.join(disabledDir, skillName)
+      const targetPath = path.join(projectPath, '.claude', 'skills', skillName)
+
+      if (!fs.existsSync(skillPath)) {
+        return { success: false, error: 'Skill 不存在' }
+      }
+
+      fs.renameSync(skillPath, targetPath)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  },
+
+  // 删除项目级 Skill
+  deleteProjectSkill(skillName, projectPath, isDisabled) {
+    try {
+      let skillPath
+      if (isDisabled) {
+        skillPath = path.join(projectPath, '.claude', 'skills', '.disabled', skillName)
+      } else {
+        skillPath = path.join(projectPath, '.claude', 'skills', skillName)
+      }
+
+      if (!fs.existsSync(skillPath)) {
+        return { success: false, error: 'Skill 不存在' }
+      }
+
+      fs.rmSync(skillPath, { recursive: true, force: true })
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  },
+
+  // 将项目级 Skill 转移到用户目录
+  moveProjectSkillToGlobal(skillName, projectPath) {
+    try {
+      const srcPath = path.join(projectPath, '.claude', 'skills', skillName)
+      const destPath = path.join(CLAUDE_SKILLS_PATH, skillName)
+
+      if (!fs.existsSync(srcPath)) {
+        return { success: false, error: '源 Skill 不存在' }
+      }
+
+      if (fs.existsSync(destPath)) {
+        return { success: false, error: '用户目录下已存在同名 Skill' }
+      }
+
+      // 确保目标目录存在
+      if (!fs.existsSync(CLAUDE_SKILLS_PATH)) {
+        fs.mkdirSync(CLAUDE_SKILLS_PATH, { recursive: true })
+      }
+
+      fs.renameSync(srcPath, destPath)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  },
+
+  // 获取 Skill 的 SKILL.md 文件路径
+  getSkillMdPath(skillName, scope, projectPath, isDisabled) {
+    try {
+      let skillDir
+      if (scope === 'project') {
+        if (isDisabled) {
+          skillDir = path.join(projectPath, '.claude', 'skills', '.disabled', skillName)
+        } else {
+          skillDir = path.join(projectPath, '.claude', 'skills', skillName)
+        }
+      } else {
+        if (isDisabled) {
+          skillDir = path.join(CLAUDE_SKILLS_PATH, '.disabled', skillName)
+        } else {
+          skillDir = path.join(CLAUDE_SKILLS_PATH, skillName)
+        }
+      }
+      const mdPath = path.join(skillDir, 'SKILL.md')
+      if (!fs.existsSync(mdPath)) {
+        return { success: false, error: 'SKILL.md 不存在' }
+      }
+      return { success: true, path: mdPath }
     } catch (error) {
       return { success: false, error: error.message }
     }

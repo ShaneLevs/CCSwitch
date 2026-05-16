@@ -96,4 +96,8 @@ onMounted(() => {
 .header .logo { width: 32px; height: 32px; border-radius: var(--td-radius-default); }
 .header :deep(.t-typography-title) { margin: 0; }
 .tab-buttons { display: flex; gap: 4px; }
+
+/* Switch dark mode fix: darken track when off so handle (white #fff) is visible */
+:root[theme-mode="dark"] :deep(.t-switch) { background-color: var(--td-gray-color-6); }
+:root[theme-mode="dark"] :deep(.t-switch:hover) { background-color: var(--td-gray-color-5); }
 </style>

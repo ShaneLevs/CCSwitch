@@ -22,7 +22,7 @@ import {
   AddIcon,
   EditIcon,
   DeleteIcon,
-  ViewListIcon,
+  ToolsIcon,
 } from "tdesign-icons-vue-next";
 
 const mcpServerList = ref([]);
@@ -291,10 +291,18 @@ onMounted(() => {
       <Card
         v-for="server in mcpServerList"
         :key="server.name + '-' + (server.enabled ? 'on' : 'off')"
-        :title="server.name"
         :bordered="true"
         class="mcp-card"
+        :class="{ 'mcp-card-disabled': !server.enabled }"
       >
+        <template #title>
+          <div class="mcp-title-wrapper">
+            <span class="mcp-title-name">{{ server.name }}</span>
+            <Tag size="small" :theme="getTypeTagTheme(server.config.type)" variant="light">
+              {{ getTypeTag(server.config.type) }}
+            </Tag>
+          </div>
+        </template>
         <template #actions>
           <Space>
             <Switch
@@ -310,15 +318,9 @@ onMounted(() => {
                 :disabled="!server.enabled"
                 @click="openToolDrawer(server)"
               >
-                <ViewListIcon />
+                <ToolsIcon />
               </Button>
             </Tooltip>
-            <Tag :theme="getTypeTagTheme(server.config.type)" variant="light">
-              {{ getTypeTag(server.config.type) }}
-            </Tag>
-            <Tag v-if="!server.enabled" theme="default" variant="light" size="small">
-              已关闭
-            </Tag>
             <Tooltip content="编辑" placement="top">
               <Button
                 size="small"
@@ -408,9 +410,12 @@ onMounted(() => {
       :footer="false"
     >
       <div v-if="toolLoading" class="tool-skeleton">
-        <Skeleton :row="3" :loading="true" class="skeleton-item" />
-        <Skeleton :row="3" :loading="true" class="skeleton-item" />
-        <Skeleton :row="2" :loading="true" class="skeleton-item" />
+        <div v-for="i in 3" :key="i" class="skeleton-card">
+          <Skeleton :row="1" :loading="true" animation="fluent" />
+          <div class="skeleton-card-body">
+            <Skeleton :row="2" :loading="true" animation="fluent" />
+          </div>
+        </div>
       </div>
       <div v-else-if="toolError" class="tool-error">
           <Tag theme="danger" variant="light">连接失败</Tag>
@@ -500,8 +505,24 @@ onMounted(() => {
   margin-bottom: 0;
 }
 
+.mcp-card-disabled {
+  opacity: 0.6;
+}
+
 .mcp-card :deep(.t-card__header) {
   padding: 10px 16px;
+}
+
+.mcp-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mcp-title-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--td-text-color-primary);
 }
 
 .mcp-card :deep(.t-card__body) {
@@ -583,10 +604,19 @@ onMounted(() => {
   gap: 16px;
 }
 
-.skeleton-item {
+.skeleton-card {
   padding: 16px;
   border: 1px solid var(--td-border-level-1-color);
-  border-radius: 6px;
+  border-radius: 8px;
+}
+
+.skeleton-card :deep(.t-skeleton__row) {
+  gap: 8px;
+}
+
+.skeleton-card-body {
+  margin-top: 12px;
+  padding-left: 4px;
 }
 
 .tool-error {
