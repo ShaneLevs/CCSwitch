@@ -1,14 +1,50 @@
-import { ref, watch } from "vue";
+import { ref, computed, watch } from "vue";
 import { MessagePlugin } from "tdesign-vue-next";
 
 const GROUP_ORDER_ID = "ccswitch_group_order";
 
-export function useConfigColumns(groupedConfigs) {
+export function useConfigColumns(savedConfigs) {
   const groupOrder = ref([]);
   const columnAssignments = ref({});
   const leftColumn = ref([]);
   const rightColumn = ref([]);
   const dragState = ref({ active: false, floatEl: null, offsetX: 0, offsetY: 0, dragGroup: null, placeholderCol: null, placeholderIdx: null, dragHeight: 0 });
+
+  const groupedConfigs = computed(() => {
+    const groups = new Map();
+    savedConfigs.value.forEach(config => {
+      const groupKey = `${config.key}|${config.baseUrl}`;
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
+          key: config.key,
+          baseUrl: config.baseUrl,
+          configs: [],
+        });
+      }
+      groups.get(groupKey).configs.push(config);
+    });
+
+    const result = Array.from(groups.values()).map(group => {
+      group.configs.sort((a, b) => a.createdAt - b.createdAt);
+      return group;
+    });
+
+    const order = groupOrder.value;
+    if (order.length) {
+      const orderMap = new Map(order.map((k, i) => [k, i]));
+      result.sort((a, b) => {
+        const keyA = `${a.key}|${a.baseUrl}`;
+        const keyB = `${b.key}|${b.baseUrl}`;
+        const oA = orderMap.has(keyA) ? orderMap.get(keyA) : Infinity;
+        const oB = orderMap.has(keyB) ? orderMap.get(keyB) : Infinity;
+        if (oA !== oB) return oA - oB;
+        return a.configs[0]?.createdAt - b.configs[0]?.createdAt;
+      });
+    } else {
+      result.sort((a, b) => a.configs[0]?.createdAt - b.configs[0]?.createdAt);
+    }
+    return result;
+  });
 
   const loadGroupOrder = () => {
     const doc = window.utools.db.get(GROUP_ORDER_ID);
@@ -207,6 +243,7 @@ export function useConfigColumns(groupedConfigs) {
   }, { immediate: true });
 
   return {
+    groupedConfigs,
     leftColumn,
     rightColumn,
     dragState,

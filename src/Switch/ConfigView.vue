@@ -119,46 +119,10 @@ const loadSavedConfigs = () => {
     .sort((a, b) => a.createdAt - b.createdAt);
 };
 
-const groupedConfigs = computed(() => {
-  const groups = new Map();
-  savedConfigs.value.forEach(config => {
-    const groupKey = `${config.key}|${config.baseUrl}`;
-    if (!groups.has(groupKey)) {
-      groups.set(groupKey, {
-        key: config.key,
-        baseUrl: config.baseUrl,
-        configs: [],
-      });
-    }
-    groups.get(groupKey).configs.push(config);
-  });
-
-  const result = Array.from(groups.values()).map(group => {
-    group.configs.sort((a, b) => a.createdAt - b.createdAt);
-    return group;
-  });
-
-  const order = groupOrder.value;
-  if (order.length) {
-    const orderMap = new Map(order.map((k, i) => [k, i]));
-    result.sort((a, b) => {
-      const keyA = `${a.key}|${a.baseUrl}`;
-      const keyB = `${b.key}|${b.baseUrl}`;
-      const oA = orderMap.has(keyA) ? orderMap.get(keyA) : Infinity;
-      const oB = orderMap.has(keyB) ? orderMap.get(keyB) : Infinity;
-      if (oA !== oB) return oA - oB;
-      return a.configs[0]?.createdAt - b.configs[0]?.createdAt;
-    });
-  } else {
-    result.sort((a, b) => a.configs[0]?.createdAt - b.configs[0]?.createdAt);
-  }
-  return result;
-});
-
 const {
   leftColumn, rightColumn, dragState, groupOrder,
   loadGroupOrder, rebalanceColumns, onDragMouseDown,
-} = useConfigColumns(groupedConfigs);
+} = useConfigColumns(savedConfigs);
 
 const {
   showImportStringDialog, importString,
