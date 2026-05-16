@@ -455,6 +455,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+:deep(.t-drawer__content-wrapper--bottom) {
+  border-radius: 16px 16px 0 0;
+}
+
 .mcp-container {
   padding: 0;
 }
