@@ -87,6 +87,12 @@ const formData = ref({
 
 const dialogTitle = computed(() => (editingConfig.value ? "编辑配置" : "新建配置"));
 
+const hasModelFields = computed(() =>
+  currentConfig.value.model || currentConfig.value.defaultHaikuModel ||
+  currentConfig.value.defaultSonnetModel || currentConfig.value.defaultOpusModel ||
+  currentConfig.value.subagentModel
+);
+
 const loadCurrentConfig = () => {
   const settings = window.services.readClaudeSettings();
   if (settings?.env) {
@@ -456,33 +462,17 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
         <Button size="small" theme="primary" variant="text" @click="openExtraFieldsDialog"><template #icon><SettingIcon /></template>env其他字段设置</Button>
       </div>
       <div class="current-config-content">
-        <div class="current-config-item">
-          <span class="current-config-label">AUTH_TOKEN</span>
-          <span class="current-config-value">{{ maskKey(currentConfig.key) || '未设置' }}</span>
+        <div class="current-config-main">
+          <span class="current-config-token">{{ maskKey(currentConfig.key) || '未设置' }}</span>
+          <span class="current-config-arrow">→</span>
+          <span class="current-config-url">{{ currentConfig.baseUrl || '未设置' }}</span>
         </div>
-        <div class="current-config-item">
-          <span class="current-config-label">BASE_URL</span>
-          <span class="current-config-value">{{ currentConfig.baseUrl || '未设置' }}</span>
-        </div>
-        <div v-if="currentConfig.model" class="current-config-item">
-          <span class="current-config-label">MODEL</span>
-          <span class="current-config-value">{{ currentConfig.model }}</span>
-        </div>
-        <div v-if="currentConfig.defaultHaikuModel" class="current-config-item">
-          <span class="current-config-label">HAIKU_MODEL</span>
-          <span class="current-config-value">{{ currentConfig.defaultHaikuModel }}</span>
-        </div>
-        <div v-if="currentConfig.defaultSonnetModel" class="current-config-item">
-          <span class="current-config-label">SONNET_MODEL</span>
-          <span class="current-config-value">{{ currentConfig.defaultSonnetModel }}</span>
-        </div>
-        <div v-if="currentConfig.defaultOpusModel" class="current-config-item">
-          <span class="current-config-label">OPUS_MODEL</span>
-          <span class="current-config-value">{{ currentConfig.defaultOpusModel }}</span>
-        </div>
-        <div v-if="currentConfig.subagentModel" class="current-config-item">
-          <span class="current-config-label">SUBAGENT_MODEL</span>
-          <span class="current-config-value">{{ currentConfig.subagentModel }}</span>
+        <div v-if="hasModelFields" class="current-config-models">
+          <Tag v-if="currentConfig.model" size="small" variant="outline">MODEL: {{ currentConfig.model }}</Tag>
+          <Tag v-if="currentConfig.defaultHaikuModel" size="small" variant="outline">HAIKU: {{ currentConfig.defaultHaikuModel }}</Tag>
+          <Tag v-if="currentConfig.defaultSonnetModel" size="small" variant="outline">SONNET: {{ currentConfig.defaultSonnetModel }}</Tag>
+          <Tag v-if="currentConfig.defaultOpusModel" size="small" variant="outline">OPUS: {{ currentConfig.defaultOpusModel }}</Tag>
+          <Tag v-if="currentConfig.subagentModel" size="small" variant="outline">SUBAGENT: {{ currentConfig.subagentModel }}</Tag>
         </div>
       </div>
     </div>
@@ -502,7 +492,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
             </div>
             <Space size="small" :key="config.id + '-actions'" @click.stop>
               <Tag v-if="isCurrentConfig(config)" theme="success" variant="light" size="small">当前</Tag>
-              <Button size="small" theme="success" variant="text" @click="switchConfig(config)" :disabled="isCurrentConfig(config)"><template #icon><component :is="isCurrentConfig(config) ? PauseIcon : PlayIcon" /></template>启用</Button>
+              <Button v-else size="small" theme="success" variant="text" @click="switchConfig(config)"><template #icon><PlayIcon /></template>启用</Button>
               <Tooltip content="编辑" placement="top">
                 <Button size="small" theme="default" variant="text" @click="openEditDialog(config)"><EditIcon /></Button>
               </Tooltip>
@@ -610,9 +600,11 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
 .current-config-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .current-config-title { font-size: 14px; font-weight: 500; color: var(--td-text-color-primary); }
 .current-config-content { display: flex; flex-direction: column; gap: 8px; }
-.current-config-item { display: flex; gap: 16px; font-size: 13px; }
-.current-config-label { color: var(--td-text-color-secondary); min-width: 120px; }
-.current-config-value { color: var(--td-text-color-primary); word-break: break-all; }
+.current-config-main { display: flex; align-items: center; gap: 8px; font-size: 13px; font-family: monospace; }
+.current-config-token { color: var(--td-text-color-primary); }
+.current-config-arrow { color: var(--td-text-color-placeholder); }
+.current-config-url { color: var(--td-brand-color); word-break: break-all; }
+.current-config-models { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* 额外字段弹窗样式 */
 .extra-fields-dialog { display: flex; flex-direction: column; gap: 16px; }
