@@ -1,0 +1,275 @@
+:deep(.t-drawer__content-wrapper--bottom) {
+  border-radius: 16px 16px 0 0;
+}
+
+.mcp-container {
+  padding: 0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  margin-top: -4px;
+}
+
+.mcp-tip {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
+}
+
+.hint-link {
+  color: var(--td-brand-color);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.section-header :deep(.t-typography-title) {
+  margin: 0;
+}
+
+.empty-state {
+  padding: 60px 0;
+}
+
+.mcp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mcp-card {
+  margin-bottom: 0;
+}
+
+.mcp-card-disabled {
+  opacity: 0.6;
+}
+
+.mcp-card :deep(.t-card__header) {
+  padding: 10px 16px;
+}
+
+.mcp-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mcp-title-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--td-text-color-primary);
+}
+
+.mcp-card :deep(.t-card__body) {
+  padding: 8px 16px;
+}
+
+.mcp-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-summary {
+  color: var(--td-text-color-secondary);
+  font-size: 13px;
+  font-family: monospace;
+  word-break: break-all;
+}
+
+/* JSON 编辑器样式 */
+.json-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label {
+  font-size: 14px;
+  color: var(--td-text-color-primary);
+}
+
+.form-label .required {
+  color: var(--td-error-color);
+}
+
+.template-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.editor-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: var(--td-text-color-primary);
+}
+
+.error-text {
+  color: var(--td-error-color);
+  font-size: 12px;
+}
+
+.json-textarea {
+  font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.json-textarea :deep(textarea) {
+  font-family: inherit;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.tool-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.skeleton-card {
+  padding: 16px;
+  border: 1px solid var(--td-border-level-1-color);
+  border-radius: 8px;
+}
+
+.skeleton-card :deep(.t-skeleton__row) {
+  gap: 8px;
+}
+
+.skeleton-card-body {
+  margin-top: 12px;
+  padding-left: 4px;
+}
+
+.tool-error {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 0;
+}
+
+.tool-error-msg {
+  color: var(--td-text-color-secondary);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.tool-empty {
+  padding: 40px 0;
+}
+
+.tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tool-item {
+  padding: 16px;
+  border: 1px solid var(--td-border-level-1-color);
+  border-radius: 6px;
+}
+
+.tool-name {
+  font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--td-brand-color);
+  margin-bottom: 4px;
+}
+
+.tool-meta {
+  font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--td-text-color-secondary);
+  line-height: 1.6;
+}
+
+.tool-meta-label {
+  font-weight: 700;
+  color: var(--td-text-color-primary);
+}
+
+.tool-section {
+  margin-top: 12px;
+}
+
+.tool-section-title {
+  font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--td-text-color-primary);
+  margin-bottom: 6px;
+}
+
+.tool-desc {
+  font-size: 13px;
+  color: var(--td-text-color-secondary);
+  line-height: 1.6;
+  padding-left: 4px;
+}
+
+.param-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 4px;
+}
+
+.param-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.param-bullet {
+  color: var(--td-text-color-placeholder);
+  font-size: 8px;
+}
+
+.param-name {
+  color: var(--td-text-color-primary);
+}
+
+.param-required {
+  color: var(--td-error-color);
+  font-size: 12px;
+}
+
+.param-optional {
+  color: var(--td-text-color-placeholder);
+  font-size: 12px;
+}
+
+.param-type {
+  color: var(--td-text-color-secondary);
+}
+
+.param-separator {
+  color: var(--td-text-color-placeholder);
+}
+
+.param-desc {
+  color: var(--td-text-color-placeholder);
+  font-size: 13px;
+}

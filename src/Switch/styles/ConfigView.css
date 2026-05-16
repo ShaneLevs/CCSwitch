@@ -1,0 +1,63 @@
+.config-view { display: flex; flex-direction: column; }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.section-tip { font-size: 12px; color: var(--td-text-color-placeholder); }
+.hint-link { color: var(--td-brand-color); cursor: pointer; text-decoration: underline; }
+.empty-state { padding: 40px 0; }
+
+/* 配置分组样式 */
+.config-groups { display: flex; gap: 12px; }
+.masonry-col { flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.config-group { background: var(--td-bg-color-container); border-radius: var(--td-radius-medium); border: 1px solid var(--td-component-border); overflow: hidden; }
+.drag-gap-parent { background: transparent; border: 1px solid var(--td-brand-color); opacity: 0.6; box-shadow: 0 0 6px rgba(0,81,167,0.25); }
+:root[theme-mode="dark"] .drag-gap-parent { box-shadow: 0 0 6px rgba(0,81,167,0.4); }
+.drag-gap { border-radius: var(--td-radius-medium); }
+.group-conn { display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; border-bottom: 1px solid var(--td-component-border); font-family: monospace; font-size: 12px; cursor: grab; user-select: none; }
+.group-conn:active { cursor: grabbing; }
+.group-key { color: var(--td-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.group-url { color: var(--td-brand-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.config-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; cursor: pointer; }
+.config-row:hover { background: var(--td-bg-color-container-hover); }
+.config-row:hover .config-name { color: var(--td-brand-color); }
+.config-row + .config-row { border-top: 1px solid var(--td-component-border); }
+.config-name { font-size: 13px; font-weight: 500; color: var(--td-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 预览弹窗样式 */
+.preview-content { display: flex; flex-direction: column; gap: 12px; }
+.preview-item { display: flex; gap: 16px; }
+.preview-label { color: var(--td-text-color-secondary); min-width: 120px; font-size: 14px; }
+.preview-value { color: var(--td-text-color-primary); word-break: break-all; font-size: 14px; }
+.preview-divider { margin: 8px 0; border-top: 1px solid var(--td-component-border); }
+
+/* 当前配置展示 */
+.current-config-card { margin-bottom: 16px; padding: 16px; background: var(--td-bg-color-container); border-radius: var(--td-radius-medium); border: 1px solid var(--td-component-border); }
+.current-config-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.current-config-title { font-size: 14px; font-weight: 500; color: var(--td-text-color-primary); }
+.current-config-content { display: flex; flex-direction: column; gap: 8px; }
+.current-config-main { display: flex; align-items: center; gap: 8px; font-size: 13px; font-family: monospace; }
+.current-config-token { color: var(--td-text-color-primary); }
+.current-config-arrow { color: var(--td-text-color-placeholder); }
+.current-config-url { color: var(--td-brand-color); word-break: break-all; }
+.current-config-models { display: flex; flex-wrap: wrap; gap: 6px; }
+.model-tag { cursor: pointer; transition: opacity 0.15s; }
+.model-tag:hover { opacity: 0.75; }
+
+/* 额外字段弹窗样式 */
+.extra-fields-dialog { display: flex; flex-direction: column; gap: 16px; }
+.extra-fields-hint { padding: 12px 16px; background: var(--td-bg-color-container-hover); border-radius: var(--td-radius-default); font-size: 13px; color: var(--td-text-color-secondary); }
+.extra-fields-hint p { margin: 0 0 4px 0; }
+.extra-fields-hint p:last-child { margin-bottom: 0; }
+.extra-fields-list { display: flex; flex-direction: column; gap: 12px; }
+.extra-field-item { display: flex; gap: 8px; align-items: center; }
+.extra-field-item .field-key { flex: 1; }
+.extra-field-item .field-value { flex: 0 0 140px; }
+.add-field-btn { align-self: flex-start; }
+
+/* 表单样式 */
+.form { display: flex; flex-direction: column; gap: 16px; }
+.form-item { display: flex; align-items: center; gap: 12px; }
+.form-item label { font-size: 14px; color: var(--td-text-color-primary); flex-shrink: 0; width: 80px; text-align: right; }
+.form-item-vertical { display: flex; flex-direction: column; gap: 8px; }
+.form-item-vertical label { font-size: 14px; color: var(--td-text-color-primary); }
+.form-item .required { color: var(--td-error-color); }
+.dialog-footer { display: flex; justify-content: space-between; align-items: center; }
+.dialog-footer-right { display: flex; gap: 8px; }

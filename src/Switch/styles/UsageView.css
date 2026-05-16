@@ -1,0 +1,242 @@
+.usage-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.usage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.usage-tip {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
+}
+
+.stat-cards-row1 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.stat-cards-row2 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.stat-card {
+  flex: 1;
+  padding: 14px 16px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--td-shadow-2);
+}
+
+/* 统计卡片颜色 - 浅色模式 */
+.stat-green { background: #f6ffed; }
+.stat-blue { background: #e6f7ff; }
+.stat-teal { background: #e6fffb; }
+.stat-red { background: #fff1f0; }
+.stat-orange { background: #fff7e6; }
+.stat-purple { background: #f9f0ff; }
+.stat-pink { background: #fff0f6; }
+
+/* 统计卡片颜色 - 深色模式 */
+:root[theme-mode="dark"] .stat-green { background: rgba(82, 196, 26, 0.12); }
+:root[theme-mode="dark"] .stat-blue { background: rgba(24, 144, 255, 0.12); }
+:root[theme-mode="dark"] .stat-teal { background: rgba(19, 194, 194, 0.12); }
+:root[theme-mode="dark"] .stat-red { background: rgba(245, 34, 45, 0.12); }
+:root[theme-mode="dark"] .stat-orange { background: rgba(250, 140, 22, 0.12); }
+:root[theme-mode="dark"] .stat-purple { background: rgba(114, 46, 209, 0.12); }
+:root[theme-mode="dark"] .stat-pink { background: rgba(235, 47, 150, 0.12); }
+
+.stat-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat-icon-wrap {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--td-radius-default);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-card :deep(.t-statistic-title) {
+  font-size: 12px;
+  color: var(--td-text-color-secondary);
+}
+
+.stat-card :deep(.t-statistic-content) {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--td-text-color-primary);
+}
+
+.stat-card :deep(.t-statistic-suffix) {
+  font-size: 13px;
+  color: var(--td-text-color-secondary);
+}
+
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.model-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.model-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.model-left {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.model-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--td-text-color-primary);
+}
+
+.model-sessions {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
+}
+
+.model-tokens {
+  font-size: 13px;
+  color: var(--td-text-color-secondary);
+}
+
+.model-bar-bg {
+  height: 8px;
+  background: var(--td-bg-color-component);
+  border-radius: var(--td-radius-small);
+  overflow: hidden;
+}
+
+.model-bar {
+  height: 100%;
+  background: var(--td-brand-color);
+  border-radius: var(--td-radius-small);
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+
+.model-hint {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
+}
+
+.empty-small {
+  padding: 20px 0;
+}
+
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.project-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.project-block:has(.project-left .t-tag) {
+  opacity: 0.6;
+}
+
+.project-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.project-left {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.project-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--td-text-color-primary);
+}
+
+.project-path {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
+  font-family: monospace;
+}
+
+.project-path.clickable {
+  color: var(--td-brand-color);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.2s;
+}
+
+.project-path.clickable:hover {
+  text-decoration-color: var(--td-brand-color);
+}
+
+.project-tokens {
+  font-size: 13px;
+  color: var(--td-text-color-secondary);
+}
+
+.project-bar-bg {
+  height: 8px;
+  background: var(--td-bg-color-component);
+  border-radius: var(--td-radius-small);
+  overflow: hidden;
+}
+
+.project-bar {
+  height: 100%;
+  background: var(--td-brand-color);
+  border-radius: var(--td-radius-small);
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+
+.expand-btn-wrapper {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--td-component-stroke);
+  margin-top: 4px;
+}
+
+.usage-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

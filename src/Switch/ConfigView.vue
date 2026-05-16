@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, watch } from "vue";
+import { ref, onMounted, computed } from "vue";
 import {
   Button,
   Input,
@@ -19,14 +19,17 @@ import {
   DownloadIcon,
   UploadIcon,
   PlayIcon,
-  PauseIcon,
   EditIcon,
   DeleteIcon,
   SettingIcon,
 } from "tdesign-icons-vue-next";
+import { useConfigColumns } from "../composables/useConfigColumns";
+import { useConfigImportExport } from "../composables/useConfigImportExport";
+import { useConfigSwitch } from "../composables/useConfigSwitch";
+import { useExtraFields } from "../composables/useExtraFields";
+import "./styles/ConfigView.css";
 
 const DB_PREFIX = "ccswitch_config_";
-const GROUP_ORDER_ID = "ccswitch_group_order";
 
 const currentConfig = ref({
   key: "",
@@ -40,41 +43,8 @@ const currentConfig = ref({
 const savedConfigs = ref([]);
 const showDialog = ref(false);
 const editingConfig = ref(null);
-const showImportStringDialog = ref(false);
-const importString = ref("");
 const showPreviewDialog = ref(false);
 const previewConfig = ref(null);
-const showExtraFieldsDialog = ref(false);
-const extraFields = ref([]);
-const formTab = ref("fixed");
-const SAVED_FIELD_KEYS_ID = "extra_field_keys";
-const fixedFieldKeyOptions = [
-  "API_TIMEOUT_MS",
-  "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
-  "CLAUDE_CODE_NO_FLICKER",
-  "CLAUDE_CODE_EFFORT_LEVEL",
-  "CLAUDE_CODE_ATTRIBUTION_HEADER",
-];
-const savedExtraFieldKeys = ref([]);
-const extraFieldKeyOptions = computed(() => {
-  const all = [...fixedFieldKeyOptions, ...savedExtraFieldKeys.value];
-  const unique = [...new Set(all)];
-  return unique.map(k => ({ label: k, value: k }));
-});
-const loadExtraFieldKeys = () => {
-  const doc = window.utools.db.get(SAVED_FIELD_KEYS_ID);
-  savedExtraFieldKeys.value = doc?.keys || [];
-};
-
-const managedFields = [
-  'ANTHROPIC_AUTH_TOKEN',
-  'ANTHROPIC_BASE_URL',
-  'ANTHROPIC_MODEL',
-  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-  'ANTHROPIC_DEFAULT_SONNET_MODEL',
-  'ANTHROPIC_DEFAULT_OPUS_MODEL',
-  'CLAUDE_CODE_SUBAGENT_MODEL',
-];
 const formData = ref({
   name: "",
   key: "",
@@ -114,7 +84,6 @@ const loadSavedConfigs = () => {
     .allDocs()
     .filter((d) => d._id.startsWith(DB_PREFIX))
     .map((d) => {
-      // 检查是否有需要清理的老字段
       const hasOldFields = d.apiTimeoutMs !== undefined || d.disableNonessentialTraffic !== undefined;
       if (hasOldFields) {
         const cleanDoc = {
@@ -148,24 +117,6 @@ const loadSavedConfigs = () => {
       };
     })
     .sort((a, b) => a.createdAt - b.createdAt);
-};
-
-const groupOrder = ref([]);
-const columnAssignments = ref({});
-
-const loadGroupOrder = () => {
-  const doc = window.utools.db.get(GROUP_ORDER_ID);
-  groupOrder.value = doc?.order || [];
-  columnAssignments.value = doc?.columns || {};
-};
-
-const saveGroupOrder = (groups) => {
-  const order = groups.map(g => `${g.key}|${g.baseUrl}`);
-  const doc = { _id: GROUP_ORDER_ID, order };
-  const existing = window.utools.db.get(GROUP_ORDER_ID);
-  if (existing) doc._rev = existing._rev;
-  window.utools.db.put(doc);
-  groupOrder.value = order;
 };
 
 const groupedConfigs = computed(() => {
@@ -204,208 +155,15 @@ const groupedConfigs = computed(() => {
   return result;
 });
 
-const leftColumn = ref([]);
-const rightColumn = ref([]);
+const {
+  leftColumn, rightColumn, dragState, groupOrder,
+  loadGroupOrder, rebalanceColumns, onDragMouseDown,
+} = useConfigColumns(groupedConfigs);
 
-const estimateGroupHeight = (group) => {
-  if (!group || group.isPlaceholder) return 0;
-  return 52 + (group.configs?.length || 0) * 41;
-};
-
-const dragState = ref({ active: false, floatEl: null, offsetX: 0, offsetY: 0, dragGroup: null, placeholderCol: null, placeholderIdx: null, dragHeight: 0 });
-
-const splitToColumns = (groups) => {
-  const left = [], right = [];
-  groups.forEach((group, i) => {
-    const key = `${group.key}|${group.baseUrl}`;
-    const col = columnAssignments.value[key];
-    if (col === 'right') right.push(group);
-    else if (col === 'left') left.push(group);
-    else if (i % 2 === 0) left.push(group);
-    else right.push(group);
-  });
-  return { left, right };
-};
-
-watch(groupedConfigs, (groups) => {
-  if (!dragState.value.active) {
-    const { left, right } = splitToColumns(groups);
-    leftColumn.value = left;
-    rightColumn.value = right;
-  }
-}, { immediate: true });
-
-const saveColumns = () => {
-  const columns = {};
-  leftColumn.value.forEach(g => {
-    if (!g.isPlaceholder) columns[`${g.key}|${g.baseUrl}`] = 'left';
-  });
-  rightColumn.value.forEach(g => {
-    if (!g.isPlaceholder) columns[`${g.key}|${g.baseUrl}`] = 'right';
-  });
-  const flatOrder = [];
-  const maxLen = Math.max(leftColumn.value.length, rightColumn.value.length);
-  for (let i = 0; i < maxLen; i++) {
-    if (i < leftColumn.value.length) flatOrder.push(leftColumn.value[i]);
-    if (i < rightColumn.value.length) flatOrder.push(rightColumn.value[i]);
-  }
-  const doc = { _id: GROUP_ORDER_ID, order: flatOrder.filter(g => !g.isPlaceholder).map(g => `${g.key}|${g.baseUrl}`), columns };
-  const existing = window.utools.db.get(GROUP_ORDER_ID);
-  if (existing) doc._rev = existing._rev;
-  window.utools.db.put(doc);
-  groupOrder.value = doc.order;
-  columnAssignments.value = columns;
-};
-
-const rebalanceColumns = () => {
-  const calcH = (col) => col.reduce((sum, g) => sum + estimateGroupHeight(g) + 12, 0) - (col.length ? 12 : 0);
-  const leftH = calcH(leftColumn.value);
-  const rightH = calcH(rightColumn.value);
-
-  if (Math.abs(leftH - rightH) < 40) {
-    MessagePlugin.info('已整理');
-    return;
-  }
-
-  const taller = leftH > rightH ? leftColumn : rightColumn;
-  const shorter = leftH > rightH ? rightColumn : leftColumn;
-  let tH = Math.max(leftH, rightH);
-  let sH = Math.min(leftH, rightH);
-  let moved = 0;
-
-  while (taller.value.length > 1 && Math.abs(tH - sH) > 30) {
-    const item = taller.value[taller.value.length - 1];
-    const itemH = estimateGroupHeight(item) + 12;
-    const newTH = tH - itemH;
-    const newSH = sH + itemH;
-    if (Math.abs(newTH - newSH) >= Math.abs(tH - sH)) break;
-    taller.value.pop();
-    shorter.value.push(item);
-    tH = newTH;
-    sH = newSH;
-    moved++;
-  }
-
-  if (!moved) return;
-  saveColumns();
-
-  MessagePlugin.info('已整理');
-};
-
-const getColRef = (col) => col === 'left' ? leftColumn : rightColumn;
-
-const onDragMouseDown = (col, idx, e) => {
-  if (e.button !== 0) return;
-  const groupEl = e.target.closest('.config-group');
-  if (!groupEl) return;
-
-  const column = getColRef(col);
-  const group = column.value[idx];
-  if (!group || group.isPlaceholder) return;
-
-  const rect = groupEl.getBoundingClientRect();
-  dragState.value = {
-    active: false,
-    floatEl: null,
-    offsetX: e.clientX - rect.left,
-    offsetY: e.clientY - rect.top,
-    startX: e.clientX,
-    startY: e.clientY,
-    dragGroup: group,
-    placeholderCol: null,
-    placeholderIdx: null,
-    dragHeight: rect.height,
-  };
-
-  const onMouseMove = (ev) => {
-    if (!dragState.value.active) {
-      if (Math.abs(ev.clientX - dragState.value.startX) < 4 && Math.abs(ev.clientY - dragState.value.startY) < 4) return;
-      dragState.value.active = true;
-
-      // Replace dragged group with placeholder
-      column.value.splice(idx, 1, { isPlaceholder: true, _id: '__placeholder__' });
-      dragState.value.placeholderCol = col;
-      dragState.value.placeholderIdx = idx;
-
-      // Create floating clone
-      const clone = groupEl.cloneNode(true);
-      clone.style.width = rect.width + 'px';
-      clone.style.position = 'fixed';
-      clone.style.zIndex = '9999';
-      clone.style.pointerEvents = 'none';
-      clone.style.opacity = '1';
-      clone.style.boxShadow = '0 8px 24px rgba(0,0,0,0.18)';
-      clone.style.transform = 'scale(1.02)';
-      clone.style.background = 'var(--td-bg-color-container)';
-      clone.style.borderRadius = 'var(--td-radius-medium)';
-      clone.style.border = '1px solid var(--td-component-border)';
-      clone.style.overflow = 'hidden';
-      document.body.appendChild(clone);
-      dragState.value.floatEl = clone;
-    }
-
-    if (dragState.value.floatEl) {
-      dragState.value.floatEl.style.left = (ev.clientX - dragState.value.offsetX) + 'px';
-      dragState.value.floatEl.style.top = (ev.clientY - dragState.value.offsetY) + 'px';
-    }
-
-    // Determine target column by mouse X
-    const containerEl = document.querySelector('.config-groups');
-    if (!containerEl) return;
-    const containerRect = containerEl.getBoundingClientRect();
-    const midX = containerRect.left + containerRect.width / 2;
-    const targetColName = ev.clientX < midX ? 'left' : 'right';
-    const targetCol = getColRef(targetColName);
-
-    // Find insertion position within target column by checking DOM Y positions
-    const childIdx = targetColName === 'left' ? 1 : 2;
-    const colEls = document.querySelectorAll(`.masonry-col:nth-child(${childIdx}) .config-group:not(.drag-gap-parent)`);
-    let targetIdx = colEls.length;
-    for (let i = 0; i < colEls.length; i++) {
-      const r = colEls[i].getBoundingClientRect();
-      if (ev.clientY < r.top + r.height / 2) {
-        targetIdx = i;
-        break;
-      }
-    }
-
-    if (targetColName === dragState.value.placeholderCol && targetIdx === dragState.value.placeholderIdx) return;
-
-    // Move placeholder to new position
-    const currentCol = getColRef(dragState.value.placeholderCol);
-    currentCol.value.splice(dragState.value.placeholderIdx, 1);
-
-    if (targetColName === dragState.value.placeholderCol && targetIdx > dragState.value.placeholderIdx) {
-      targetIdx--;
-    }
-
-    targetCol.value.splice(targetIdx, 0, { isPlaceholder: true, _id: '__placeholder__' });
-    dragState.value.placeholderCol = targetColName;
-    dragState.value.placeholderIdx = targetIdx;
-  };
-
-  const onMouseUp = () => {
-    document.removeEventListener('mousemove', onMouseMove);
-    document.removeEventListener('mouseup', onMouseUp);
-
-    if (dragState.value.floatEl) {
-      dragState.value.floatEl.remove();
-    }
-
-    // Replace placeholder with actual group
-    if (dragState.value.placeholderCol) {
-      const col = getColRef(dragState.value.placeholderCol);
-      col.value.splice(dragState.value.placeholderIdx, 1, dragState.value.dragGroup);
-    }
-
-    saveColumns();
-
-    dragState.value = { active: false, floatEl: null, offsetX: 0, offsetY: 0, dragGroup: null, placeholderCol: null, placeholderIdx: null, dragHeight: 0 };
-  };
-
-  document.addEventListener('mousemove', onMouseMove);
-  document.addEventListener('mouseup', onMouseUp);
-};
+const {
+  showImportStringDialog, importString,
+  handleExportAsString, openImportStringDialog, handleImportFromString,
+} = useConfigImportExport(savedConfigs, loadSavedConfigs);
 
 const maskKey = (key) => {
   if (!key || key.length < 8) return key || "";
@@ -496,184 +254,12 @@ const deleteConfig = (config) => {
   }
 };
 
-const switchConfig = (config) => {
-  const settings = window.services.readClaudeSettings() || {};
-  if (!settings.env) settings.env = {};
+const { switchConfig, isCurrentConfig } = useConfigSwitch(currentConfig, loadCurrentConfig);
 
-  settings.env.ANTHROPIC_AUTH_TOKEN = config.key;
-  settings.env.ANTHROPIC_BASE_URL = config.baseUrl;
-
-  if (config.model?.trim()) {
-    settings.env.ANTHROPIC_MODEL = config.model.trim();
-  } else {
-    delete settings.env.ANTHROPIC_MODEL;
-  }
-  if (config.defaultHaikuModel?.trim()) {
-    settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = config.defaultHaikuModel.trim();
-  } else {
-    delete settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL;
-  }
-  if (config.defaultSonnetModel?.trim()) {
-    settings.env.ANTHROPIC_DEFAULT_SONNET_MODEL = config.defaultSonnetModel.trim();
-  } else {
-    delete settings.env.ANTHROPIC_DEFAULT_SONNET_MODEL;
-  }
-  if (config.defaultOpusModel?.trim()) {
-    settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL = config.defaultOpusModel.trim();
-  } else {
-    delete settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL;
-  }
-  if (config.subagentModel?.trim()) {
-    settings.env.CLAUDE_CODE_SUBAGENT_MODEL = config.subagentModel.trim();
-  } else {
-    delete settings.env.CLAUDE_CODE_SUBAGENT_MODEL;
-  }
-
-  if (window.services.writeClaudeSettings(settings)) {
-    MessagePlugin.success("配置已切换");
-    loadCurrentConfig();
-  } else {
-    MessagePlugin.error("切换失败");
-  }
-};
-
-const isCurrentConfig = (config) =>
-  config.key === currentConfig.value.key &&
-  config.baseUrl === currentConfig.value.baseUrl &&
-  (config.model || "") === (currentConfig.value.model || "") &&
-  (config.defaultHaikuModel || "") === (currentConfig.value.defaultHaikuModel || "") &&
-  (config.defaultSonnetModel || "") === (currentConfig.value.defaultSonnetModel || "") &&
-  (config.defaultOpusModel || "") === (currentConfig.value.defaultOpusModel || "") &&
-  (config.subagentModel || "") === (currentConfig.value.subagentModel || "");
-
-const handleExportAsString = () => {
-  if (!savedConfigs.value.length) return MessagePlugin.warning("没有可导出的配置");
-  const keyDict = new Map(), urlDict = new Map(), list = [];
-  savedConfigs.value.forEach((c, i) => {
-    const idx = i + 1, cfg = {};
-    cfg[`n${idx}`] = c.name;
-    if (keyDict.has(c.key)) { cfg[`k${idx}`] = `k${keyDict.get(c.key)}`; } else { cfg[`k${idx}`] = c.key; keyDict.set(c.key, idx); }
-    if (urlDict.has(c.baseUrl)) { cfg[`u${idx}`] = `u${urlDict.get(c.baseUrl)}`; } else { cfg[`u${idx}`] = c.baseUrl; urlDict.set(c.baseUrl, idx); }
-    if (c.model) cfg[`m${idx}`] = c.model;
-    if (c.defaultHaikuModel) cfg[`h${idx}`] = c.defaultHaikuModel;
-    if (c.defaultSonnetModel) cfg[`s${idx}`] = c.defaultSonnetModel;
-    if (c.defaultOpusModel) cfg[`o${idx}`] = c.defaultOpusModel;
-    if (c.subagentModel) cfg[`g${idx}`] = c.subagentModel;
-    list.push(cfg);
-  });
-  window.utools.copyText(window.services.encryptString(window.services.compressConfigs(list)));
-  MessagePlugin.success("配置已复制到剪贴板");
-};
-
-const openImportStringDialog = () => { importString.value = ""; showImportStringDialog.value = true; };
-
-const handleImportFromString = () => {
-  const str = importString.value.trim();
-  if (!str) return MessagePlugin.warning("请输入配置字符串");
-  const decompressed = window.services.decompressConfigs(window.services.decryptString(str));
-  if (!decompressed || !Array.isArray(decompressed)) return MessagePlugin.error("配置字符串格式不正确");
-
-  const configs = [], keyMap = new Map(), urlMap = new Map();
-  decompressed.forEach((raw, i) => {
-    const idx = i + 1;
-    let key = raw[`k${idx}`], url = raw[`u${idx}`];
-    if (typeof key === "string" && /^k\d+$/.test(key)) { key = keyMap.get(parseInt(key.substring(1))); } else { keyMap.set(idx, key); }
-    if (typeof url === "string" && /^u\d+$/.test(url)) { url = urlMap.get(parseInt(url.substring(1))); } else { urlMap.set(idx, url); }
-    configs.push({
-      name: raw[`n${idx}`],
-      key,
-      baseUrl: url,
-      model: raw[`m${idx}`],
-      defaultHaikuModel: raw[`h${idx}`],
-      defaultSonnetModel: raw[`s${idx}`],
-      defaultOpusModel: raw[`o${idx}`],
-      subagentModel: raw[`g${idx}`],
-    });
-  });
-
-  let ok = 0, fail = 0;
-  for (const c of configs) {
-    if (!c.name || !c.key) { fail++; continue; }
-    const doc = {
-      _id: DB_PREFIX + Date.now() + "_" + Math.random().toString(36).substr(2, 9),
-      name: c.name.trim(),
-      key: window.services.encryptKey(c.key),
-      baseUrl: c.baseUrl?.trim() || "",
-      model: c.model?.trim() || "",
-      defaultHaikuModel: c.defaultHaikuModel?.trim() || "",
-      defaultSonnetModel: c.defaultSonnetModel?.trim() || "",
-      defaultOpusModel: c.defaultOpusModel?.trim() || "",
-      subagentModel: c.subagentModel?.trim() || "",
-      updatedAt: Date.now(),
-    };
-    window.utools.db.put(doc).ok ? ok++ : fail++;
-  }
-  loadSavedConfigs();
-  showImportStringDialog.value = false;
-  ok > 0 && fail === 0 ? MessagePlugin.success(`成功导入 ${ok} 个配置`) : ok > 0 ? MessagePlugin.warning(`成功导入 ${ok} 个，失败 ${fail} 个`) : MessagePlugin.error("导入失败");
-};
-
-const openExtraFieldsDialog = () => {
-  loadExtraFieldKeys();
-  const settings = window.services.readClaudeSettings() || {};
-  const env = settings.env || {};
-  extraFields.value = [];
-
-  Object.keys(env).forEach(key => {
-    if (!managedFields.includes(key)) {
-      extraFields.value.push({ key, value: String(env[key]) });
-    }
-  });
-
-  showExtraFieldsDialog.value = true;
-};
-
-const addExtraField = () => {
-  extraFields.value.push({ key: '', value: '' });
-};
-
-const removeExtraField = (idx) => {
-  extraFields.value.splice(idx, 1);
-};
-
-const saveExtraFields = () => {
-  const settings = window.services.readClaudeSettings() || {};
-  if (!settings.env) settings.env = {};
-
-  Object.keys(settings.env).forEach(key => {
-    if (!managedFields.includes(key)) {
-      delete settings.env[key];
-    }
-  });
-
-  const userKeys = [];
-  extraFields.value.forEach(field => {
-    const key = field.key.trim();
-    const value = field.value.trim();
-    if (key) {
-      settings.env[key] = value;
-      if (!fixedFieldKeyOptions.includes(key)) {
-        userKeys.push(key);
-      }
-    }
-  });
-
-  // Save user-entered keys to db (merge with existing)
-  const existing = savedExtraFieldKeys.value;
-  const merged = [...new Set([...existing, ...userKeys])];
-  const doc = { _id: SAVED_FIELD_KEYS_ID, keys: merged };
-  const existingDoc = window.utools.db.get(SAVED_FIELD_KEYS_ID);
-  if (existingDoc) doc._rev = existingDoc._rev;
-  window.utools.db.put(doc);
-
-  if (window.services.writeClaudeSettings(settings)) {
-    MessagePlugin.success("全局设置已保存");
-    showExtraFieldsDialog.value = false;
-    loadCurrentConfig();
-  } else {
-    MessagePlugin.error("保存失败");
-  }
-};
+const {
+  showExtraFieldsDialog, extraFields, extraFieldKeyOptions,
+  loadExtraFieldKeys, openExtraFieldsDialog, addExtraField, removeExtraField, saveExtraFields,
+} = useExtraFields(loadCurrentConfig);
 
 const openSettingsFile = () => {
   const filePath = window.services.getClaudeSettingsPath();
@@ -842,70 +428,3 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
     </Dialog>
   </div>
 </template>
-
-<style scoped>
-.config-view { display: flex; flex-direction: column; }
-.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.section-tip { font-size: 12px; color: var(--td-text-color-placeholder); }
-.hint-link { color: var(--td-brand-color); cursor: pointer; text-decoration: underline; }
-.empty-state { padding: 40px 0; }
-
-/* 配置分组样式 */
-.config-groups { display: flex; gap: 12px; }
-.masonry-col { flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.config-group { background: var(--td-bg-color-container); border-radius: var(--td-radius-medium); border: 1px solid var(--td-component-border); overflow: hidden; }
-.drag-gap-parent { background: transparent; border: 1px solid var(--td-brand-color); opacity: 0.6; box-shadow: 0 0 6px rgba(0,81,167,0.25); }
-:root[theme-mode="dark"] .drag-gap-parent { box-shadow: 0 0 6px rgba(0,81,167,0.4); }
-.drag-gap { border-radius: var(--td-radius-medium); }
-.group-conn { display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; border-bottom: 1px solid var(--td-component-border); font-family: monospace; font-size: 12px; cursor: grab; user-select: none; }
-.group-conn:active { cursor: grabbing; }
-.group-key { color: var(--td-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.group-url { color: var(--td-brand-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.config-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; cursor: pointer; }
-.config-row:hover { background: var(--td-bg-color-container-hover); }
-.config-row:hover .config-name { color: var(--td-brand-color); }
-.config-row + .config-row { border-top: 1px solid var(--td-component-border); }
-.config-name { font-size: 13px; font-weight: 500; color: var(--td-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* 预览弹窗样式 */
-.preview-content { display: flex; flex-direction: column; gap: 12px; }
-.preview-item { display: flex; gap: 16px; }
-.preview-label { color: var(--td-text-color-secondary); min-width: 120px; font-size: 14px; }
-.preview-value { color: var(--td-text-color-primary); word-break: break-all; font-size: 14px; }
-.preview-divider { margin: 8px 0; border-top: 1px solid var(--td-component-border); }
-
-/* 当前配置展示 */
-.current-config-card { margin-bottom: 16px; padding: 16px; background: var(--td-bg-color-container); border-radius: var(--td-radius-medium); border: 1px solid var(--td-component-border); }
-.current-config-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.current-config-title { font-size: 14px; font-weight: 500; color: var(--td-text-color-primary); }
-.current-config-content { display: flex; flex-direction: column; gap: 8px; }
-.current-config-main { display: flex; align-items: center; gap: 8px; font-size: 13px; font-family: monospace; }
-.current-config-token { color: var(--td-text-color-primary); }
-.current-config-arrow { color: var(--td-text-color-placeholder); }
-.current-config-url { color: var(--td-brand-color); word-break: break-all; }
-.current-config-models { display: flex; flex-wrap: wrap; gap: 6px; }
-.model-tag { cursor: pointer; transition: opacity 0.15s; }
-.model-tag:hover { opacity: 0.75; }
-
-/* 额外字段弹窗样式 */
-.extra-fields-dialog { display: flex; flex-direction: column; gap: 16px; }
-.extra-fields-hint { padding: 12px 16px; background: var(--td-bg-color-container-hover); border-radius: var(--td-radius-default); font-size: 13px; color: var(--td-text-color-secondary); }
-.extra-fields-hint p { margin: 0 0 4px 0; }
-.extra-fields-hint p:last-child { margin-bottom: 0; }
-.extra-fields-list { display: flex; flex-direction: column; gap: 12px; }
-.extra-field-item { display: flex; gap: 8px; align-items: center; }
-.extra-field-item .field-key { flex: 1; }
-.extra-field-item .field-value { flex: 0 0 140px; }
-.add-field-btn { align-self: flex-start; }
-
-/* 表单样式 */
-.form { display: flex; flex-direction: column; gap: 16px; }
-.form-item { display: flex; align-items: center; gap: 12px; }
-.form-item label { font-size: 14px; color: var(--td-text-color-primary); flex-shrink: 0; width: 80px; text-align: right; }
-.form-item-vertical { display: flex; flex-direction: column; gap: 8px; }
-.form-item-vertical label { font-size: 14px; color: var(--td-text-color-primary); }
-.form-item .required { color: var(--td-error-color); }
-.dialog-footer { display: flex; justify-content: space-between; align-items: center; }
-.dialog-footer-right { display: flex; gap: 8px; }
-
-</style>
