@@ -21,11 +21,18 @@ const props = defineProps({
 
 const activeTab = ref("config");
 const skillViewRef = ref(null);
+const wavingKey = ref(0);
 const showWaving = ref(true);
 const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 const wavingSrc = isDark ? wavingDark : wavingLight;
 
 setTimeout(() => { showWaving.value = false; }, 3000);
+
+const triggerWaving = () => {
+  showWaving.value = true;
+  wavingKey.value++;
+  setTimeout(() => { showWaving.value = false; }, 3000);
+};
 
 const pageTitle = computed(() => {
   if (activeTab.value === 'usage') return 'Claude Code 使用统计';
@@ -52,8 +59,8 @@ onMounted(() => {
   <div class="container">
     <div class="header">
       <div class="header-left">
-        <img v-if="showWaving" :src="wavingSrc" alt="logo" class="logo" />
-        <img v-else src="/logo.png" alt="logo" class="logo" />
+        <img v-if="showWaving" :key="wavingKey" :src="wavingSrc" alt="logo" class="logo" @click="triggerWaving" />
+        <img v-else src="/logo.png" alt="logo" class="logo" @click="triggerWaving" />
         <t-typography-title level="h5">{{ pageTitle }}</t-typography-title>
       </div>
       <div class="header-right">

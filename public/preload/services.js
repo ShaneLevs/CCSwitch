@@ -2,10 +2,16 @@ const fs = require('node:fs')
 const path = require('node:path')
 const crypto = require('node:crypto')
 const zlib = require('node:zlib')
-const { Client } = require('@modelcontextprotocol/sdk/client')
-const _mcpClientDir = path.dirname(require.resolve('@modelcontextprotocol/sdk/client'))
-const { StdioClientTransport } = require(path.join(_mcpClientDir, 'stdio'))
-const { StreamableHTTPClientTransport } = require(path.join(_mcpClientDir, 'streamableHttp'))
+
+// MCP SDK - bundled at build time for production
+let _mcpClient, _mcpStdio, _mcpStreamableHttp
+try {
+  _mcpClient = require('@modelcontextprotocol/sdk/client')
+  _mcpStdio = require('@modelcontextprotocol/sdk/dist/cjs/client/stdio.js')
+  _mcpStreamableHttp = require('@modelcontextprotocol/sdk/dist/cjs/client/streamableHttp.js')
+} catch (e) {
+  console.warn('MCP SDK not available, tool discovery will be disabled:', e.message)
+}
 
 // 从登录 shell 获取完整环境变量（解决 Electron preload 中 PATH 不完整的问题）
 const _getShellEnv = () => {
@@ -318,8 +324,15 @@ window.services = {
 
   // 获取 MCP Server 的工具列表
   async getMcpServerTools(config) {
+    if (!_mcpClient) {
+      return { success: false, error: 'MCP SDK 未加载，请尝试在开发环境使用此功能' }
+    }
     let client = null
     try {
+      const { Client } = _mcpClient
+      const { StdioClientTransport } = _mcpStdio
+      const { StreamableHTTPClientTransport } = _mcpStreamableHttp
+
       client = new Client({ name: 'ccswitch', version: '1.0.0' })
 
       let transport

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import {
   Button,
   Input,
@@ -26,6 +26,7 @@ import {
 } from "tdesign-icons-vue-next";
 
 const DB_PREFIX = "ccswitch_config_";
+const GROUP_ORDER_ID = "ccswitch_group_order";
 
 const currentConfig = ref({
   key: "",
@@ -131,6 +132,7 @@ const loadSavedConfigs = () => {
         };
         window.utools.db.put(cleanDoc);
       }
+      const createdAt = parseInt(d._id.replace(DB_PREFIX, "")) || d.updatedAt || 0;
       return {
         id: d._id,
         name: d.name,
@@ -142,9 +144,28 @@ const loadSavedConfigs = () => {
         defaultOpusModel: d.defaultOpusModel || "",
         subagentModel: d.subagentModel || "",
         updatedAt: d.updatedAt,
+        createdAt,
       };
     })
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+    .sort((a, b) => a.createdAt - b.createdAt);
+};
+
+const groupOrder = ref([]);
+const columnAssignments = ref({});
+
+const loadGroupOrder = () => {
+  const doc = window.utools.db.get(GROUP_ORDER_ID);
+  groupOrder.value = doc?.order || [];
+  columnAssignments.value = doc?.columns || {};
+};
+
+const saveGroupOrder = (groups) => {
+  const order = groups.map(g => `${g.key}|${g.baseUrl}`);
+  const doc = { _id: GROUP_ORDER_ID, order };
+  const existing = window.utools.db.get(GROUP_ORDER_ID);
+  if (existing) doc._rev = existing._rev;
+  window.utools.db.put(doc);
+  groupOrder.value = order;
 };
 
 const groupedConfigs = computed(() => {
@@ -158,15 +179,233 @@ const groupedConfigs = computed(() => {
         configs: [],
       });
     }
-    const group = groups.get(groupKey);
-    group.configs.push(config);
+    groups.get(groupKey).configs.push(config);
   });
-  return Array.from(groups.values()).map(group => {
-    group.configs.sort((a, b) => b.updatedAt - a.updatedAt);
-    group.latestConfig = group.configs[0];
+
+  const result = Array.from(groups.values()).map(group => {
+    group.configs.sort((a, b) => a.createdAt - b.createdAt);
     return group;
-  }).sort((a, b) => b.latestConfig.updatedAt - a.latestConfig.updatedAt);
+  });
+
+  const order = groupOrder.value;
+  if (order.length) {
+    const orderMap = new Map(order.map((k, i) => [k, i]));
+    result.sort((a, b) => {
+      const keyA = `${a.key}|${a.baseUrl}`;
+      const keyB = `${b.key}|${b.baseUrl}`;
+      const oA = orderMap.has(keyA) ? orderMap.get(keyA) : Infinity;
+      const oB = orderMap.has(keyB) ? orderMap.get(keyB) : Infinity;
+      if (oA !== oB) return oA - oB;
+      return a.configs[0]?.createdAt - b.configs[0]?.createdAt;
+    });
+  } else {
+    result.sort((a, b) => a.configs[0]?.createdAt - b.configs[0]?.createdAt);
+  }
+  return result;
 });
+
+const leftColumn = ref([]);
+const rightColumn = ref([]);
+
+const estimateGroupHeight = (group) => {
+  if (!group || group.isPlaceholder) return 0;
+  return 52 + (group.configs?.length || 0) * 41;
+};
+
+const dragState = ref({ active: false, floatEl: null, offsetX: 0, offsetY: 0, dragGroup: null, placeholderCol: null, placeholderIdx: null, dragHeight: 0 });
+
+const splitToColumns = (groups) => {
+  const left = [], right = [];
+  groups.forEach((group, i) => {
+    const key = `${group.key}|${group.baseUrl}`;
+    const col = columnAssignments.value[key];
+    if (col === 'right') right.push(group);
+    else if (col === 'left') left.push(group);
+    else if (i % 2 === 0) left.push(group);
+    else right.push(group);
+  });
+  return { left, right };
+};
+
+watch(groupedConfigs, (groups) => {
+  if (!dragState.value.active) {
+    const { left, right } = splitToColumns(groups);
+    leftColumn.value = left;
+    rightColumn.value = right;
+  }
+}, { immediate: true });
+
+const saveColumns = () => {
+  const columns = {};
+  leftColumn.value.forEach(g => {
+    if (!g.isPlaceholder) columns[`${g.key}|${g.baseUrl}`] = 'left';
+  });
+  rightColumn.value.forEach(g => {
+    if (!g.isPlaceholder) columns[`${g.key}|${g.baseUrl}`] = 'right';
+  });
+  const flatOrder = [];
+  const maxLen = Math.max(leftColumn.value.length, rightColumn.value.length);
+  for (let i = 0; i < maxLen; i++) {
+    if (i < leftColumn.value.length) flatOrder.push(leftColumn.value[i]);
+    if (i < rightColumn.value.length) flatOrder.push(rightColumn.value[i]);
+  }
+  const doc = { _id: GROUP_ORDER_ID, order: flatOrder.filter(g => !g.isPlaceholder).map(g => `${g.key}|${g.baseUrl}`), columns };
+  const existing = window.utools.db.get(GROUP_ORDER_ID);
+  if (existing) doc._rev = existing._rev;
+  window.utools.db.put(doc);
+  groupOrder.value = doc.order;
+  columnAssignments.value = columns;
+};
+
+const rebalanceColumns = () => {
+  const calcH = (col) => col.reduce((sum, g) => sum + estimateGroupHeight(g) + 12, 0) - (col.length ? 12 : 0);
+  const leftH = calcH(leftColumn.value);
+  const rightH = calcH(rightColumn.value);
+
+  if (Math.abs(leftH - rightH) < 40) {
+    MessagePlugin.info('已整理');
+    return;
+  }
+
+  const taller = leftH > rightH ? leftColumn : rightColumn;
+  const shorter = leftH > rightH ? rightColumn : leftColumn;
+  let tH = Math.max(leftH, rightH);
+  let sH = Math.min(leftH, rightH);
+  let moved = 0;
+
+  while (taller.value.length > 1 && Math.abs(tH - sH) > 30) {
+    const item = taller.value[taller.value.length - 1];
+    const itemH = estimateGroupHeight(item) + 12;
+    const newTH = tH - itemH;
+    const newSH = sH + itemH;
+    if (Math.abs(newTH - newSH) >= Math.abs(tH - sH)) break;
+    taller.value.pop();
+    shorter.value.push(item);
+    tH = newTH;
+    sH = newSH;
+    moved++;
+  }
+
+  if (!moved) return;
+  saveColumns();
+
+  MessagePlugin.info('已整理');
+};
+
+const getColRef = (col) => col === 'left' ? leftColumn : rightColumn;
+
+const onDragMouseDown = (col, idx, e) => {
+  if (e.button !== 0) return;
+  const groupEl = e.target.closest('.config-group');
+  if (!groupEl) return;
+
+  const column = getColRef(col);
+  const group = column.value[idx];
+  if (!group || group.isPlaceholder) return;
+
+  const rect = groupEl.getBoundingClientRect();
+  dragState.value = {
+    active: false,
+    floatEl: null,
+    offsetX: e.clientX - rect.left,
+    offsetY: e.clientY - rect.top,
+    startX: e.clientX,
+    startY: e.clientY,
+    dragGroup: group,
+    placeholderCol: null,
+    placeholderIdx: null,
+    dragHeight: rect.height,
+  };
+
+  const onMouseMove = (ev) => {
+    if (!dragState.value.active) {
+      if (Math.abs(ev.clientX - dragState.value.startX) < 4 && Math.abs(ev.clientY - dragState.value.startY) < 4) return;
+      dragState.value.active = true;
+
+      // Replace dragged group with placeholder
+      column.value.splice(idx, 1, { isPlaceholder: true, _id: '__placeholder__' });
+      dragState.value.placeholderCol = col;
+      dragState.value.placeholderIdx = idx;
+
+      // Create floating clone
+      const clone = groupEl.cloneNode(true);
+      clone.style.width = rect.width + 'px';
+      clone.style.position = 'fixed';
+      clone.style.zIndex = '9999';
+      clone.style.pointerEvents = 'none';
+      clone.style.opacity = '1';
+      clone.style.boxShadow = '0 8px 24px rgba(0,0,0,0.18)';
+      clone.style.transform = 'scale(1.02)';
+      clone.style.background = 'var(--td-bg-color-container)';
+      clone.style.borderRadius = 'var(--td-radius-medium)';
+      clone.style.border = '1px solid var(--td-component-border)';
+      clone.style.overflow = 'hidden';
+      document.body.appendChild(clone);
+      dragState.value.floatEl = clone;
+    }
+
+    if (dragState.value.floatEl) {
+      dragState.value.floatEl.style.left = (ev.clientX - dragState.value.offsetX) + 'px';
+      dragState.value.floatEl.style.top = (ev.clientY - dragState.value.offsetY) + 'px';
+    }
+
+    // Determine target column by mouse X
+    const containerEl = document.querySelector('.config-groups');
+    if (!containerEl) return;
+    const containerRect = containerEl.getBoundingClientRect();
+    const midX = containerRect.left + containerRect.width / 2;
+    const targetColName = ev.clientX < midX ? 'left' : 'right';
+    const targetCol = getColRef(targetColName);
+
+    // Find insertion position within target column by checking DOM Y positions
+    const childIdx = targetColName === 'left' ? 1 : 2;
+    const colEls = document.querySelectorAll(`.masonry-col:nth-child(${childIdx}) .config-group:not(.drag-gap-parent)`);
+    let targetIdx = colEls.length;
+    for (let i = 0; i < colEls.length; i++) {
+      const r = colEls[i].getBoundingClientRect();
+      if (ev.clientY < r.top + r.height / 2) {
+        targetIdx = i;
+        break;
+      }
+    }
+
+    if (targetColName === dragState.value.placeholderCol && targetIdx === dragState.value.placeholderIdx) return;
+
+    // Move placeholder to new position
+    const currentCol = getColRef(dragState.value.placeholderCol);
+    currentCol.value.splice(dragState.value.placeholderIdx, 1);
+
+    if (targetColName === dragState.value.placeholderCol && targetIdx > dragState.value.placeholderIdx) {
+      targetIdx--;
+    }
+
+    targetCol.value.splice(targetIdx, 0, { isPlaceholder: true, _id: '__placeholder__' });
+    dragState.value.placeholderCol = targetColName;
+    dragState.value.placeholderIdx = targetIdx;
+  };
+
+  const onMouseUp = () => {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+
+    if (dragState.value.floatEl) {
+      dragState.value.floatEl.remove();
+    }
+
+    // Replace placeholder with actual group
+    if (dragState.value.placeholderCol) {
+      const col = getColRef(dragState.value.placeholderCol);
+      col.value.splice(dragState.value.placeholderIdx, 1, dragState.value.dragGroup);
+    }
+
+    saveColumns();
+
+    dragState.value = { active: false, floatEl: null, offsetX: 0, offsetY: 0, dragGroup: null, placeholderCol: null, placeholderIdx: null, dragHeight: 0 };
+  };
+
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseUp);
+};
 
 const maskKey = (key) => {
   if (!key || key.length < 8) return key || "";
@@ -441,7 +680,7 @@ const openSettingsFile = () => {
   window.utools.shellOpenPath(filePath);
 };
 
-onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys(); });
+onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys(); loadGroupOrder(); });
 </script>
 
 <template>
@@ -449,6 +688,7 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
     <div class="section-header">
       <span class="section-tip">直接编辑 <span class="hint-link" @click="openSettingsFile">settings.json</span></span>
       <Space size="small">
+        <Tooltip content="平衡列"><Button size="small" variant="text" @click="rebalanceColumns"><template #icon><RefreshIcon /></template></Button></Tooltip>
         <Button size="small" variant="outline" @click="handleExportAsString"><template #icon><DownloadIcon /></template> 导出</Button>
         <Button size="small" variant="outline" @click="openImportStringDialog"><template #icon><UploadIcon /></template> 导入</Button>
         <Button size="small" theme="primary" @click="openCreateDialog"><template #icon><AddIcon /></template> 新建配置</Button>
@@ -468,11 +708,11 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
           <span class="current-config-url">{{ currentConfig.baseUrl || '未设置' }}</span>
         </div>
         <div v-if="hasModelFields" class="current-config-models">
-          <Tag v-if="currentConfig.model" size="small" variant="outline">MODEL: {{ currentConfig.model }}</Tag>
-          <Tag v-if="currentConfig.defaultHaikuModel" size="small" variant="outline">HAIKU: {{ currentConfig.defaultHaikuModel }}</Tag>
-          <Tag v-if="currentConfig.defaultSonnetModel" size="small" variant="outline">SONNET: {{ currentConfig.defaultSonnetModel }}</Tag>
-          <Tag v-if="currentConfig.defaultOpusModel" size="small" variant="outline">OPUS: {{ currentConfig.defaultOpusModel }}</Tag>
-          <Tag v-if="currentConfig.subagentModel" size="small" variant="outline">SUBAGENT: {{ currentConfig.subagentModel }}</Tag>
+          <Tag v-if="currentConfig.model" size="medium" variant="outline">MODEL: {{ currentConfig.model }}</Tag>
+          <Tag v-if="currentConfig.defaultHaikuModel" size="medium" variant="outline">HAIKU: {{ currentConfig.defaultHaikuModel }}</Tag>
+          <Tag v-if="currentConfig.defaultSonnetModel" size="medium" variant="outline">SONNET: {{ currentConfig.defaultSonnetModel }}</Tag>
+          <Tag v-if="currentConfig.defaultOpusModel" size="medium" variant="outline">OPUS: {{ currentConfig.defaultOpusModel }}</Tag>
+          <Tag v-if="currentConfig.subagentModel" size="medium" variant="outline">SUBAGENT: {{ currentConfig.subagentModel }}</Tag>
         </div>
       </div>
     </div>
@@ -480,30 +720,61 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
     <div v-if="!savedConfigs.length" class="empty-state"><Empty description="暂无保存的配置方案" /></div>
 
     <div v-else class="config-groups">
-      <div v-for="(group, gIdx) in groupedConfigs" :key="gIdx" class="config-group">
-        <div class="group-header">
-          <span class="group-url">{{ group.baseUrl }}</span>
-        </div>
-        <div class="group-items">
-          <div v-for="config in group.configs" :key="config.id + '-' + (isCurrentConfig(config) ? 'cur' : 'other')" class="config-item clickable" @click="openPreviewDialog(config)">
-            <div class="config-item-left">
-              <span class="config-name">{{ config.name }}</span>
-              <span v-if="config.model" class="config-model">{{ config.model }}</span>
-            </div>
-            <Space size="small" :key="config.id + '-actions'" @click.stop>
-              <Tag v-if="isCurrentConfig(config)" theme="success" variant="light" size="small">当前</Tag>
-              <Button v-else size="small" theme="success" variant="text" @click="switchConfig(config)"><template #icon><PlayIcon /></template>启用</Button>
-              <Tooltip content="编辑" placement="top">
-                <Button size="small" theme="default" variant="text" @click="openEditDialog(config)"><EditIcon /></Button>
-              </Tooltip>
-              <Tooltip content="删除" placement="top">
-                <Popconfirm theme="danger" content="确定要删除这个配置吗？" @confirm="deleteConfig(config)">
-                  <Button size="small" theme="danger" variant="text"><DeleteIcon /></Button>
-                </Popconfirm>
-              </Tooltip>
-            </Space>
+      <div class="masonry-col">
+        <template v-for="(group, idx) in leftColumn" :key="group.isPlaceholder ? 'placeholder' : 'l-' + idx + '-' + group.key">
+          <div v-if="group.isPlaceholder" class="config-group drag-gap-parent">
+            <div class="drag-gap" :style="{ height: dragState.dragHeight + 'px' }"></div>
           </div>
-        </div>
+          <div v-else class="config-group">
+            <div class="group-conn" @mousedown="onDragMouseDown('left', idx, $event)">
+              <span class="group-key">{{ maskKey(group.key) }}</span>
+              <span class="group-url">{{ group.baseUrl }}</span>
+            </div>
+            <div v-for="config in group.configs" :key="config.id + '-' + (isCurrentConfig(config) ? 'cur' : 'other')" class="config-row" @click="openPreviewDialog(config)">
+              <span class="config-name">{{ config.name }}</span>
+              <Space size="small" @click.stop>
+                <Tag v-if="isCurrentConfig(config)" theme="success" variant="light" size="small">当前</Tag>
+                <Button v-else size="small" theme="success" variant="text" @click="switchConfig(config)"><template #icon><PlayIcon /></template>启用</Button>
+                <Tooltip content="编辑" placement="top">
+                  <Button size="small" theme="default" variant="text" @click="openEditDialog(config)"><EditIcon /></Button>
+                </Tooltip>
+                <Tooltip content="删除" placement="top">
+                  <Popconfirm theme="danger" content="确定要删除这个配置吗？" @confirm="deleteConfig(config)">
+                    <Button size="small" theme="danger" variant="text"><DeleteIcon /></Button>
+                  </Popconfirm>
+                </Tooltip>
+              </Space>
+            </div>
+          </div>
+        </template>
+      </div>
+      <div class="masonry-col">
+        <template v-for="(group, idx) in rightColumn" :key="group.isPlaceholder ? 'placeholder' : 'r-' + idx + '-' + group.key">
+          <div v-if="group.isPlaceholder" class="config-group drag-gap-parent">
+            <div class="drag-gap" :style="{ height: dragState.dragHeight + 'px' }"></div>
+          </div>
+          <div v-else class="config-group">
+            <div class="group-conn" @mousedown="onDragMouseDown('right', idx, $event)">
+              <span class="group-key">{{ maskKey(group.key) }}</span>
+              <span class="group-url">{{ group.baseUrl }}</span>
+            </div>
+            <div v-for="config in group.configs" :key="config.id + '-' + (isCurrentConfig(config) ? 'cur' : 'other')" class="config-row" @click="openPreviewDialog(config)">
+              <span class="config-name">{{ config.name }}</span>
+              <Space size="small" @click.stop>
+                <Tag v-if="isCurrentConfig(config)" theme="success" variant="light" size="small">当前</Tag>
+                <Button v-else size="small" theme="success" variant="text" @click="switchConfig(config)"><template #icon><PlayIcon /></template>启用</Button>
+                <Tooltip content="编辑" placement="top">
+                  <Button size="small" theme="default" variant="text" @click="openEditDialog(config)"><EditIcon /></Button>
+                </Tooltip>
+                <Tooltip content="删除" placement="top">
+                  <Popconfirm theme="danger" content="确定要删除这个配置吗？" @confirm="deleteConfig(config)">
+                    <Button size="small" theme="danger" variant="text"><DeleteIcon /></Button>
+                  </Popconfirm>
+                </Tooltip>
+              </Space>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -575,18 +846,21 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
 .empty-state { padding: 40px 0; }
 
 /* 配置分组样式 */
-.config-groups { display: flex; flex-direction: column; gap: 12px; }
-.config-group { background: var(--td-bg-color-container); border-radius: var(--td-radius-medium); overflow: hidden; border: 1px solid var(--td-component-border); }
-.group-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--td-bg-color-container-hover); border-bottom: 1px solid var(--td-component-border); }
-.group-url { font-size: 13px; color: var(--td-text-color-primary); font-family: monospace; }
-.group-items { padding: 8px 0; }
-.config-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; }
-.config-item:hover { background: var(--td-bg-color-container-hover); }
-.config-item.clickable { cursor: pointer; }
-.config-item.clickable:hover .config-name { color: var(--td-brand-color); }
-.config-item-left { display: flex; align-items: center; gap: 12px; }
-.config-name { font-size: 14px; font-weight: 500; color: var(--td-text-color-primary); }
-.config-model { font-size: 12px; color: var(--td-text-color-placeholder); font-family: monospace; }
+.config-groups { display: flex; gap: 12px; }
+.masonry-col { flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.config-group { background: var(--td-bg-color-container); border-radius: var(--td-radius-medium); border: 1px solid var(--td-component-border); overflow: hidden; }
+.drag-gap-parent { background: transparent; border: 1px solid var(--td-brand-color); opacity: 0.6; box-shadow: 0 0 6px rgba(0,81,167,0.25); }
+:root[theme-mode="dark"] .drag-gap-parent { box-shadow: 0 0 6px rgba(0,81,167,0.4); }
+.drag-gap { border-radius: var(--td-radius-medium); }
+.group-conn { display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; border-bottom: 1px solid var(--td-component-border); font-family: monospace; font-size: 12px; cursor: grab; user-select: none; }
+.group-conn:active { cursor: grabbing; }
+.group-key { color: var(--td-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.group-url { color: var(--td-brand-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.config-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; cursor: pointer; }
+.config-row:hover { background: var(--td-bg-color-container-hover); }
+.config-row:hover .config-name { color: var(--td-brand-color); }
+.config-row + .config-row { border-top: 1px solid var(--td-component-border); }
+.config-name { font-size: 13px; font-weight: 500; color: var(--td-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 预览弹窗样式 */
 .preview-content { display: flex; flex-direction: column; gap: 12px; }
@@ -626,4 +900,5 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
 .form-item .required { color: var(--td-error-color); }
 .dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .dialog-footer-right { display: flex; gap: 8px; }
+
 </style>
