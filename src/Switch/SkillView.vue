@@ -228,6 +228,10 @@ const openSkillsDir = () => {
   window.utools.shellOpenPath(window.services.getSkillsPath());
 };
 
+const openProjectDir = (projectPath) => {
+  window.services.openProjectSkillsDir(projectPath);
+};
+
 const doFetchSkillInfo = async ({ source, slug }) => {
   isFetchingInfo.value = true;
   installInfo.value = null;
@@ -378,7 +382,7 @@ onMounted(() => {
 <template>
   <div class="skill-container">
     <div class="section-header">
-      <span class="skill-tip">仅展示 <span class="hint-link" @click="openSkillsDir">.claude/skills</span> 文件夹下的 SKILL</span>
+      <span class="skill-tip">展示 <span class="hint-link" @click="openSkillsDir">~/.claude/skills</span> 及项目目录下的 SKILL</span>
       <Button size="small" theme="primary" @click="openInstallDialog">
         <template #icon><DownloadIcon /></template> 安装 Skill
       </Button>
@@ -391,7 +395,7 @@ onMounted(() => {
     <div v-else class="skill-list">
       <Card
         v-for="skill in skills"
-        :key="skill.name + (skill.disabled ? '-disabled' : '')"
+        :key="(skill.scope === 'project' ? skill.projectPath + '/' : '') + skill.name + (skill.disabled ? '-disabled' : '')"
         :bordered="true"
         class="skill-card"
         :class="{ 'skill-card-disabled': skill.disabled }"
@@ -399,15 +403,28 @@ onMounted(() => {
       >
         <template #header>
           <div class="skill-header-wrapper">
-            <Tooltip content="点击复制名称" placement="top">
-              <span
-                class="skill-name-link"
-                @click.stop="copySkillName(skill.name)"
-              >
-                {{ skill.name }}
-              </span>
-            </Tooltip>
-            <Space size="small">
+            <div class="skill-header-left">
+              <Tooltip content="点击复制名称" placement="top">
+                <span
+                  class="skill-name-link"
+                  @click.stop="copySkillName(skill.name)"
+                >
+                  {{ skill.name }}
+                </span>
+              </Tooltip>
+              <Tooltip v-if="skill.scope === 'project'" :content="'项目: ' + skill.projectPath" placement="top">
+                <Tag
+                  size="small"
+                  variant="light"
+                  theme="success"
+                  class="project-tag"
+                  @click.stop="openProjectDir(skill.projectPath)"
+                >
+                  {{ skill.projectName }}
+                </Tag>
+              </Tooltip>
+            </div>
+            <Space v-if="skill.scope === 'global'" size="small">
               <Switch
                 :value="!skill.disabled"
                 @change="(val) => toggleSkill(skill, val)"
@@ -566,6 +583,18 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   width: 100%;
+}
+
+.skill-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.project-tag {
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .skill-name-link {

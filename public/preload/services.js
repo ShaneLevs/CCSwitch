@@ -392,6 +392,7 @@ window.services = {
             name: skillName,
             frontmatter,
             disabled: false,
+            scope: 'global',
             usageCount: usage.usageCount || 0,
             lastUsedAt: usage.lastUsedAt || null
           })
@@ -422,6 +423,7 @@ window.services = {
               name: skillName,
               frontmatter,
               disabled: true,
+              scope: 'global',
               usageCount: usage.usageCount || 0,
               lastUsedAt: usage.lastUsedAt || null
             })
@@ -431,7 +433,59 @@ window.services = {
         }
       }
 
-      return skills.sort((a, b) => a.name.localeCompare(b.name))
+      // 读取项目级 skills
+      try {
+        const homeDir = window.utools.getPath('home')
+        const projectsDir = path.join(homeDir, '.claude', 'projects')
+        if (fs.existsSync(projectsDir)) {
+          const projectPathMap = this._buildProjectPathMap(projectsDir)
+          for (const [, projectPath] of projectPathMap) {
+            if (!projectPath || projectPath === 'unknown' || !fs.existsSync(projectPath)) continue
+            const projectSkillsDir = path.join(projectPath, '.claude', 'skills')
+            if (!fs.existsSync(projectSkillsDir)) continue
+
+            const projectSkills = fs.readdirSync(projectSkillsDir, { withFileTypes: true })
+            for (const entry of projectSkills) {
+              if (!entry.isDirectory() || entry.name === '.disabled') continue
+
+              const skillName = entry.name
+              const skillMdPath = path.join(projectSkillsDir, skillName, 'SKILL.md')
+              if (!fs.existsSync(skillMdPath)) continue
+
+              try {
+                const content = fs.readFileSync(skillMdPath, { encoding: 'utf-8' })
+                const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/)
+                const frontmatter = frontmatterMatch ? frontmatterMatch[1] : ''
+
+                const usage = skillUsage[skillName] || {}
+                skills.push({
+                  name: skillName,
+                  frontmatter,
+                  disabled: false,
+                  scope: 'project',
+                  projectName: path.basename(projectPath),
+                  projectPath: projectPath,
+                  usageCount: usage.usageCount || 0,
+                  lastUsedAt: usage.lastUsedAt || null
+                })
+              } catch (e) {
+                console.error('读取项目 skill 文件失败:', skillMdPath, e)
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('读取项目 skills 失败:', e)
+      }
+
+      return skills.sort((a, b) => {
+        // 全局优先，再按名称排序
+        if (a.scope !== b.scope) return a.scope === 'global' ? -1 : 1
+        if (a.scope === 'project' && b.scope === 'project' && a.projectPath !== b.projectPath) {
+          return a.projectPath.localeCompare(b.projectPath)
+        }
+        return a.name.localeCompare(b.name)
+      })
     } catch (error) {
       console.error('读取 skills 目录失败:', error)
       return []
@@ -513,6 +567,15 @@ window.services = {
       fs.mkdirSync(CLAUDE_SKILLS_PATH, { recursive: true })
     }
     return CLAUDE_SKILLS_PATH
+  },
+
+  // 打开项目级 Skills 目录
+  openProjectSkillsDir(projectPath) {
+    const skillsDir = path.join(projectPath, '.claude', 'skills')
+    if (!fs.existsSync(skillsDir)) {
+      fs.mkdirSync(skillsDir, { recursive: true })
+    }
+    window.utools.shellOpenPath(skillsDir)
   },
 
   // 从 SkillHub 获取 skill 信息
