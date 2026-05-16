@@ -406,8 +406,8 @@ onMounted(() => {
     <Drawer
       v-model:visible="showToolDrawer"
       :header="false"
-      placement="bottom"
-      size="70%"
+      placement="left"
+      size="80%"
       :footer="false"
     >
       <div v-if="toolLoading" class="tool-skeleton">

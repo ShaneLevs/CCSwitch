@@ -337,7 +337,10 @@ window.services = {
 
       let transport
       if (config.type === 'http') {
-        transport = new StreamableHTTPClientTransport(new URL(config.url))
+        const transportOptions = config.headers
+          ? { requestInit: { headers: config.headers } }
+          : undefined
+        transport = new StreamableHTTPClientTransport(new URL(config.url), transportOptions)
       } else {
         // STDIO 类型（默认）
         transport = new StdioClientTransport({
