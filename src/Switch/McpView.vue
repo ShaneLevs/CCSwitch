@@ -12,11 +12,17 @@ import {
   Textarea,
   Popconfirm,
   Switch,
+  Drawer,
+  Skeleton,
+  Tooltip,
+  Collapse,
+  CollapsePanel,
 } from "tdesign-vue-next";
 import {
   AddIcon,
   EditIcon,
   DeleteIcon,
+  ViewListIcon,
 } from "tdesign-icons-vue-next";
 
 const mcpServerList = ref([]);
@@ -28,6 +34,13 @@ const dialogMode = ref("create"); // 'create' or 'edit'
 const jsonContent = ref("");
 const jsonError = ref("");
 const mcpName = ref("");
+
+// 工具查看相关
+const showToolDrawer = ref(false);
+const toolDrawerTitle = ref("");
+const toolList = ref([]);
+const toolLoading = ref(false);
+const toolError = ref("");
 
 // 示例模板
 const EXAMPLE_STDIO = `{
@@ -207,6 +220,49 @@ const getConfigSummary = (config) => {
   return parts.join(" | ");
 };
 
+// 打开工具查看抽屉
+const openToolDrawer = async (server) => {
+  if (!server.enabled) {
+    return MessagePlugin.warning("请先开启 MCP 后再查看工具");
+  }
+  showToolDrawer.value = true;
+  toolDrawerTitle.value = server.name;
+  toolList.value = [];
+  toolLoading.value = true;
+  toolError.value = "";
+
+  try {
+    const result = await window.services.getMcpServerTools(server.config);
+    if (result.success) {
+      toolList.value = result.tools;
+      if (result.tools.length === 0) {
+        MessagePlugin.info("该 MCP 服务器未提供任何工具");
+      }
+    } else {
+      toolError.value = result.error;
+      MessagePlugin.error("获取工具列表失败: " + result.error);
+    }
+  } catch (e) {
+    toolError.value = e.message;
+    MessagePlugin.error("获取工具列表失败: " + e.message);
+  } finally {
+    toolLoading.value = false;
+  }
+};
+
+// 格式化 JSON Schema 参数为可读文本
+const formatSchema = (schema) => {
+  if (!schema || !schema.properties) return null;
+  const entries = Object.entries(schema.properties);
+  if (entries.length === 0) return null;
+  return entries.map(([name, prop]) => ({
+    name,
+    type: prop.type || "any",
+    description: prop.description || "",
+    required: schema.required?.includes(name) || false,
+  }));
+};
+
 onMounted(() => {
   loadMcpServers();
 });
@@ -246,30 +302,44 @@ onMounted(() => {
               @change="toggleMcpStatus(server)"
               size="small"
             />
+            <Tooltip content="查看工具" placement="top">
+              <Button
+                size="small"
+                theme="default"
+                variant="text"
+                :disabled="!server.enabled"
+                @click="openToolDrawer(server)"
+              >
+                <ViewListIcon />
+              </Button>
+            </Tooltip>
             <Tag :theme="getTypeTagTheme(server.config.type)" variant="light">
               {{ getTypeTag(server.config.type) }}
             </Tag>
             <Tag v-if="!server.enabled" theme="default" variant="light" size="small">
               已关闭
             </Tag>
-            <Button
-              size="small"
-              theme="default"
-              variant="text"
-              :disabled="!server.enabled"
-              @click="openEditDialog(server)"
-              title="编辑"
-            >
-              <EditIcon />
-            </Button>
+            <Tooltip content="编辑" placement="top">
+              <Button
+                size="small"
+                theme="default"
+                variant="text"
+                :disabled="!server.enabled"
+                @click="openEditDialog(server)"
+              >
+                <EditIcon />
+              </Button>
+            </Tooltip>
             <Popconfirm
               theme="danger"
               content="确定要删除这个 MCP 配置吗？"
               @confirm="deleteMcpServer(server)"
             >
-              <Button size="small" theme="danger" variant="text" title="删除">
-                <DeleteIcon />
-              </Button>
+              <Tooltip content="删除" placement="top">
+                <Button size="small" theme="danger" variant="text">
+                  <DeleteIcon />
+                </Button>
+              </Tooltip>
             </Popconfirm>
           </Space>
         </template>
@@ -329,6 +399,58 @@ onMounted(() => {
         </div>
       </template>
     </Dialog>
+
+    <Drawer
+      v-model:visible="showToolDrawer"
+      :header="false"
+      placement="bottom"
+      size="70%"
+      :footer="false"
+    >
+      <div v-if="toolLoading" class="tool-skeleton">
+        <Skeleton :row="3" :loading="true" class="skeleton-item" />
+        <Skeleton :row="3" :loading="true" class="skeleton-item" />
+        <Skeleton :row="2" :loading="true" class="skeleton-item" />
+      </div>
+      <div v-else-if="toolError" class="tool-error">
+          <Tag theme="danger" variant="light">连接失败</Tag>
+          <span class="tool-error-msg">{{ toolError }}</span>
+        </div>
+        <div v-else-if="!toolList.length && !toolLoading" class="tool-empty">
+          <Empty description="暂无工具" />
+        </div>
+        <div v-else class="tool-list">
+          <div v-for="tool in toolList" :key="tool.name" class="tool-item">
+            <div class="tool-name">{{ tool.name }}</div>
+            <div class="tool-meta">
+              <span class="tool-meta-label">Tool name:</span> {{ tool.name }}
+            </div>
+            <div class="tool-meta">
+              <span class="tool-meta-label">Full name:</span> mcp__{{ toolDrawerTitle }}__{{ tool.name }}
+            </div>
+
+            <div class="tool-section">
+              <div class="tool-section-title">Description:</div>
+              <div class="tool-desc">{{ tool.description || '无描述' }}</div>
+            </div>
+
+            <div v-if="formatSchema(tool.inputSchema)" class="tool-section">
+              <div class="tool-section-title">Parameters:</div>
+              <div class="param-list">
+                <div v-for="param in formatSchema(tool.inputSchema)" :key="param.name" class="param-item">
+                  <span class="param-bullet">●</span>
+                  <span class="param-name">{{ param.name }}</span>
+                  <span class="param-required" v-if="param.required">(required)</span>
+                  <span class="param-optional" v-else>(optional)</span>
+                  <span class="param-type">{{ param.type }}</span>
+                  <span v-if="param.description" class="param-separator"> - </span>
+                  <span v-if="param.description" class="param-desc">{{ param.description }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+    </Drawer>
   </div>
 </template>
 
@@ -449,5 +571,134 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.tool-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.skeleton-item {
+  padding: 16px;
+  border: 1px solid var(--td-border-level-1-color);
+  border-radius: 6px;
+}
+
+.tool-error {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 0;
+}
+
+.tool-error-msg {
+  color: var(--td-text-color-secondary);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.tool-empty {
+  padding: 40px 0;
+}
+
+.tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tool-item {
+  padding: 16px;
+  border: 1px solid var(--td-border-level-1-color);
+  border-radius: 6px;
+}
+
+.tool-name {
+  font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--td-brand-color);
+  margin-bottom: 4px;
+}
+
+.tool-meta {
+  font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--td-text-color-secondary);
+  line-height: 1.6;
+}
+
+.tool-meta-label {
+  font-weight: 700;
+  color: var(--td-text-color-primary);
+}
+
+.tool-section {
+  margin-top: 12px;
+}
+
+.tool-section-title {
+  font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--td-text-color-primary);
+  margin-bottom: 6px;
+}
+
+.tool-desc {
+  font-size: 13px;
+  color: var(--td-text-color-secondary);
+  line-height: 1.6;
+  padding-left: 4px;
+}
+
+.param-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 4px;
+}
+
+.param-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.param-bullet {
+  color: var(--td-text-color-placeholder);
+  font-size: 8px;
+}
+
+.param-name {
+  color: var(--td-text-color-primary);
+}
+
+.param-required {
+  color: var(--td-error-color);
+  font-size: 12px;
+}
+
+.param-optional {
+  color: var(--td-text-color-placeholder);
+  font-size: 12px;
+}
+
+.param-type {
+  color: var(--td-text-color-secondary);
+}
+
+.param-separator {
+  color: var(--td-text-color-placeholder);
+}
+
+.param-desc {
+  color: var(--td-text-color-placeholder);
+  font-size: 13px;
 }
 </style>

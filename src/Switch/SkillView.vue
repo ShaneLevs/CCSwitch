@@ -417,14 +417,15 @@ onMounted(() => {
                 content="删除后不可恢复，确认删除？"
                 @confirm="deleteSkill(skill)"
               >
-                <Button
-                  size="small"
-                  theme="danger"
-                  variant="text"
-                  title="删除"
-                >
-                  <DeleteIcon />
-                </Button>
+                <Tooltip content="删除" placement="top">
+                  <Button
+                    size="small"
+                    theme="danger"
+                    variant="text"
+                  >
+                    <DeleteIcon />
+                  </Button>
+                </Tooltip>
               </Popconfirm>
             </Space>
           </div>

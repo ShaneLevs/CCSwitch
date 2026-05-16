@@ -2,6 +2,31 @@ const fs = require('node:fs')
 const path = require('node:path')
 const crypto = require('node:crypto')
 const zlib = require('node:zlib')
+const { Client } = require('@modelcontextprotocol/sdk/client')
+const _mcpClientDir = path.dirname(require.resolve('@modelcontextprotocol/sdk/client'))
+const { StdioClientTransport } = require(path.join(_mcpClientDir, 'stdio'))
+const { StreamableHTTPClientTransport } = require(path.join(_mcpClientDir, 'streamableHttp'))
+
+// 从登录 shell 获取完整环境变量（解决 Electron preload 中 PATH 不完整的问题）
+const _getShellEnv = () => {
+  try {
+    const shell = process.env.SHELL || '/bin/zsh'
+    const result = require('node:child_process').execSync(
+      `${shell} -l -c 'env'`,
+      { encoding: 'utf-8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] }
+    )
+    const env = { ...process.env }
+    for (const line of result.split('\n')) {
+      const idx = line.indexOf('=')
+      if (idx > 0) {
+        env[line.slice(0, idx)] = line.slice(idx + 1)
+      }
+    }
+    return env
+  } catch (e) {
+    return process.env
+  }
+}
 
 const CLAUDE_SETTINGS_PATH = path.join(window.utools.getPath('home'), '.claude', 'settings.json')
 const CLAUDE_JSON_PATH = path.join(window.utools.getPath('home'), '.claude.json')
@@ -289,6 +314,40 @@ window.services = {
       return this.writeClaudeJson(config)
     }
     return false
+  },
+
+  // 获取 MCP Server 的工具列表
+  async getMcpServerTools(config) {
+    let client = null
+    try {
+      client = new Client({ name: 'ccswitch', version: '1.0.0' })
+
+      let transport
+      if (config.type === 'http') {
+        transport = new StreamableHTTPClientTransport(new URL(config.url))
+      } else {
+        // STDIO 类型（默认）
+        transport = new StdioClientTransport({
+          command: config.command,
+          args: config.args || [],
+          env: { ..._getShellEnv(), ...(config.env || {}) }
+        })
+      }
+
+      await client.connect(transport)
+      const result = await client.listTools()
+      return { success: true, tools: result.tools || [] }
+    } catch (error) {
+      return { success: false, error: error.message }
+    } finally {
+      if (client) {
+        try {
+          await client.close()
+        } catch (e) {
+          // 忽略关闭时的错误
+        }
+      }
+    }
   },
 
   // 获取所有 Skills 列表（只读）
