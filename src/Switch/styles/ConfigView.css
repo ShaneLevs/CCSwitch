@@ -59,6 +59,5 @@
 .form-item-vertical { display: flex; flex-direction: column; gap: 8px; }
 .form-item-vertical label { font-size: 14px; color: var(--td-text-color-primary); }
 .form-item .required { color: var(--td-error-color); }
-.dialog-footer { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+.dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .dialog-footer-right { display: flex; gap: 8px; }
-.t-dialog__footer:has(.dialog-footer) { justify-content: space-between; }
