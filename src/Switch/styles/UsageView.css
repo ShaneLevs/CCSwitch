@@ -75,18 +75,18 @@
   justify-content: center;
 }
 
-.stat-card :deep(.t-statistic-title) {
+.stat-card .t-statistic-title {
   font-size: 12px;
   color: var(--td-text-color-secondary);
 }
 
-.stat-card :deep(.t-statistic-content) {
+.stat-card .t-statistic-content {
   font-size: 22px;
   font-weight: 700;
   color: var(--td-text-color-primary);
 }
 
-.stat-card :deep(.t-statistic-suffix) {
+.stat-card .t-statistic-suffix {
   font-size: 13px;
   color: var(--td-text-color-secondary);
 }

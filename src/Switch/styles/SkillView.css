@@ -39,7 +39,7 @@
   opacity: 0.6;
 }
 
-.skill-card :deep(.t-card__header) {
+.skill-card .t-card__header {
   padding: 10px 16px 6px;
   border-bottom: none;
 }
@@ -74,7 +74,7 @@
   text-decoration: underline;
 }
 
-.skill-card :deep(.t-card__body) {
+.skill-card .t-card__body {
   padding: 0 16px 10px;
 }
 
