@@ -1135,6 +1135,43 @@ window.services = {
     }
   },
 
+  // 保存热力图历史数据（按设备区分，只存贡献墙每日数据）
+  saveHeatmapHistory(contributions) {
+    try {
+      const nativeId = this.getNativeId()
+      const docId = `ccswitch_heatmap_${nativeId}`
+      const days = {}
+      for (const day of contributions) {
+        if (day.tokens > 0) {
+          days[day.date] = {
+            tokens: day.tokens,
+            inputTokens: day.inputTokens,
+            outputTokens: day.outputTokens,
+            models: day.models
+          }
+        }
+      }
+      const doc = { _id: docId, nativeId, days, updatedAt: Date.now() }
+      const existing = window.utools.db.get(docId)
+      if (existing) doc._rev = existing._rev
+      window.utools.db.put(doc)
+    } catch (error) {
+      console.error('保存热力图历史失败:', error)
+    }
+  },
+
+  // 获取热力图历史数据
+  getHeatmapHistory() {
+    try {
+      const nativeId = this.getNativeId()
+      const docId = `ccswitch_heatmap_${nativeId}`
+      const doc = window.utools.db.get(docId)
+      return doc?.days || {}
+    } catch (error) {
+      return {}
+    }
+  },
+
   exportConfigsToFile(filePath, configs) {
     const data = {
       version: '1.0',
@@ -1515,7 +1552,7 @@ window.services = {
     return { messageRecords, sessionMap, projectMap }
   },
 
-  // 读取 Claude Code usage 数据（每次全量处理）
+  // 读取 Claude Code usage 数据（每次全量处理，合并历史热力图数据）
   readClaudeUsage() {
     try {
       const homeDir = window.utools.getPath('home')
@@ -1529,8 +1566,35 @@ window.services = {
       const processedData = this._processAllUsageData(projectsDir)
       const stats = this._calculateStats(processedData.messageRecords, processedData.sessionMap)
 
+      // 合并历史热力图数据：同一天取大值，保护历史数据不被覆盖
+      const history = this.getHeatmapHistory()
+      const liveMap = new Map()
+      for (const day of stats.contributions) {
+        liveMap.set(day.date, day)
+      }
+      const merged = []
+      // 历史数据中不在实时数据里的，直接保留
+      for (const [date, histDay] of Object.entries(history)) {
+        if (!liveMap.has(date)) {
+          merged.push({ date, ...histDay })
+        }
+      }
+      // 实在数据：如果历史数据存在且 tokens 更大，用历史数据
+      for (const day of stats.contributions) {
+        const histDay = history[day.date]
+        if (histDay && histDay.tokens > day.tokens) {
+          merged.push({ date: day.date, ...histDay })
+        } else {
+          merged.push(day)
+        }
+      }
+      merged.sort((a, b) => a.date.localeCompare(b.date))
+
       // 补全365天贡献墙数据
-      const contributions = this._fillEmptyContributions(stats.contributions)
+      const contributions = this._fillEmptyContributions(merged)
+
+      // 后台全量保存热力图数据（取大值后的结果）
+      setTimeout(() => this.saveHeatmapHistory(contributions), 0)
 
       console.log(`处理完成: ${processedData.messageRecords.length} 条消息记录`)
 
