@@ -44,6 +44,11 @@
 
 /* 额外字段弹窗样式 */
 .extra-fields-dialog { display: flex; flex-direction: column; gap: 16px; }
+.active-config-extras { padding: 12px 16px; background: var(--td-bg-color-container-hover); border-radius: var(--td-radius-default); }
+.active-config-extras-title { font-size: 13px; font-weight: 500; color: var(--td-text-color-secondary); margin-bottom: 10px; }
+.extra-field-readonly { opacity: 0.85; }
+.field-key-readonly { flex: 1; font-size: 13px; font-family: monospace; color: var(--td-text-color-primary); display: flex; align-items: center; gap: 8px; }
+.field-value-readonly { flex: 0 0 140px; font-size: 13px; font-family: monospace; color: var(--td-text-color-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .extra-fields-hint { padding: 12px 16px; background: var(--td-bg-color-container-hover); border-radius: var(--td-radius-default); font-size: 13px; color: var(--td-text-color-secondary); }
 .extra-fields-hint p { margin: 0 0 4px 0; }
 .extra-fields-hint p:last-child { margin-bottom: 0; }

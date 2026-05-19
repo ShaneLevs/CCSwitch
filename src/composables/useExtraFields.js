@@ -1,6 +1,7 @@
 import { ref, computed } from "vue";
 import { MessagePlugin } from "tdesign-vue-next";
 
+const DB_PREFIX = "ccswitch_config_";
 const SAVED_FIELD_KEYS_ID = "extra_field_keys";
 export const fixedFieldKeyOptions = [
   "API_TIMEOUT_MS",
@@ -19,9 +20,26 @@ const managedFields = [
   'CLAUDE_CODE_SUBAGENT_MODEL',
 ];
 
+// 获取当前活跃配置的 env 其他字段和配置名
+function getActiveConfigInfo() {
+  const settings = window.services.readClaudeSettings() || {};
+  const env = settings.env || {};
+  const currentKey = env.ANTHROPIC_AUTH_TOKEN || '';
+  const currentUrl = env.ANTHROPIC_BASE_URL || '';
+  const configs = window.utools.db.allDocs().filter(d => d._id.startsWith(DB_PREFIX));
+  for (const d of configs) {
+    const decryptedKey = window.services.decryptKey(d.key);
+    if (decryptedKey === currentKey && d.baseUrl === currentUrl) {
+      return { name: d.name, extraFields: d.extraFields || [] };
+    }
+  }
+  return null;
+}
+
 export function useExtraFields(loadCurrentConfig) {
   const showExtraFieldsDialog = ref(false);
   const extraFields = ref([]);
+  const activeConfigExtras = ref(null); // { name, extraFields }
   const savedExtraFieldKeys = ref([]);
   const extraFieldKeyOptions = computed(() => {
     const all = [...fixedFieldKeyOptions, ...savedExtraFieldKeys.value];
@@ -36,16 +54,23 @@ export function useExtraFields(loadCurrentConfig) {
 
   const openExtraFieldsDialog = () => {
     loadExtraFieldKeys();
-    const settings = window.services.readClaudeSettings() || {};
-    const env = settings.env || {};
-    extraFields.value = [];
-
-    Object.keys(env).forEach(key => {
-      if (!managedFields.includes(key)) {
-        extraFields.value.push({ key, value: String(env[key]) });
-      }
-    });
-
+    // 读取当前活跃配置的 extraFields
+    activeConfigExtras.value = getActiveConfigInfo();
+    // 从 DB 读全局基准，不从 settings.json 读（避免看到和配置混合后的值）
+    const saved = window.services.getOverriddenEnv();
+    if (saved) {
+      extraFields.value = Object.keys(saved).map(key => ({ key, value: String(saved[key]) }));
+    } else {
+      // 首次：从 settings.json 读当前值作为初始值
+      const settings = window.services.readClaudeSettings() || {};
+      const env = settings.env || {};
+      extraFields.value = [];
+      Object.keys(env).forEach(key => {
+        if (!managedFields.includes(key)) {
+          extraFields.value.push({ key, value: String(env[key]) });
+        }
+      });
+    }
     showExtraFieldsDialog.value = true;
   };
 
@@ -69,28 +94,43 @@ export function useExtraFields(loadCurrentConfig) {
     const duplicateKey = keys.find((k, i) => keys.indexOf(k) !== i);
     if (duplicateKey) return MessagePlugin.warning(`env字段 key 重复: ${duplicateKey}`);
 
-    const settings = window.services.readClaudeSettings() || {};
-    if (!settings.env) settings.env = {};
-
-    Object.keys(settings.env).forEach(key => {
-      if (!managedFields.includes(key)) delete settings.env[key];
-    });
-
+    // 1. 构建全局 extras 并存 DB
+    const globalExtras = {};
     const userKeys = [];
     extraFields.value.forEach(field => {
       const key = field.key.trim();
       const value = field.value.trim();
       if (key) {
-        settings.env[key] = value;
+        globalExtras[key] = value;
         if (!fixedFieldKeyOptions.includes(key)) userKeys.push(key);
       }
     });
+    window.services.saveOverriddenEnv(globalExtras);
 
-    const merged = [...new Set([...savedExtraFieldKeys.value, ...userKeys])];
-    const doc = { _id: SAVED_FIELD_KEYS_ID, keys: merged };
+    // 2. 合并：全局 + 当前活跃配置的 extraFields（配置优先）
+    const mergedExtras = { ...globalExtras };
+    const configExtras = (activeConfigExtras.value?.extraFields) || [];
+    configExtras.forEach(field => {
+      const k = field.key?.trim();
+      const v = field.value?.trim();
+      if (k) mergedExtras[k] = v;
+    });
+
+    // 3. 写入 settings.json
+    const settings = window.services.readClaudeSettings() || {};
+    if (!settings.env) settings.env = {};
+    Object.keys(settings.env).forEach(key => {
+      if (!managedFields.includes(key)) delete settings.env[key];
+    });
+    Object.entries(mergedExtras).forEach(([k, v]) => {
+      settings.env[k] = v;
+    });
+
+    // 4. 保存候选字段名
+    const mergedKeysDoc = { _id: SAVED_FIELD_KEYS_ID, keys: [...new Set([...savedExtraFieldKeys.value, ...userKeys])] };
     const existingDoc = window.utools.db.get(SAVED_FIELD_KEYS_ID);
-    if (existingDoc) doc._rev = existingDoc._rev;
-    window.utools.db.put(doc);
+    if (existingDoc) mergedKeysDoc._rev = existingDoc._rev;
+    window.utools.db.put(mergedKeysDoc);
 
     if (window.services.writeClaudeSettings(settings)) {
       MessagePlugin.success("全局设置已保存");
@@ -104,6 +144,7 @@ export function useExtraFields(loadCurrentConfig) {
   return {
     showExtraFieldsDialog,
     extraFields,
+    activeConfigExtras,
     extraFieldKeyOptions,
     loadExtraFieldKeys,
     openExtraFieldsDialog,

@@ -266,7 +266,7 @@ const deleteConfig = (config) => {
 const { switchConfig, isCurrentConfig } = useConfigSwitch(currentConfig, loadCurrentConfig);
 
 const {
-  showExtraFieldsDialog, extraFields, extraFieldKeyOptions,
+  showExtraFieldsDialog, extraFields, activeConfigExtras, extraFieldKeyOptions,
   loadExtraFieldKeys, openExtraFieldsDialog, addExtraField, removeExtraField, saveExtraFields, saveExtraFieldKeys,
 } = useExtraFields(loadCurrentConfig);
 
@@ -448,13 +448,26 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
 
     <Dialog v-model:visible="showExtraFieldsDialog" header="env其他字段设置" width="600px" @confirm="saveExtraFields">
       <div class="extra-fields-dialog">
+        <!-- 当前活跃配置的 env 其他字段（只读） -->
+        <div v-if="activeConfigExtras && activeConfigExtras.extraFields.length" class="active-config-extras">
+          <div class="active-config-extras-title">来自当前配置「{{ activeConfigExtras.name }}」</div>
+          <div class="extra-fields-list">
+            <div v-for="(field, idx) in activeConfigExtras.extraFields" :key="idx" class="extra-field-item extra-field-readonly">
+              <div class="field-key-readonly">
+                {{ field.key }}
+                <Tag v-if="extraFields.some(f => f.key?.trim() === field.key)" size="small" theme="warning" variant="light">覆盖全局同名字段</Tag>
+                <Tag v-else size="small" theme="success" variant="light">生效中</Tag>
+              </div>
+              <div class="field-value-readonly">{{ field.value }}</div>
+            </div>
+          </div>
+        </div>
         <div class="extra-fields-hint">
-          <p>这些字段作为全局基础值，切换配置时会与配置中的env其他字段合并（配置优先）。</p>
-          <p>例如：API_TIMEOUT_MS、CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC、CLAUDE_CODE_NO_FLICKER</p>
+          <p>以下为全局基础值，切换配置时会与配置中的env其他字段合并（配置优先）。</p>
         </div>
         <div class="extra-fields-list">
           <div v-for="(field, idx) in extraFields" :key="idx" class="extra-field-item">
-            <AutoComplete v-model="field.key" class="field-key" :options="extraFieldKeyOptions" filterable placeholder="字段名（如 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC）" />
+            <AutoComplete v-model="field.key" class="field-key" :options="extraFieldKeyOptions" filterable placeholder="字段名" />
             <Input v-model="field.value" class="field-value" placeholder="字段值" />
             <Button size="small" theme="danger" variant="text" @click="removeExtraField(idx)"><DeleteIcon /></Button>
           </div>
