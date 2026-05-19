@@ -1,10 +1,31 @@
 import { MessagePlugin } from "tdesign-vue-next";
 
+const managedFields = [
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_MODEL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'CLAUDE_CODE_SUBAGENT_MODEL',
+];
+
 export function useConfigSwitch(currentConfig, loadCurrentConfig) {
   const switchConfig = (config) => {
     const settings = window.services.readClaudeSettings() || {};
     if (!settings.env) settings.env = {};
 
+    // 1. 保存当前 settings.json 中的所有 env 其他字段（每次切换都保存）
+    const currentGlobalExtras = {};
+    Object.keys(settings.env).forEach(key => {
+      if (!managedFields.includes(key)) {
+        currentGlobalExtras[key] = settings.env[key];
+      }
+    });
+    window.services.saveOverriddenEnv(currentGlobalExtras);
+    const baseExtras = currentGlobalExtras;
+
+    // 3. 设置核心字段
     settings.env.ANTHROPIC_AUTH_TOKEN = config.key;
     settings.env.ANTHROPIC_BASE_URL = config.baseUrl;
 
@@ -22,6 +43,25 @@ export function useConfigSwitch(currentConfig, loadCurrentConfig) {
       } else {
         delete settings.env[env];
       }
+    });
+
+    // 4. 清除所有非托管字段
+    Object.keys(settings.env).forEach(key => {
+      if (!managedFields.includes(key)) delete settings.env[key];
+    });
+
+    // 5. 合并：全局字段 + 配置字段（配置优先）
+    const mergedExtras = { ...baseExtras };
+    const configExtras = config.extraFields || [];
+    configExtras.forEach(field => {
+      const k = field.key?.trim();
+      const v = field.value?.trim();
+      if (k) mergedExtras[k] = v;
+    });
+
+    // 6. 写入合并后的字段
+    Object.entries(mergedExtras).forEach(([k, v]) => {
+      settings.env[k] = v;
     });
 
     if (window.services.writeClaudeSettings(settings)) {

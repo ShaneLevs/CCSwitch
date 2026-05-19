@@ -317,9 +317,10 @@ window.services = {
     const config = this.readClaudeJson()
     if (config.mcpServers && config.mcpServers[name]) {
       delete config.mcpServers[name]
-      return this.writeClaudeJson(config)
+      const ok = this.writeClaudeJson(config)
+      return { success: ok, error: ok ? null : '写入配置文件失败' }
     }
-    return false
+    return { success: false, error: 'MCP 配置不存在' }
   },
 
   // 获取 MCP Server 的工具列表
@@ -463,6 +464,8 @@ window.services = {
           const projectPathMap = this._buildProjectPathMap(projectsDir)
           for (const [, projectPath] of projectPathMap) {
             if (!projectPath || projectPath === 'unknown' || !fs.existsSync(projectPath)) continue
+            // 跳过主目录，避免与全局 skills 重复
+            if (path.resolve(projectPath) === path.resolve(homeDir)) continue
             const projectSkillsDir = path.join(projectPath, '.claude', 'skills')
             if (!fs.existsSync(projectSkillsDir)) continue
 
@@ -1103,6 +1106,34 @@ window.services = {
 
   encryptKey: encrypt,
   decryptKey: decrypt,
+
+  // 保存被覆盖的全局 env 字段（按设备区分）
+  saveOverriddenEnv(envData) {
+    try {
+      const nativeId = this.getNativeId()
+      const docId = `ccswitch_overridden_env_${nativeId}`
+      const doc = { _id: docId, env: envData, updatedAt: Date.now() }
+      const existing = window.utools.db.get(docId)
+      if (existing) doc._rev = existing._rev
+      window.utools.db.put(doc)
+      return true
+    } catch (error) {
+      console.error('保存覆盖 env 失败:', error)
+      return false
+    }
+  },
+
+  // 获取被覆盖的全局 env 字段
+  getOverriddenEnv() {
+    try {
+      const nativeId = this.getNativeId()
+      const docId = `ccswitch_overridden_env_${nativeId}`
+      const doc = window.utools.db.get(docId)
+      return doc?.env || null
+    } catch (error) {
+      return null
+    }
+  },
 
   exportConfigsToFile(filePath, configs) {
     const data = {

@@ -12,6 +12,8 @@ import {
   Popconfirm,
   Textarea,
   Tooltip,
+  RadioGroup,
+  RadioButton,
 } from "tdesign-vue-next";
 import {
   AddIcon,
@@ -43,6 +45,7 @@ const currentConfig = ref({
 const savedConfigs = ref([]);
 const showDialog = ref(false);
 const editingConfig = ref(null);
+const dialogTab = ref("basic");
 const showPreviewDialog = ref(false);
 const previewConfig = ref(null);
 const formData = ref({
@@ -54,6 +57,7 @@ const formData = ref({
   defaultSonnetModel: "",
   defaultOpusModel: "",
   subagentModel: "",
+  extraFields: [],
 });
 
 const dialogTitle = computed(() => (editingConfig.value ? "编辑配置" : "新建配置"));
@@ -97,6 +101,7 @@ const loadSavedConfigs = () => {
           defaultSonnetModel: d.defaultSonnetModel || "",
           defaultOpusModel: d.defaultOpusModel || "",
           subagentModel: d.subagentModel || "",
+          extraFields: d.extraFields || [],
           updatedAt: d.updatedAt,
         };
         window.utools.db.put(cleanDoc);
@@ -112,6 +117,7 @@ const loadSavedConfigs = () => {
         defaultSonnetModel: d.defaultSonnetModel || "",
         defaultOpusModel: d.defaultOpusModel || "",
         subagentModel: d.subagentModel || "",
+        extraFields: d.extraFields || [],
         updatedAt: d.updatedAt,
         createdAt,
       };
@@ -141,6 +147,7 @@ const openPreviewDialog = (config) => {
 
 const openCreateDialog = () => {
   editingConfig.value = null;
+  dialogTab.value = "basic";
   formData.value = {
     name: "",
     key: "",
@@ -150,12 +157,14 @@ const openCreateDialog = () => {
     defaultSonnetModel: "",
     defaultOpusModel: "",
     subagentModel: "",
+    extraFields: [],
   };
   showDialog.value = true;
 };
 
 const openEditDialog = (config) => {
   editingConfig.value = config;
+  dialogTab.value = "basic";
   formData.value = {
     name: config.name,
     key: config.key,
@@ -165,6 +174,7 @@ const openEditDialog = (config) => {
     defaultSonnetModel: config.defaultSonnetModel || "",
     defaultOpusModel: config.defaultOpusModel || "",
     subagentModel: config.subagentModel || "",
+    extraFields: (config.extraFields || []).map(f => ({ ...f })),
   };
   showDialog.value = true;
 };
@@ -177,7 +187,24 @@ const fillCurrentConfig = () => {
   formData.value.defaultSonnetModel = currentConfig.value.defaultSonnetModel;
   formData.value.defaultOpusModel = currentConfig.value.defaultOpusModel;
   formData.value.subagentModel = currentConfig.value.subagentModel;
+  // 读取当前 settings.json 中的 env 其他字段
+  const settings = window.services.readClaudeSettings() || {};
+  const env = settings.env || {};
+  const managedKeys = [
+    'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL',
+    'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL',
+    'ANTHROPIC_DEFAULT_OPUS_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL',
+  ];
+  formData.value.extraFields = [];
+  Object.keys(env).forEach(key => {
+    if (!managedKeys.includes(key)) {
+      formData.value.extraFields.push({ key, value: String(env[key]) });
+    }
+  });
 };
+
+const addDialogExtraField = () => formData.value.extraFields.push({ key: "", value: "" });
+const removeDialogExtraField = (idx) => formData.value.extraFields.splice(idx, 1);
 
 const saveConfig = () => {
   if (!formData.value.name.trim()) return MessagePlugin.warning("请输入配置名称");
@@ -186,6 +213,13 @@ const saveConfig = () => {
 
   const now = Date.now();
   const id = editingConfig.value ? editingConfig.value.id : DB_PREFIX + now;
+  const cleanExtraFields = (formData.value.extraFields || [])
+    .filter(f => f.key?.trim())
+    .map(f => ({ key: f.key.trim(), value: f.value?.trim() || "" }));
+  // 检查重复 key
+  const extraKeys = cleanExtraFields.map(f => f.key);
+  const duplicateKey = extraKeys.find((k, i) => extraKeys.indexOf(k) !== i);
+  if (duplicateKey) return MessagePlugin.warning(`env字段 key 重复: ${duplicateKey}`);
   const doc = {
     _id: id,
     name: formData.value.name.trim(),
@@ -196,14 +230,25 @@ const saveConfig = () => {
     defaultSonnetModel: formData.value.defaultSonnetModel.trim(),
     defaultOpusModel: formData.value.defaultOpusModel.trim(),
     subagentModel: formData.value.subagentModel.trim(),
+    extraFields: cleanExtraFields,
     updatedAt: now,
   };
   if (editingConfig.value) doc._rev = window.utools.db.get(id)._rev;
 
   if (window.utools.db.put(doc).ok) {
+    // 保存使用过的字段名到候选列表
+    saveExtraFieldKeys(cleanExtraFields.map(f => f.key));
     MessagePlugin.success(editingConfig.value ? "配置已更新" : "配置已保存");
     showDialog.value = false;
     loadSavedConfigs();
+    // 如果编辑的是当前启用的配置，自动重新启用
+    if (editingConfig.value && isCurrentConfig(editingConfig.value)) {
+      switchConfig({
+        ...doc,
+        key: formData.value.key.trim(),
+        extraFields: cleanExtraFields,
+      });
+    }
   } else {
     MessagePlugin.error("保存失败");
   }
@@ -222,7 +267,7 @@ const { switchConfig, isCurrentConfig } = useConfigSwitch(currentConfig, loadCur
 
 const {
   showExtraFieldsDialog, extraFields, extraFieldKeyOptions,
-  loadExtraFieldKeys, openExtraFieldsDialog, addExtraField, removeExtraField, saveExtraFields,
+  loadExtraFieldKeys, openExtraFieldsDialog, addExtraField, removeExtraField, saveExtraFields, saveExtraFieldKeys,
 } = useExtraFields(loadCurrentConfig);
 
 const openSettingsFile = () => {
@@ -334,15 +379,38 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
     </div>
 
     <Dialog v-model:visible="showDialog" :header="dialogTitle" @confirm="saveConfig" width="560px">
-      <div class="form">
+      <div class="dialog-switch">
+        <RadioGroup v-model="dialogTab" variant="default-filled" size="small">
+          <RadioButton value="basic">基础配置</RadioButton>
+          <RadioButton value="extra">env其他字段</RadioButton>
+        </RadioGroup>
+      </div>
+      <div v-if="dialogTab === 'basic'" class="form">
         <div class="form-item"><label>名称 <span class="required">*</span></label><Input v-model="formData.name" placeholder="方便分辨的名字" /></div>
         <div class="form-item"><label>URL <span class="required">*</span></label><Input v-model="formData.baseUrl" placeholder="ANTHROPIC_BASE_URL" /></div>
         <div class="form-item"><label>TOKEN <span class="required">*</span></label><Input v-model="formData.key" type="password" placeholder="ANTHROPIC_AUTH_TOKEN" /></div>
+        <div class="form-hint">设置默认对话模型，留空则跟随系统默认</div>
         <div class="form-item"><label>MODEL</label><Input v-model="formData.model" placeholder="ANTHROPIC_MODEL" /></div>
+        <div class="form-hint">分别指定各层级模型版本，留空则使用系统默认分配</div>
         <div class="form-item"><label>HAIKU</label><Input v-model="formData.defaultHaikuModel" placeholder="ANTHROPIC_DEFAULT_HAIKU_MODEL" /></div>
         <div class="form-item"><label>SONNET</label><Input v-model="formData.defaultSonnetModel" placeholder="ANTHROPIC_DEFAULT_SONNET_MODEL" /></div>
         <div class="form-item"><label>OPUS</label><Input v-model="formData.defaultOpusModel" placeholder="ANTHROPIC_DEFAULT_OPUS_MODEL" /></div>
+        <div class="form-hint">设置子代理（工具调用、后台任务等）使用的模型</div>
         <div class="form-item"><label>SUBAGENT</label><Input v-model="formData.subagentModel" placeholder="CLAUDE_CODE_SUBAGENT_MODEL" /></div>
+      </div>
+      <div v-else class="extra-fields-dialog">
+        <div class="extra-fields-hint">
+          <p>切换配置时，这些字段会与全局env其他字段做合并（配置优先）。</p>
+          <p>例如：API_TIMEOUT_MS、CLAUDE_CODE_EFFORT_LEVEL</p>
+        </div>
+        <div class="extra-fields-list">
+          <div v-for="(field, idx) in formData.extraFields" :key="idx" class="extra-field-item">
+            <AutoComplete v-model="field.key" class="field-key" :options="extraFieldKeyOptions" filterable placeholder="字段名" />
+            <Input v-model="field.value" class="field-value" placeholder="字段值" />
+            <Button size="small" theme="danger" variant="text" @click="removeDialogExtraField(idx)"><DeleteIcon /></Button>
+          </div>
+        </div>
+        <Button size="small" variant="outline" @click="addDialogExtraField" class="add-field-btn"><template #icon><AddIcon /></template> 添加字段</Button>
       </div>
       <template #footer>
         <div class="dialog-footer">
@@ -367,13 +435,21 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
         <div v-if="previewConfig.defaultSonnetModel" class="preview-item"><span class="preview-label">SONNET_MODEL</span><span class="preview-value">{{ previewConfig.defaultSonnetModel }}</span></div>
         <div v-if="previewConfig.defaultOpusModel" class="preview-item"><span class="preview-label">OPUS_MODEL</span><span class="preview-value">{{ previewConfig.defaultOpusModel }}</span></div>
         <div v-if="previewConfig.subagentModel" class="preview-item"><span class="preview-label">SUBAGENT_MODEL</span><span class="preview-value">{{ previewConfig.subagentModel }}</span></div>
+        <template v-if="previewConfig.extraFields && previewConfig.extraFields.length">
+          <div class="preview-divider"></div>
+          <div class="preview-subtitle">env 其他字段</div>
+          <div v-for="(field, idx) in previewConfig.extraFields" :key="idx" class="preview-item">
+            <span class="preview-label">{{ field.key }}</span>
+            <span class="preview-value">{{ field.value }}</span>
+          </div>
+        </template>
       </div>
     </Dialog>
 
     <Dialog v-model:visible="showExtraFieldsDialog" header="env其他字段设置" width="600px" @confirm="saveExtraFields">
       <div class="extra-fields-dialog">
         <div class="extra-fields-hint">
-          <p>这些字段保存在 settings.json 的 env 中，不随配置切换而改变。</p>
+          <p>这些字段作为全局基础值，切换配置时会与配置中的env其他字段合并（配置优先）。</p>
           <p>例如：API_TIMEOUT_MS、CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC、CLAUDE_CODE_NO_FLICKER</p>
         </div>
         <div class="extra-fields-list">

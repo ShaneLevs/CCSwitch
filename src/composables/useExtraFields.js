@@ -2,7 +2,7 @@ import { ref, computed } from "vue";
 import { MessagePlugin } from "tdesign-vue-next";
 
 const SAVED_FIELD_KEYS_ID = "extra_field_keys";
-const fixedFieldKeyOptions = [
+export const fixedFieldKeyOptions = [
   "API_TIMEOUT_MS",
   "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
   "CLAUDE_CODE_NO_FLICKER",
@@ -52,7 +52,23 @@ export function useExtraFields(loadCurrentConfig) {
   const addExtraField = () => extraFields.value.push({ key: '', value: '' });
   const removeExtraField = (idx) => extraFields.value.splice(idx, 1);
 
+  const saveExtraFieldKeys = (keys) => {
+    const userKeys = keys.filter(k => k && !fixedFieldKeyOptions.includes(k));
+    if (!userKeys.length) return;
+    const existingDoc = window.utools.db.get(SAVED_FIELD_KEYS_ID);
+    const existing = existingDoc?.keys || [];
+    const merged = [...new Set([...existing, ...userKeys])];
+    const doc = { _id: SAVED_FIELD_KEYS_ID, keys: merged };
+    if (existingDoc) doc._rev = existingDoc._rev;
+    window.utools.db.put(doc);
+  };
+
   const saveExtraFields = () => {
+    // 检查重复 key
+    const keys = extraFields.value.map(f => f.key?.trim()).filter(Boolean);
+    const duplicateKey = keys.find((k, i) => keys.indexOf(k) !== i);
+    if (duplicateKey) return MessagePlugin.warning(`env字段 key 重复: ${duplicateKey}`);
+
     const settings = window.services.readClaudeSettings() || {};
     if (!settings.env) settings.env = {};
 
@@ -94,5 +110,6 @@ export function useExtraFields(loadCurrentConfig) {
     addExtraField,
     removeExtraField,
     saveExtraFields,
+    saveExtraFieldKeys,
   };
 }

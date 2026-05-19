@@ -27,6 +27,7 @@
 .preview-label { color: var(--td-text-color-secondary); min-width: 120px; font-size: 14px; }
 .preview-value { color: var(--td-text-color-primary); word-break: break-all; font-size: 14px; }
 .preview-divider { margin: 8px 0; border-top: 1px solid var(--td-component-border); }
+.preview-subtitle { font-size: 13px; font-weight: 500; color: var(--td-text-color-secondary); margin-bottom: 4px; }
 
 /* 当前配置展示 */
 .current-config-card { margin-bottom: 16px; padding: 16px; background: var(--td-bg-color-container); border-radius: var(--td-radius-medium); border: 1px solid var(--td-component-border); }
@@ -52,12 +53,16 @@
 .extra-field-item .field-value { flex: 0 0 140px; }
 .add-field-btn { align-self: flex-start; }
 
+/* 弹窗内 radio 切换 */
+.dialog-switch { margin-bottom: 16px; }
+
 /* 表单样式 */
 .form { display: flex; flex-direction: column; gap: 16px; }
 .form-item { display: flex; align-items: center; gap: 12px; }
 .form-item label { font-size: 14px; color: var(--td-text-color-primary); flex-shrink: 0; width: 80px; text-align: right; }
 .form-item-vertical { display: flex; flex-direction: column; gap: 8px; }
 .form-item-vertical label { font-size: 14px; color: var(--td-text-color-primary); }
+.form-hint { font-size: 12px; color: var(--td-text-color-placeholder); padding-left: 92px; margin-top: -10px; margin-bottom: -10px; }
 .form-item .required { color: var(--td-error-color); }
 .dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .dialog-footer-right { display: flex; gap: 8px; }
