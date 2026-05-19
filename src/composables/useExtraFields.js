@@ -1,7 +1,6 @@
 import { ref, computed } from "vue";
 import { MessagePlugin } from "tdesign-vue-next";
 
-const DB_PREFIX = "ccswitch_config_";
 const SAVED_FIELD_KEYS_ID = "extra_field_keys";
 export const fixedFieldKeyOptions = [
   "API_TIMEOUT_MS",
@@ -20,23 +19,7 @@ const managedFields = [
   'CLAUDE_CODE_SUBAGENT_MODEL',
 ];
 
-// 获取当前活跃配置的 env 其他字段和配置名
-function getActiveConfigInfo() {
-  const settings = window.services.readClaudeSettings() || {};
-  const env = settings.env || {};
-  const currentKey = env.ANTHROPIC_AUTH_TOKEN || '';
-  const currentUrl = env.ANTHROPIC_BASE_URL || '';
-  const configs = window.utools.db.allDocs().filter(d => d._id.startsWith(DB_PREFIX));
-  for (const d of configs) {
-    const decryptedKey = window.services.decryptKey(d.key);
-    if (decryptedKey === currentKey && d.baseUrl === currentUrl) {
-      return { name: d.name, extraFields: d.extraFields || [] };
-    }
-  }
-  return null;
-}
-
-export function useExtraFields(loadCurrentConfig) {
+export function useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig) {
   const showExtraFieldsDialog = ref(false);
   const extraFields = ref([]);
   const activeConfigExtras = ref(null); // { name, extraFields }
@@ -52,16 +35,45 @@ export function useExtraFields(loadCurrentConfig) {
     savedExtraFieldKeys.value = doc?.keys || [];
   };
 
-  const openExtraFieldsDialog = () => {
-    loadExtraFieldKeys();
-    // 读取当前活跃配置的 extraFields
-    activeConfigExtras.value = getActiveConfigInfo();
-    // 从 DB 读全局基准，不从 settings.json 读（避免看到和配置混合后的值）
+  // 通过和前端一样的逻辑找到当前生效的配置
+  const findActiveConfig = () => {
+    if (!savedConfigs || !isCurrentConfig) return null;
+    for (const config of savedConfigs.value || []) {
+      if (isCurrentConfig(config)) return config;
+    }
+    return null;
+  };
+
+  const loadGlobalExtraFields = () => {
     const saved = window.services.getOverriddenEnv();
     if (saved) {
       extraFields.value = Object.keys(saved).map(key => ({ key, value: String(saved[key]) }));
     } else {
-      // 首次：从 settings.json 读当前值作为初始值
+      const settings = window.services.readClaudeSettings() || {};
+      const env = settings.env || {};
+      extraFields.value = [];
+      Object.keys(env).forEach(key => {
+        if (!managedFields.includes(key)) {
+          extraFields.value.push({ key, value: String(env[key]) });
+        }
+      });
+    }
+  };
+
+  const openExtraFieldsDialog = () => {
+    loadExtraFieldKeys();
+    // 通过和前端一样的逻辑找到当前生效的配置
+    const active = findActiveConfig();
+    if (active) {
+      activeConfigExtras.value = { name: active.name, extraFields: active.extraFields || [] };
+    } else {
+      activeConfigExtras.value = null;
+    }
+    // 从 DB 读全局基准，没有则从 settings.json 兜底
+    let saved = window.services.getOverriddenEnv();
+    if (saved && Object.keys(saved).length) {
+      extraFields.value = Object.keys(saved).map(key => ({ key, value: String(saved[key]) }));
+    } else {
       const settings = window.services.readClaudeSettings() || {};
       const env = settings.env || {};
       extraFields.value = [];
@@ -147,6 +159,7 @@ export function useExtraFields(loadCurrentConfig) {
     activeConfigExtras,
     extraFieldKeyOptions,
     loadExtraFieldKeys,
+    loadGlobalExtraFields,
     openExtraFieldsDialog,
     addExtraField,
     removeExtraField,

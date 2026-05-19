@@ -148,6 +148,7 @@ const openPreviewDialog = (config) => {
 const openCreateDialog = () => {
   editingConfig.value = null;
   dialogTab.value = "basic";
+  loadGlobalExtraFields();
   formData.value = {
     name: "",
     key: "",
@@ -165,6 +166,7 @@ const openCreateDialog = () => {
 const openEditDialog = (config) => {
   editingConfig.value = config;
   dialogTab.value = "basic";
+  loadGlobalExtraFields();
   formData.value = {
     name: config.name,
     key: config.key,
@@ -187,20 +189,6 @@ const fillCurrentConfig = () => {
   formData.value.defaultSonnetModel = currentConfig.value.defaultSonnetModel;
   formData.value.defaultOpusModel = currentConfig.value.defaultOpusModel;
   formData.value.subagentModel = currentConfig.value.subagentModel;
-  // 读取当前 settings.json 中的 env 其他字段
-  const settings = window.services.readClaudeSettings() || {};
-  const env = settings.env || {};
-  const managedKeys = [
-    'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL',
-    'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL',
-    'ANTHROPIC_DEFAULT_OPUS_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL',
-  ];
-  formData.value.extraFields = [];
-  Object.keys(env).forEach(key => {
-    if (!managedKeys.includes(key)) {
-      formData.value.extraFields.push({ key, value: String(env[key]) });
-    }
-  });
 };
 
 const addDialogExtraField = () => formData.value.extraFields.push({ key: "", value: "" });
@@ -267,8 +255,25 @@ const { switchConfig, isCurrentConfig } = useConfigSwitch(currentConfig, loadCur
 
 const {
   showExtraFieldsDialog, extraFields, activeConfigExtras, extraFieldKeyOptions,
-  loadExtraFieldKeys, openExtraFieldsDialog, addExtraField, removeExtraField, saveExtraFields, saveExtraFieldKeys,
-} = useExtraFields(loadCurrentConfig);
+  loadExtraFieldKeys, loadGlobalExtraFields, openExtraFieldsDialog, addExtraField, removeExtraField, saveExtraFields, saveExtraFieldKeys,
+} = useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig);
+
+const reloadFromSettings = () => {
+  const settings = window.services.readClaudeSettings() || {};
+  const env = settings.env || {};
+  const managedKeys = [
+    'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL',
+    'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL',
+    'ANTHROPIC_DEFAULT_OPUS_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL',
+  ];
+  extraFields.value = [];
+  Object.keys(env).forEach(key => {
+    if (!managedKeys.includes(key)) {
+      extraFields.value.push({ key, value: String(env[key]) });
+    }
+  });
+  MessagePlugin.success('已从 settings.json 读取');
+};
 
 const openSettingsFile = () => {
   const filePath = window.services.getClaudeSettingsPath();
@@ -399,22 +404,42 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
         <div class="form-item"><label>SUBAGENT</label><Input v-model="formData.subagentModel" placeholder="CLAUDE_CODE_SUBAGENT_MODEL" /></div>
       </div>
       <div v-else class="extra-fields-dialog">
+        <!-- 全局 env 其他字段参考（只读） -->
+        <div v-if="extraFields.length" class="active-config-extras">
+          <div class="active-config-extras-title">全局 env 其他字段</div>
+          <div class="extra-fields-list">
+            <div v-for="(field, idx) in extraFields" :key="idx" class="extra-field-wrap extra-field-readonly">
+              <div class="extra-field-row">
+                <div class="field-key-readonly">{{ field.key }}</div>
+                <div class="field-value-readonly">{{ field.value }}</div>
+              </div>
+              <div v-if="formData.extraFields.some(f => f.key?.trim() === field.key?.trim())" class="field-tag-row">
+                <Tag size="small" theme="warning" variant="light">将被覆盖</Tag>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="extra-fields-hint">
           <p>切换配置时，这些字段会与全局env其他字段做合并（配置优先）。</p>
-          <p>例如：API_TIMEOUT_MS、CLAUDE_CODE_EFFORT_LEVEL</p>
         </div>
         <div class="extra-fields-list">
-          <div v-for="(field, idx) in formData.extraFields" :key="idx" class="extra-field-item">
-            <AutoComplete v-model="field.key" class="field-key" :options="extraFieldKeyOptions" filterable placeholder="字段名" />
-            <Input v-model="field.value" class="field-value" placeholder="字段值" />
-            <Button size="small" theme="danger" variant="text" @click="removeDialogExtraField(idx)"><DeleteIcon /></Button>
+          <div v-for="(field, idx) in formData.extraFields" :key="idx" class="extra-field-wrap">
+            <div class="extra-field-row">
+              <AutoComplete v-model="field.key" class="field-key" :options="extraFieldKeyOptions" filterable placeholder="字段名" />
+              <Input v-model="field.value" class="field-value" placeholder="字段值" />
+              <Button size="small" theme="danger" variant="text" @click="removeDialogExtraField(idx)"><DeleteIcon /></Button>
+            </div>
+            <div v-if="extraFields.some(f => f.key?.trim() === field.key?.trim())" class="field-tag-row">
+              <Tag size="small" theme="warning" variant="light">覆盖全局</Tag>
+            </div>
           </div>
         </div>
         <Button size="small" variant="outline" @click="addDialogExtraField" class="add-field-btn"><template #icon><AddIcon /></template> 添加字段</Button>
       </div>
       <template #footer>
         <div class="dialog-footer">
-          <Button variant="outline" @click="fillCurrentConfig"><template #icon><RefreshIcon /></template> 读取当前配置</Button>
+          <Button v-if="!editingConfig" variant="outline" @click="fillCurrentConfig"><template #icon><RefreshIcon /></template> 读取当前配置</Button>
+          <span v-else></span>
           <div class="dialog-footer-right"><Button variant="outline" @click="showDialog = false">取消</Button><Button theme="primary" @click="saveConfig">保存</Button></div>
         </div>
       </template>
@@ -450,15 +475,17 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
       <div class="extra-fields-dialog">
         <!-- 当前活跃配置的 env 其他字段（只读） -->
         <div v-if="activeConfigExtras && activeConfigExtras.extraFields.length" class="active-config-extras">
-          <div class="active-config-extras-title">来自当前配置「{{ activeConfigExtras.name }}」</div>
+          <div class="active-config-extras-title">{{ activeConfigExtras.name ? '来自当前配置「' + activeConfigExtras.name + '」' : '当前生效的 env 其他字段' }}</div>
           <div class="extra-fields-list">
-            <div v-for="(field, idx) in activeConfigExtras.extraFields" :key="idx" class="extra-field-item extra-field-readonly">
-              <div class="field-key-readonly">
-                {{ field.key }}
-                <Tag v-if="extraFields.some(f => f.key?.trim() === field.key)" size="small" theme="warning" variant="light">覆盖全局同名字段</Tag>
+            <div v-for="(field, idx) in activeConfigExtras.extraFields" :key="idx" class="extra-field-wrap extra-field-readonly">
+              <div class="extra-field-row">
+                <div class="field-key-readonly">{{ field.key }}</div>
+                <div class="field-value-readonly">{{ field.value }}</div>
+              </div>
+              <div class="field-tag-row">
+                <Tag v-if="extraFields.some(f => f.key?.trim() === field.key)" size="small" theme="warning" variant="light">覆盖全局</Tag>
                 <Tag v-else size="small" theme="success" variant="light">生效中</Tag>
               </div>
-              <div class="field-value-readonly">{{ field.value }}</div>
             </div>
           </div>
         </div>
@@ -466,13 +493,21 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
           <p>以下为全局基础值，切换配置时会与配置中的env其他字段合并（配置优先）。</p>
         </div>
         <div class="extra-fields-list">
-          <div v-for="(field, idx) in extraFields" :key="idx" class="extra-field-item">
-            <AutoComplete v-model="field.key" class="field-key" :options="extraFieldKeyOptions" filterable placeholder="字段名" />
-            <Input v-model="field.value" class="field-value" placeholder="字段值" />
-            <Button size="small" theme="danger" variant="text" @click="removeExtraField(idx)"><DeleteIcon /></Button>
+          <div v-for="(field, idx) in extraFields" :key="idx" class="extra-field-wrap">
+            <div class="extra-field-row">
+              <AutoComplete v-model="field.key" class="field-key" :options="extraFieldKeyOptions" filterable placeholder="字段名" />
+              <Input v-model="field.value" class="field-value" placeholder="字段值" />
+              <Button size="small" theme="danger" variant="text" @click="removeExtraField(idx)"><DeleteIcon /></Button>
+            </div>
+            <div v-if="activeConfigExtras?.extraFields.some(f => f.key?.trim() === field.key?.trim())" class="field-tag-row">
+              <Tag size="small" theme="warning" variant="light">被覆盖</Tag>
+            </div>
           </div>
         </div>
-        <Button size="small" variant="outline" @click="addExtraField" class="add-field-btn"><template #icon><AddIcon /></template> 添加字段</Button>
+        <div class="extra-fields-actions">
+          <Button size="small" variant="outline" @click="addExtraField"><template #icon><AddIcon /></template> 添加字段</Button>
+          <Button size="small" variant="outline" @click="reloadFromSettings"><template #icon><RefreshIcon /></template> 重新读取其他字段设置</Button>
+        </div>
       </div>
       <template #footer>
         <Button variant="outline" @click="showExtraFieldsDialog = false">取消</Button>

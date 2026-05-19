@@ -65,6 +65,13 @@ export function useConfigSwitch(currentConfig, loadCurrentConfig) {
     });
 
     if (window.services.writeClaudeSettings(settings)) {
+      // 保存当前启用的配置 ID，供全局弹窗读取
+      if (config.id) {
+        const activeDoc = { _id: 'ccswitch_active_config_id', configId: config.id };
+        const existing = window.utools.db.get('ccswitch_active_config_id');
+        if (existing) activeDoc._rev = existing._rev;
+        window.utools.db.put(activeDoc);
+      }
       MessagePlugin.success("配置已切换");
       loadCurrentConfig();
     } else {
