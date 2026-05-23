@@ -5,6 +5,10 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
+body {
+  overflow-y: overlay;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

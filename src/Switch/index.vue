@@ -89,7 +89,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.container { padding: 20px; min-height: 100vh; background: var(--td-bg-color-container); }
+.container { padding: 20px; min-height: 100vh; box-sizing: border-box; background: var(--td-bg-color-container); }
 .header { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
 .header-left { display: flex; align-items: center; gap: 12px; }
 .header-right { display: flex; align-items: center; }

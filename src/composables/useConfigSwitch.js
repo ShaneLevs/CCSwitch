@@ -1,14 +1,5 @@
 import { MessagePlugin } from "tdesign-vue-next";
-
-const managedFields = [
-  'ANTHROPIC_AUTH_TOKEN',
-  'ANTHROPIC_BASE_URL',
-  'ANTHROPIC_MODEL',
-  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-  'ANTHROPIC_DEFAULT_SONNET_MODEL',
-  'ANTHROPIC_DEFAULT_OPUS_MODEL',
-  'CLAUDE_CODE_SUBAGENT_MODEL',
-];
+import { managedFields } from "../constants";
 
 export function useConfigSwitch(currentConfig, loadCurrentConfig) {
   const switchConfig = (config) => {

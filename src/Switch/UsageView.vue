@@ -129,7 +129,7 @@ const handleProjectClick = (projectPath) => {
 <template>
   <div class="usage-view">
     <div class="usage-header">
-      <span class="usage-tip">当前统计数据仅用于展示处理的 token 数量，不做其他参考。</span>
+      <span class="usage-tip">仅统计本地保留的会话数据，早期数据可能因文件清理而缺失</span>
       <div class="usage-actions">
         <Button size="small" variant="outline" :loading="loading" @click="handleRefresh">
           <template #icon><RefreshIcon /></template>
@@ -171,7 +171,7 @@ const handleProjectClick = (projectPath) => {
     <!-- 贡献墙 -->
     <Card title="Usage Heatmap">
       <template #actions>
-        <span class="model-hint">仅统计本地保留的会话数据，早期数据可能因文件清理而缺失</span>
+        <span class="model-hint">热力图数据会在每次打开插件时保存一份</span>
       </template>
       <div v-if="loading" class="empty-small">
         <Empty description="加载中..." size="small" />

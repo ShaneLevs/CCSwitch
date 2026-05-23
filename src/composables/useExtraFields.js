@@ -1,5 +1,6 @@
 import { ref, computed } from "vue";
 import { MessagePlugin } from "tdesign-vue-next";
+import { managedFields } from "../constants";
 
 const SAVED_FIELD_KEYS_ID = "extra_field_keys";
 export const fixedFieldKeyOptions = [
@@ -8,15 +9,6 @@ export const fixedFieldKeyOptions = [
   "CLAUDE_CODE_NO_FLICKER",
   "CLAUDE_CODE_EFFORT_LEVEL",
   "CLAUDE_CODE_ATTRIBUTION_HEADER",
-];
-const managedFields = [
-  'ANTHROPIC_AUTH_TOKEN',
-  'ANTHROPIC_BASE_URL',
-  'ANTHROPIC_MODEL',
-  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-  'ANTHROPIC_DEFAULT_SONNET_MODEL',
-  'ANTHROPIC_DEFAULT_OPUS_MODEL',
-  'CLAUDE_CODE_SUBAGENT_MODEL',
 ];
 
 export function useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig) {
@@ -62,27 +54,11 @@ export function useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig)
 
   const openExtraFieldsDialog = () => {
     loadExtraFieldKeys();
-    // 通过和前端一样的逻辑找到当前生效的配置
     const active = findActiveConfig();
-    if (active) {
-      activeConfigExtras.value = { name: active.name, extraFields: active.extraFields || [] };
-    } else {
-      activeConfigExtras.value = null;
-    }
-    // 从 DB 读全局基准，没有则从 settings.json 兜底
-    let saved = window.services.getOverriddenEnv();
-    if (saved && Object.keys(saved).length) {
-      extraFields.value = Object.keys(saved).map(key => ({ key, value: String(saved[key]) }));
-    } else {
-      const settings = window.services.readClaudeSettings() || {};
-      const env = settings.env || {};
-      extraFields.value = [];
-      Object.keys(env).forEach(key => {
-        if (!managedFields.includes(key)) {
-          extraFields.value.push({ key, value: String(env[key]) });
-        }
-      });
-    }
+    activeConfigExtras.value = active
+      ? { name: active.name, extraFields: active.extraFields || [] }
+      : null;
+    loadGlobalExtraFields();
     showExtraFieldsDialog.value = true;
   };
 
