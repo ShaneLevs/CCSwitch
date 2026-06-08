@@ -14,6 +14,7 @@ import {
   Tooltip,
   RadioGroup,
   RadioButton,
+  Checkbox,
 } from "tdesign-vue-next";
 import {
   AddIcon,
@@ -275,6 +276,27 @@ const reloadFromSettings = () => {
   MessagePlugin.success('已从 settings.json 读取');
 };
 
+const skipLogin = ref(false);
+
+const loadSkipLogin = () => {
+  const config = window.services.readClaudeJson();
+  skipLogin.value = !!config.hasCompletedOnboarding;
+};
+
+const toggleSkipLogin = (val) => {
+  const config = window.services.readClaudeJson();
+  if (val) {
+    config.hasCompletedOnboarding = true;
+  } else {
+    delete config.hasCompletedOnboarding;
+  }
+  if (window.services.writeClaudeJson(config)) {
+    skipLogin.value = val;
+  } else {
+    MessagePlugin.error('写入 .claude.json 失败');
+  }
+};
+
 const openSettingsFile = () => {
   const filePath = window.services.getClaudeSettingsPath();
   window.utools.shellOpenPath(filePath);
@@ -285,13 +307,13 @@ const copyModelName = (name) => {
   MessagePlugin.success('已复制: ' + name);
 };
 
-onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys(); loadGroupOrder(); });
+onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys(); loadGroupOrder(); loadSkipLogin(); });
 </script>
 
 <template>
   <div class="config-view">
     <div class="section-header">
-      <span class="section-tip">直接编辑 <span class="hint-link" @click="openSettingsFile">settings.json</span></span>
+      <span class="section-tip">直接编辑 <span class="hint-link" @click="openSettingsFile">settings.json</span><span class="section-tip-divider">|</span><Checkbox v-model="skipLogin" @change="toggleSkipLogin" class="skip-login-checkbox">跳过登录验证</Checkbox></span>
       <Space size="small">
         <Tooltip content="平衡列"><Button size="small" variant="text" @click="rebalanceColumns"><template #icon><RefreshIcon /></template></Button></Tooltip>
         <Button size="small" variant="outline" @click="handleExportAsString"><template #icon><DownloadIcon /></template> 导出</Button>
