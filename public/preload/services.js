@@ -4,6 +4,7 @@ const path = require('node:path')
 const crypto = require('./services/crypto')
 const config = require('./services/config')
 const mcp = require('./services/mcp')
+const opencode = require('./services/opencode')
 
 const {
   CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_SKILLS_PATH,
@@ -21,6 +22,14 @@ const {
 } = mcp
 
 const { encrypt, decrypt, encryptString, decryptString } = crypto
+
+const {
+  getOpencodeConfigPath, readOpencodeConfig, writeOpencodeConfig,
+  getOpencodeProviders, setOpencodeProvider, removeOpencodeProvider,
+  getOpencodeMcpServers, setOpencodeMcpServer, removeOpencodeMcpServer,
+  getOpencodePlugins, setOpencodePlugins, addOpencodePlugin, removeOpencodePlugin,
+  fetchModelsDevPresets,
+} = opencode
 
 window.services = {
   getNativeId,
@@ -51,6 +60,22 @@ window.services = {
   decompressConfigs,
   encryptString,
   decryptString,
+
+  // ==================== OpenCode ====================
+  getOpencodeConfigPath,
+  readOpencodeConfig,
+  writeOpencodeConfig,
+  getOpencodeProviders,
+  setOpencodeProvider,
+  removeOpencodeProvider,
+  getOpencodeMcpServers,
+  setOpencodeMcpServer,
+  removeOpencodeMcpServer,
+  getOpencodePlugins,
+  setOpencodePlugins,
+  addOpencodePlugin,
+  removeOpencodePlugin,
+  fetchModelsDevPresets,
 
   // ==================== Skills ====================
 

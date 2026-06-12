@@ -1,0 +1,85 @@
+.opencode-skill-container {
+  padding: 0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  margin-top: -4px;
+}
+
+.opencode-skill-tip {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
+}
+
+.hint-link {
+  color: var(--td-brand-color);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.empty-state {
+  padding: 60px 0;
+}
+
+.plugin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plugin-card {
+  margin-bottom: 0;
+}
+
+.plugin-card .t-card__header {
+  padding: 10px 16px;
+  border-bottom: none;
+}
+
+.plugin-header-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.plugin-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.plugin-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--td-text-color-primary);
+  word-break: break-all;
+}
+
+/* 添加弹窗样式 */
+.add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.add-form .form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.add-form label {
+  font-size: 14px;
+  color: var(--td-text-color-primary);
+}
+
+/* Dark mode overrides */
+:root[theme-mode="dark"] .plugin-card {
+  border-color: var(--td-border-level-1-color);
+}

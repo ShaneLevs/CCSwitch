@@ -1,23 +1,30 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { Button } from "tdesign-vue-next";
+import { Button, Dropdown } from "tdesign-vue-next";
 import {
   ChartIcon,
   DashboardIcon,
   ServerIcon,
   BookIcon,
+  ChevronDownIcon,
 } from "tdesign-icons-vue-next";
 import ConfigView from "./ConfigView.vue";
 import UsageView from "./UsageView.vue";
 import McpView from "./McpView.vue";
 import SkillView from "./SkillView.vue";
+import OpenCodeConfigView from "./OpenCodeConfigView.vue";
+import OpenCodeMcpView from "./OpenCodeMcpView.vue";
+import OpenCodeSkillView from "./OpenCodeSkillView.vue";
 import wavingDark from '../assets/waving-dark.gif';
 import wavingLight from '../assets/waving-light.gif';
+import { useAppContext } from "../composables/useAppContext";
 
 const props = defineProps({
   route: String,
   payload: String,
 });
+
+const { activeApp, setActiveApp, isClaude, isOpenCode } = useAppContext();
 
 const activeTab = ref("config");
 const skillViewRef = ref(null);
@@ -34,18 +41,42 @@ const triggerWaving = () => {
   setTimeout(() => { showWaving.value = false; }, 3000);
 };
 
-const pageTitle = computed(() => {
-  if (activeTab.value === 'usage') return 'Claude Code 使用统计';
-  if (activeTab.value === 'mcp') return 'Claude Code MCP 配置';
-  if (activeTab.value === 'skill') return 'Claude Code Skill 配置';
-  return 'Claude Code 配置切换';
+const appLabel = computed(() => isClaude.value ? 'Claude Code' : 'Open Code');
+
+const pageTitleSuffix = computed(() => {
+  if (isOpenCode.value) {
+    if (activeTab.value === 'mcp') return 'MCP 配置';
+    if (activeTab.value === 'skill') return 'Skill 配置';
+    return '配置管理';
+  }
+  if (activeTab.value === 'usage') return '使用统计';
+  if (activeTab.value === 'mcp') return 'MCP 配置';
+  if (activeTab.value === 'skill') return 'Skill 配置';
+  return '配置切换';
 });
 
+const pageTitle = computed(() => `${appLabel.value} ${pageTitleSuffix.value}`);
+
+const switchApp = (app) => {
+  if (activeApp.value !== app) {
+    setActiveApp(app);
+    activeTab.value = 'config';
+  }
+};
+
+const appDropdownOptions = [
+  { content: 'Claude Code', value: 'claude' },
+  { content: 'Open Code', value: 'opencode' },
+];
+
+const handleAppSelect = (data) => {
+  const app = typeof data === 'object' ? data.value : data;
+  switchApp(app);
+};
+
 onMounted(() => {
-  // 如果通过匹配指令进入，切换到 skill 标签并打开安装
   if (props.route === 'installSkill' && props.payload) {
     activeTab.value = 'skill';
-    // 等待 SkillView 渲染完成
     setTimeout(() => {
       if (skillViewRef.value) {
         skillViewRef.value.openInstallWithUrl(props.payload);
@@ -59,12 +90,19 @@ onMounted(() => {
   <div class="container">
     <div class="header">
       <div class="header-left">
-        <img v-if="showWaving" :key="wavingKey" :src="wavingSrc" alt="logo" class="logo" @click="triggerWaving" />
-        <img v-else src="/logo.png" alt="logo" class="logo" @click="triggerWaving" />
-        <t-typography-title level="h5">{{ pageTitle }}</t-typography-title>
+        <img v-if="showWaving && isClaude" :key="wavingKey" :src="wavingSrc" alt="logo" class="logo" @click="triggerWaving" />
+        <img v-else-if="isClaude" src="/logo.png" alt="logo" class="logo" @click="triggerWaving" />
+        <img v-else src="/icon-opencode.png" alt="logo" class="logo" />
+        <Dropdown :options="appDropdownOptions" :min-column-width="160" @click="handleAppSelect">
+          <span class="app-selector">
+            {{ appLabel }} <ChevronDownIcon size="16px" />
+          </span>
+        </Dropdown>
+        <t-typography-title level="h5">{{ pageTitleSuffix }}</t-typography-title>
       </div>
       <div class="header-right">
-        <div class="tab-buttons">
+        <!-- Claude Code tabs -->
+        <div v-if="isClaude" class="tab-buttons">
           <Button size="small" :theme="activeTab === 'config' ? 'primary' : 'default'" :variant="activeTab === 'config' ? 'base' : 'outline'" @click="activeTab = 'config'">
             <template #icon><DashboardIcon /></template> 配置管理
           </Button>
@@ -78,24 +116,56 @@ onMounted(() => {
             <template #icon><ChartIcon /></template> 使用统计
           </Button>
         </div>
+        <!-- Open Code tabs (only config for now) -->
+        <div v-else class="tab-buttons">
+          <Button size="small" :theme="activeTab === 'config' ? 'primary' : 'default'" :variant="activeTab === 'config' ? 'base' : 'outline'" @click="activeTab = 'config'">
+            <template #icon><DashboardIcon /></template> 配置管理
+          </Button>
+        </div>
       </div>
     </div>
 
-    <ConfigView v-if="activeTab === 'config'" />
-    <UsageView v-else-if="activeTab === 'usage'" />
-    <McpView v-else-if="activeTab === 'mcp'" />
-    <SkillView v-else-if="activeTab === 'skill'" ref="skillViewRef" />
+    <!-- Claude Code views -->
+    <template v-if="isClaude">
+      <ConfigView v-if="activeTab === 'config'" />
+      <UsageView v-else-if="activeTab === 'usage'" />
+      <McpView v-else-if="activeTab === 'mcp'" />
+      <SkillView v-else-if="activeTab === 'skill'" ref="skillViewRef" />
+    </template>
+
+    <!-- Open Code views -->
+    <template v-else>
+      <OpenCodeConfigView />
+    </template>
   </div>
 </template>
 
 <style scoped>
 .container { padding: 20px; min-height: 100vh; box-sizing: border-box; background: var(--td-bg-color-container); }
 .header { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
-.header-left { display: flex; align-items: center; gap: 12px; }
+.header-left { display: flex; align-items: center; gap: 8px; }
 .header-right { display: flex; align-items: center; }
 .header .logo { width: 32px; height: 32px; border-radius: var(--td-radius-default); }
 .header :deep(.t-typography-title) { margin: 0; }
 .tab-buttons { display: flex; gap: 4px; }
+
+.app-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--td-text-color-primary);
+  padding: 4px 8px;
+  border-radius: var(--td-radius-default);
+  transition: background-color 0.2s;
+  user-select: none;
+  min-width: 110px;
+}
+.app-selector:hover {
+  background-color: var(--td-bg-color-container-hover);
+}
 
 /* Switch dark mode fix: darken track when off so handle (white #fff) is visible */
 :root[theme-mode="dark"] :deep(.t-switch) { background-color: var(--td-gray-color-6); }
