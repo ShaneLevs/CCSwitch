@@ -15,6 +15,7 @@ import SkillView from "./SkillView.vue";
 import OpenCodeConfigView from "./OpenCodeConfigView.vue";
 import OpenCodeMcpView from "./OpenCodeMcpView.vue";
 import OpenCodeSkillView from "./OpenCodeSkillView.vue";
+import CodexConfigView from "./CodexConfigView.vue";
 import wavingDark from '../assets/waving-dark.gif';
 import wavingLight from '../assets/waving-light.gif';
 import { useAppContext } from "../composables/useAppContext";
@@ -24,7 +25,7 @@ const props = defineProps({
   payload: String,
 });
 
-const { activeApp, setActiveApp, isClaude, isOpenCode } = useAppContext();
+const { activeApp, setActiveApp, isClaude, isOpenCode, isCodex } = useAppContext();
 
 const activeTab = ref("config");
 const skillViewRef = ref(null);
@@ -41,9 +42,14 @@ const triggerWaving = () => {
   setTimeout(() => { showWaving.value = false; }, 3000);
 };
 
-const appLabel = computed(() => isClaude.value ? 'Claude Code' : 'Open Code');
+const appLabel = computed(() => {
+  if (isCodex.value) return 'Codex';
+  if (isOpenCode.value) return 'Open Code';
+  return 'Claude Code';
+});
 
 const pageTitleSuffix = computed(() => {
+  if (isCodex.value) return '配置管理';
   if (isOpenCode.value) {
     if (activeTab.value === 'mcp') return 'MCP 配置';
     if (activeTab.value === 'skill') return 'Skill 配置';
@@ -67,6 +73,7 @@ const switchApp = (app) => {
 const appDropdownOptions = [
   { content: 'Claude Code', value: 'claude' },
   { content: 'Open Code', value: 'opencode' },
+  { content: 'Codex', value: 'codex' },
 ];
 
 const handleAppSelect = (data) => {
@@ -92,6 +99,7 @@ onMounted(() => {
       <div class="header-left">
         <img v-if="showWaving && isClaude" :key="wavingKey" :src="wavingSrc" alt="logo" class="logo" @click="triggerWaving" />
         <img v-else-if="isClaude" src="/logo.png" alt="logo" class="logo" @click="triggerWaving" />
+        <img v-else-if="isCodex" src="/logo-codex.png" alt="logo" class="logo" />
         <img v-else src="/icon-opencode.png" alt="logo" class="logo" />
         <Dropdown :options="appDropdownOptions" :min-column-width="160" @click="handleAppSelect">
           <span class="app-selector">
@@ -116,7 +124,13 @@ onMounted(() => {
             <template #icon><ChartIcon /></template> 使用统计
           </Button>
         </div>
-        <!-- Open Code tabs (only config for now) -->
+        <!-- Codex tabs -->
+        <div v-else-if="isCodex" class="tab-buttons">
+          <Button size="small" :theme="activeTab === 'config' ? 'primary' : 'default'" :variant="activeTab === 'config' ? 'base' : 'outline'" @click="activeTab = 'config'">
+            <template #icon><DashboardIcon /></template> 配置管理
+          </Button>
+        </div>
+        <!-- Open Code tabs -->
         <div v-else class="tab-buttons">
           <Button size="small" :theme="activeTab === 'config' ? 'primary' : 'default'" :variant="activeTab === 'config' ? 'base' : 'outline'" @click="activeTab = 'config'">
             <template #icon><DashboardIcon /></template> 配置管理
@@ -133,10 +147,11 @@ onMounted(() => {
       <SkillView v-else-if="activeTab === 'skill'" ref="skillViewRef" />
     </template>
 
+    <!-- Codex views -->
+    <CodexConfigView v-else-if="isCodex" />
+
     <!-- Open Code views -->
-    <template v-else>
-      <OpenCodeConfigView />
-    </template>
+    <OpenCodeConfigView v-else />
   </div>
 </template>
 
