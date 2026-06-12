@@ -774,6 +774,48 @@ window.services = {
     }
   },
 
+  getMcpUsage() {
+    try {
+      const homeDir = window.utools.getPath('home')
+      const projectsDir = path.join(homeDir, '.claude', 'projects')
+      if (!fs.existsSync(projectsDir)) return {}
+
+      const mcpUsage = {}
+      const jsonlFiles = this._findAllJsonlFiles(projectsDir)
+      for (const filePath of jsonlFiles) {
+        try {
+          const content = fs.readFileSync(filePath, { encoding: 'utf-8' })
+          const lines = content.split('\n').filter(line => line.trim())
+          for (const line of lines) {
+            try {
+              const data = JSON.parse(line)
+              if (data.type !== 'assistant' || !data.message?.content) continue
+              const content = data.message.content
+              if (!Array.isArray(content)) continue
+              for (const block of content) {
+                if (block.type === 'tool_use' && block.name && block.name.startsWith('mcp__')) {
+                  // mcp__{server}__{tool} -> extract server name
+                  const parts = block.name.split('__')
+                  if (parts.length >= 3) {
+                    const serverName = parts.slice(1, -1).join('__')
+                    if (!mcpUsage[serverName]) mcpUsage[serverName] = { usageCount: 0, lastUsedAt: null }
+                    mcpUsage[serverName].usageCount++
+                    const ts = data.timestamp ? new Date(data.timestamp).getTime() : 0
+                    if (ts > mcpUsage[serverName].lastUsedAt) mcpUsage[serverName].lastUsedAt = ts
+                  }
+                }
+              }
+            } catch (e) { /* skip */ }
+          }
+        } catch (e) { /* skip file */ }
+      }
+      return mcpUsage
+    } catch (e) {
+      console.error('读取 MCP usage 失败:', e)
+      return {}
+    }
+  },
+
   copyClaudeCommand(projectPath) {
     if (!projectPath || projectPath === 'unknown') return { success: false, error: '无效的项目路径' }
     try {

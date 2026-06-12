@@ -1,4 +1,4 @@
-.config-view { display: flex; flex-direction: column; }
+.config-view { display: flex; flex-direction: column; padding-top: 10px; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .section-tip { font-size: 12px; color: var(--td-text-color-placeholder); display: flex; align-items: center; gap: 0; }
 .section-tip-divider { margin: 0 8px; opacity: 0.4; }
@@ -76,5 +76,7 @@
 .form-item-vertical label { font-size: 14px; color: var(--td-text-color-primary); }
 .form-hint { font-size: 12px; color: var(--td-text-color-placeholder); padding-left: 92px; margin-top: -10px; margin-bottom: -10px; }
 .form-item .required { color: var(--td-error-color); }
+.model-1m-checkbox { font-size: 12px; white-space: nowrap; --td-brand-color: var(--td-success-color); margin-right: -4px; max-width: 50px; }
+.model-1m-checkbox .t-checkbox__label { font-size: 12px; font-family: monospace; padding-left: 2px; }
 .dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .dialog-footer-right { display: flex; gap: 8px; }

@@ -67,10 +67,11 @@
   padding: 8px 16px;
 }
 
-.mcp-info {
+.mcp-info-row {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 
 .config-summary {
@@ -78,6 +79,17 @@
   font-size: 13px;
   font-family: monospace;
   word-break: break-all;
+}
+
+.mcp-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mcp-last-used {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
 }
 
 /* JSON 编辑器样式 */

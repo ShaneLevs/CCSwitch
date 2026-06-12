@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import {
   Button,
   Input,
@@ -32,6 +32,9 @@ import { useConfigSwitch } from "../composables/useConfigSwitch";
 import { useExtraFields } from "../composables/useExtraFields";
 import "./styles/ConfigView.css";
 
+const strip1m = (v) => (v || '').replace(/\[1m\]$/i, '');
+const has1m = (v) => /\[1m\]$/i.test(v || '');
+
 const DB_PREFIX = "ccswitch_config_";
 
 const currentConfig = ref({
@@ -54,11 +57,27 @@ const formData = ref({
   key: "",
   baseUrl: "",
   model: "",
+  model1m: false,
   defaultHaikuModel: "",
+  defaultHaikuModel1m: false,
   defaultSonnetModel: "",
+  defaultSonnetModel1m: false,
   defaultOpusModel: "",
+  defaultOpusModel1m: false,
   subagentModel: "",
+  subagentModel1m: false,
   extraFields: [],
+});
+
+// 当用户手动在输入框输入 [1m] 时，同步勾选复选框并自动清除输入中的 [1m]
+const modelFields = ['model', 'defaultHaikuModel', 'defaultSonnetModel', 'defaultOpusModel', 'subagentModel'];
+modelFields.forEach(field => {
+  watch(() => formData.value[field], (val) => {
+    if (has1m(val)) {
+      formData.value[field] = strip1m(val);
+      formData.value[field + '1m'] = true;
+    }
+  });
 });
 
 const dialogTitle = computed(() => (editingConfig.value ? "编辑配置" : "新建配置"));
@@ -155,10 +174,15 @@ const openCreateDialog = () => {
     key: "",
     baseUrl: "",
     model: "",
+    model1m: false,
     defaultHaikuModel: "",
+    defaultHaikuModel1m: false,
     defaultSonnetModel: "",
+    defaultSonnetModel1m: false,
     defaultOpusModel: "",
+    defaultOpusModel1m: false,
     subagentModel: "",
+    subagentModel1m: false,
     extraFields: [],
   };
   showDialog.value = true;
@@ -172,11 +196,16 @@ const openEditDialog = (config) => {
     name: config.name,
     key: config.key,
     baseUrl: config.baseUrl,
-    model: config.model,
-    defaultHaikuModel: config.defaultHaikuModel || "",
-    defaultSonnetModel: config.defaultSonnetModel || "",
-    defaultOpusModel: config.defaultOpusModel || "",
-    subagentModel: config.subagentModel || "",
+    model: strip1m(config.model),
+    model1m: has1m(config.model),
+    defaultHaikuModel: strip1m(config.defaultHaikuModel || ""),
+    defaultHaikuModel1m: has1m(config.defaultHaikuModel || ""),
+    defaultSonnetModel: strip1m(config.defaultSonnetModel || ""),
+    defaultSonnetModel1m: has1m(config.defaultSonnetModel || ""),
+    defaultOpusModel: strip1m(config.defaultOpusModel || ""),
+    defaultOpusModel1m: has1m(config.defaultOpusModel || ""),
+    subagentModel: strip1m(config.subagentModel || ""),
+    subagentModel1m: has1m(config.subagentModel || ""),
     extraFields: (config.extraFields || []).map(f => ({ ...f })),
   };
   showDialog.value = true;
@@ -185,11 +214,16 @@ const openEditDialog = (config) => {
 const fillCurrentConfig = () => {
   formData.value.key = currentConfig.value.key;
   formData.value.baseUrl = currentConfig.value.baseUrl;
-  formData.value.model = currentConfig.value.model;
-  formData.value.defaultHaikuModel = currentConfig.value.defaultHaikuModel;
-  formData.value.defaultSonnetModel = currentConfig.value.defaultSonnetModel;
-  formData.value.defaultOpusModel = currentConfig.value.defaultOpusModel;
-  formData.value.subagentModel = currentConfig.value.subagentModel;
+  formData.value.model = strip1m(currentConfig.value.model);
+  formData.value.model1m = has1m(currentConfig.value.model);
+  formData.value.defaultHaikuModel = strip1m(currentConfig.value.defaultHaikuModel);
+  formData.value.defaultHaikuModel1m = has1m(currentConfig.value.defaultHaikuModel);
+  formData.value.defaultSonnetModel = strip1m(currentConfig.value.defaultSonnetModel);
+  formData.value.defaultSonnetModel1m = has1m(currentConfig.value.defaultSonnetModel);
+  formData.value.defaultOpusModel = strip1m(currentConfig.value.defaultOpusModel);
+  formData.value.defaultOpusModel1m = has1m(currentConfig.value.defaultOpusModel);
+  formData.value.subagentModel = strip1m(currentConfig.value.subagentModel);
+  formData.value.subagentModel1m = has1m(currentConfig.value.subagentModel);
 };
 
 const addDialogExtraField = () => formData.value.extraFields.push({ key: "", value: "" });
@@ -209,16 +243,21 @@ const saveConfig = () => {
   const extraKeys = cleanExtraFields.map(f => f.key);
   const duplicateKey = extraKeys.find((k, i) => extraKeys.indexOf(k) !== i);
   if (duplicateKey) return MessagePlugin.warning(`env字段 key 重复: ${duplicateKey}`);
+  const buildModelValue = (field, checked) => {
+    const stripped = strip1m(formData.value[field].trim());
+    return checked ? stripped + '[1m]' : stripped;
+  };
+
   const doc = {
     _id: id,
     name: formData.value.name.trim(),
     key: window.services.encryptKey(formData.value.key.trim()),
     baseUrl: formData.value.baseUrl.trim(),
-    model: formData.value.model.trim(),
-    defaultHaikuModel: formData.value.defaultHaikuModel.trim(),
-    defaultSonnetModel: formData.value.defaultSonnetModel.trim(),
-    defaultOpusModel: formData.value.defaultOpusModel.trim(),
-    subagentModel: formData.value.subagentModel.trim(),
+    model: buildModelValue('model', formData.value.model1m),
+    defaultHaikuModel: buildModelValue('defaultHaikuModel', formData.value.defaultHaikuModel1m),
+    defaultSonnetModel: buildModelValue('defaultSonnetModel', formData.value.defaultSonnetModel1m),
+    defaultOpusModel: buildModelValue('defaultOpusModel', formData.value.defaultOpusModel1m),
+    subagentModel: buildModelValue('subagentModel', formData.value.subagentModel1m),
     extraFields: cleanExtraFields,
     updatedAt: now,
   };
@@ -417,13 +456,13 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
         <div class="form-item"><label>URL <span class="required">*</span></label><Input v-model="formData.baseUrl" placeholder="ANTHROPIC_BASE_URL" /></div>
         <div class="form-item"><label>TOKEN <span class="required">*</span></label><Input v-model="formData.key" type="password" placeholder="ANTHROPIC_AUTH_TOKEN" /></div>
         <div class="form-hint">设置默认对话模型，留空则跟随系统默认</div>
-        <div class="form-item"><label>MODEL</label><Input v-model="formData.model" placeholder="ANTHROPIC_MODEL" /></div>
+        <div class="form-item"><label>MODEL</label><Input v-model="formData.model" placeholder="ANTHROPIC_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.model1m" size="small" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
         <div class="form-hint">分别指定各层级模型版本，留空则使用系统默认分配</div>
-        <div class="form-item"><label>HAIKU</label><Input v-model="formData.defaultHaikuModel" placeholder="ANTHROPIC_DEFAULT_HAIKU_MODEL" /></div>
-        <div class="form-item"><label>SONNET</label><Input v-model="formData.defaultSonnetModel" placeholder="ANTHROPIC_DEFAULT_SONNET_MODEL" /></div>
-        <div class="form-item"><label>OPUS</label><Input v-model="formData.defaultOpusModel" placeholder="ANTHROPIC_DEFAULT_OPUS_MODEL" /></div>
+        <div class="form-item"><label>HAIKU</label><Input v-model="formData.defaultHaikuModel" placeholder="ANTHROPIC_DEFAULT_HAIKU_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultHaikuModel1m" size="small" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
+        <div class="form-item"><label>SONNET</label><Input v-model="formData.defaultSonnetModel" placeholder="ANTHROPIC_DEFAULT_SONNET_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultSonnetModel1m" size="small" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
+        <div class="form-item"><label>OPUS</label><Input v-model="formData.defaultOpusModel" placeholder="ANTHROPIC_DEFAULT_OPUS_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultOpusModel1m" size="small" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
         <div class="form-hint">设置子代理（工具调用、后台任务等）使用的模型</div>
-        <div class="form-item"><label>SUBAGENT</label><Input v-model="formData.subagentModel" placeholder="CLAUDE_CODE_SUBAGENT_MODEL" /></div>
+        <div class="form-item"><label>SUBAGENT</label><Input v-model="formData.subagentModel" placeholder="CLAUDE_CODE_SUBAGENT_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.subagentModel1m" size="small" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
       </div>
       <div v-else class="extra-fields-dialog">
         <!-- 全局 env 其他字段参考（只读） -->
