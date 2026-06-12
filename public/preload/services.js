@@ -5,6 +5,7 @@ const crypto = require('./services/crypto')
 const config = require('./services/config')
 const mcp = require('./services/mcp')
 const opencode = require('./services/opencode')
+const codex = require('./services/codex')
 
 const {
   CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_SKILLS_PATH,
@@ -30,6 +31,19 @@ const {
   getOpencodePlugins, setOpencodePlugins, addOpencodePlugin, removeOpencodePlugin,
   fetchModelsDevPresets,
 } = opencode
+
+const {
+  getCodexDir,
+  readCodexAuth, writeCodexAuth,
+  readCodexConfig, writeCodexConfig,
+  extractCodexBaseUrl, extractCodexModelName, extractCodexWireApi,
+  extractCodexReasoningEffort, extractCodexProviderName, extractCodexModelProvider,
+  setCodexBaseUrlInConfig, setCodexModelNameInConfig,
+  setCodexWireApiInConfig, setCodexReasoningEffortInConfig,
+  getCodexProviders, setCodexProvider, removeCodexProvider,
+  getCodexCurrentProvider, setCodexCurrentProvider,
+  fetchModelsForCodex,
+} = codex
 
 window.services = {
   getNativeId,
@@ -76,6 +90,18 @@ window.services = {
   addOpencodePlugin,
   removeOpencodePlugin,
   fetchModelsDevPresets,
+
+  // ==================== Codex ====================
+  getCodexDir,
+  readCodexAuth, writeCodexAuth,
+  readCodexConfig, writeCodexConfig,
+  extractCodexBaseUrl, extractCodexModelName, extractCodexWireApi,
+  extractCodexReasoningEffort, extractCodexProviderName, extractCodexModelProvider,
+  setCodexBaseUrlInConfig, setCodexModelNameInConfig,
+  setCodexWireApiInConfig, setCodexReasoningEffortInConfig,
+  getCodexProviders, setCodexProvider, removeCodexProvider,
+  getCodexCurrentProvider, setCodexCurrentProvider,
+  fetchModelsForCodex,
 
   // ==================== Skills ====================
 
