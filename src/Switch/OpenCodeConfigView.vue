@@ -477,7 +477,7 @@ const handleImport = () => {
     const decompressed = window.services.decompressConfigs(importString.value.trim());
     if (!Array.isArray(decompressed)) return MessagePlugin.error("解压数据格式不正确");
 
-    let addedCount = 0;
+    const batch = {};
     for (const item of decompressed) {
       const { id, ...config } = item;
       if (!id) continue;
@@ -486,13 +486,16 @@ const handleImport = () => {
       if (existing && existing.models && config.models) {
         config.models = { ...existing.models, ...config.models };
       }
-      if (window.services.setOpencodeProvider(id, config)) {
-        addedCount++;
-      }
+      batch[id] = config;
     }
-    MessagePlugin.success(`已导入 ${addedCount} 个 Provider`);
-    showImportDialog.value = false;
-    loadProviders();
+    const count = Object.keys(batch).length;
+    if (count && window.services.setOpencodeProviders(batch)) {
+      MessagePlugin.success(`已导入 ${count} 个 Provider`);
+      showImportDialog.value = false;
+      loadProviders();
+    } else if (!count) {
+      MessagePlugin.warning("没有有效的 Provider 可导入");
+    }
   } catch (e) {
     MessagePlugin.error("导入失败: " + e.message);
   }

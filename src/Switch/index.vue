@@ -13,8 +13,6 @@ import UsageView from "./UsageView.vue";
 import McpView from "./McpView.vue";
 import SkillView from "./SkillView.vue";
 import OpenCodeConfigView from "./OpenCodeConfigView.vue";
-import OpenCodeMcpView from "./OpenCodeMcpView.vue";
-import OpenCodeSkillView from "./OpenCodeSkillView.vue";
 import wavingDark from '../assets/waving-dark.gif';
 import wavingLight from '../assets/waving-light.gif';
 import { useAppContext } from "../composables/useAppContext";

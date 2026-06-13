@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, reactive, computed, onMounted } from "vue";
 import {
   Card,
   Button,
@@ -35,14 +35,16 @@ const showDialog = ref(false);
 const dialogMode = ref("create"); // 'create' or 'edit'
 const editingId = ref("");
 
-// Dialog form fields
-const serverId = ref("");
-const serverType = ref("local"); // 'local' or 'remote'
-const serverCommand = ref(""); // full command string for local type
-const serverEnv = ref([]); // [{key, value}] for environment
-const serverUrl = ref(""); // URL for remote type
-const serverHeaders = ref([]); // [{key, value}] for headers
-const serverEnabled = ref(true);
+// Dialog form fields (single reactive object to avoid stale state)
+const serverForm = reactive({
+  id: "",
+  type: "local",
+  command: "",     // full command string for local type
+  env: [],         // [{key, value}] for environment
+  url: "",         // URL for remote type
+  headers: [],     // [{key, value}] for headers
+  enabled: true,
+});
 
 // Tool discovery drawer
 const showToolDrawer = ref(false);
@@ -168,13 +170,7 @@ const joinCommandArray = (arr) => {
 const openCreateDialog = () => {
   dialogMode.value = "create";
   editingId.value = "";
-  serverId.value = "";
-  serverType.value = "local";
-  serverCommand.value = "";
-  serverEnv.value = [];
-  serverUrl.value = "";
-  serverHeaders.value = [];
-  serverEnabled.value = true;
+  Object.assign(serverForm, { id: "", type: "local", command: "", env: [], url: "", headers: [], enabled: true });
   showDialog.value = true;
 };
 
@@ -182,53 +178,47 @@ const openCreateDialog = () => {
 const openEditDialog = (server) => {
   dialogMode.value = "edit";
   editingId.value = server.id;
-  serverId.value = server.id;
-  serverType.value = server.config.type || "local";
-  serverEnabled.value = server.config.enabled !== false;
-
-  if (server.config.type === "remote") {
-    serverUrl.value = server.config.url || "";
-    serverHeaders.value = objToKvArray(server.config.headers);
-    serverCommand.value = "";
-    serverEnv.value = [];
-  } else {
-    serverCommand.value = joinCommandArray(server.config.command);
-    serverEnv.value = objToKvArray(server.config.environment);
-    serverUrl.value = "";
-    serverHeaders.value = [];
-  }
-
+  const isRemote = server.config.type === "remote";
+  Object.assign(serverForm, {
+    id: server.id,
+    type: server.config.type || "local",
+    enabled: server.config.enabled !== false,
+    url: isRemote ? (server.config.url || "") : "",
+    headers: isRemote ? objToKvArray(server.config.headers) : [],
+    command: isRemote ? "" : joinCommandArray(server.config.command),
+    env: isRemote ? [] : objToKvArray(server.config.environment),
+  });
   showDialog.value = true;
 };
 
 // Save MCP server
 const saveMcpServer = () => {
-  const id = serverId.value.trim();
+  const id = serverForm.id.trim();
   if (!id) {
     return MessagePlugin.error("Server ID 不能为空");
   }
 
   let config;
-  if (serverType.value === "local") {
-    const cmdArray = parseCommandString(serverCommand.value);
+  if (serverForm.type === "local") {
+    const cmdArray = parseCommandString(serverForm.command);
     if (cmdArray.length === 0) {
       return MessagePlugin.error("Command 不能为空");
     }
     config = {
       type: "local",
       command: cmdArray,
-      environment: kvArrayToObj(serverEnv.value),
-      enabled: serverEnabled.value,
+      environment: kvArrayToObj(serverForm.env),
+      enabled: serverForm.enabled,
     };
   } else {
-    if (!serverUrl.value.trim()) {
+    if (!serverForm.url.trim()) {
       return MessagePlugin.error("URL 不能为空");
     }
     config = {
       type: "remote",
-      url: serverUrl.value.trim(),
-      headers: kvArrayToObj(serverHeaders.value),
-      enabled: serverEnabled.value,
+      url: serverForm.url.trim(),
+      headers: kvArrayToObj(serverForm.headers),
+      enabled: serverForm.enabled,
     };
   }
 
@@ -415,7 +405,7 @@ onMounted(() => {
         <div class="form-row">
           <label class="form-label">Server ID <span class="required">*</span></label>
           <Input
-            v-model="serverId"
+            v-model="serverForm.id"
             placeholder="例如: my-mcp-server"
             :disabled="dialogMode === 'edit'"
           />
@@ -424,18 +414,18 @@ onMounted(() => {
         <!-- Type selector -->
         <div class="form-row">
           <label class="form-label">类型 <span class="required">*</span></label>
-          <RadioGroup v-model="serverType" variant="default-filled">
+          <RadioGroup v-model="serverForm.type" variant="default-filled">
             <RadioButton value="local">LOCAL</RadioButton>
             <RadioButton value="remote">REMOTE</RadioButton>
           </RadioGroup>
         </div>
 
         <!-- LOCAL type fields -->
-        <template v-if="serverType === 'local'">
+        <template v-if="serverForm.type === 'local'">
           <div class="form-row">
             <label class="form-label">Command <span class="required">*</span></label>
             <Input
-              v-model="serverCommand"
+              v-model="serverForm.command"
               placeholder="例如: npx -y @modelcontextprotocol/server-filesystem /path"
             />
             <span class="form-hint">完整命令，空格分隔参数，支持引号包裹</span>
@@ -443,7 +433,7 @@ onMounted(() => {
           <div class="form-row">
             <label class="form-label">Environment</label>
             <DynamicKvEditor
-              v-model="serverEnv"
+              v-model="serverForm.env"
               key-placeholder="变量名"
               value-placeholder="变量值"
             />
@@ -451,18 +441,18 @@ onMounted(() => {
         </template>
 
         <!-- REMOTE type fields -->
-        <template v-if="serverType === 'remote'">
+        <template v-if="serverForm.type === 'remote'">
           <div class="form-row">
             <label class="form-label">URL <span class="required">*</span></label>
             <Input
-              v-model="serverUrl"
+              v-model="serverForm.url"
               placeholder="例如: http://localhost:3000/mcp"
             />
           </div>
           <div class="form-row">
             <label class="form-label">Headers</label>
             <DynamicKvEditor
-              v-model="serverHeaders"
+              v-model="serverForm.headers"
               key-placeholder="Header 名"
               value-placeholder="Header 值"
             />
@@ -471,7 +461,7 @@ onMounted(() => {
 
         <!-- Enabled checkbox -->
         <div class="form-row">
-          <Checkbox v-model="serverEnabled">启用</Checkbox>
+          <Checkbox v-model="serverForm.enabled">启用</Checkbox>
         </div>
       </div>
 

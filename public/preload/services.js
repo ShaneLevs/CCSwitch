@@ -25,7 +25,7 @@ const { encrypt, decrypt, encryptString, decryptString } = crypto
 
 const {
   getOpencodeConfigPath, readOpencodeConfig, writeOpencodeConfig,
-  getOpencodeProviders, setOpencodeProvider, removeOpencodeProvider,
+  getOpencodeProviders, setOpencodeProvider, setOpencodeProviders, removeOpencodeProvider,
   getOpencodeMcpServers, setOpencodeMcpServer, removeOpencodeMcpServer,
   getOpencodePlugins, setOpencodePlugins, addOpencodePlugin, removeOpencodePlugin,
   fetchModelsDevPresets,
@@ -67,6 +67,7 @@ window.services = {
   writeOpencodeConfig,
   getOpencodeProviders,
   setOpencodeProvider,
+  setOpencodeProviders,
   removeOpencodeProvider,
   getOpencodeMcpServers,
   setOpencodeMcpServer,

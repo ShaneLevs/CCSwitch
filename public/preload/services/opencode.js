@@ -47,6 +47,16 @@ const setOpencodeProvider = (id, providerConfig) => {
   return writeOpencodeConfig(config)
 }
 
+// Batch set multiple providers in a single read-write cycle
+const setOpencodeProviders = (providersMap) => {
+  const config = readOpencodeConfig()
+  if (!config.provider) config.provider = {}
+  for (const [id, providerConfig] of Object.entries(providersMap)) {
+    config.provider[id] = providerConfig
+  }
+  return writeOpencodeConfig(config)
+}
+
 const removeOpencodeProvider = (id) => {
   const config = readOpencodeConfig()
   if (config.provider && config.provider[id]) {
@@ -140,6 +150,7 @@ module.exports = {
   writeOpencodeConfig,
   getOpencodeProviders,
   setOpencodeProvider,
+  setOpencodeProviders,
   removeOpencodeProvider,
   getOpencodeMcpServers,
   setOpencodeMcpServer,

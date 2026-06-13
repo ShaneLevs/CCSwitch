@@ -24,6 +24,7 @@ import {
   DeleteIcon,
   ToolsIcon,
 } from "tdesign-icons-vue-next";
+import { formatLastUsed } from "../utils/time";
 import "./styles/McpView.css";
 
 const mcpServerList = ref([]);
@@ -62,25 +63,6 @@ const EXAMPLE_HTTP = `{
 const loadMcpServers = () => {
   mcpServerList.value = window.services.getAllMcpServersWithStatus();
   mcpUsage.value = window.services.getMcpUsage();
-};
-
-const formatLastUsed = (timestamp) => {
-  if (!timestamp) return "从未使用";
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffMs = now - date;
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) {
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    if (diffHours === 0) {
-      const diffMinutes = Math.floor(diffMs / (1000 * 60));
-      return diffMinutes <= 1 ? "刚刚" : `${diffMinutes} 分钟前`;
-    }
-    return `${diffHours} 小时前`;
-  } else if (diffDays === 1) return "昨天";
-  else if (diffDays < 7) return `${diffDays} 天前`;
-  else if (diffDays < 30) return `${Math.floor(diffDays / 7)} 周前`;
-  else return date.toLocaleDateString("zh-CN");
 };
 
 // 切换 MCP 状态

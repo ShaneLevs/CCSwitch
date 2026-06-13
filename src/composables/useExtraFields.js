@@ -106,11 +106,12 @@ export function useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig)
     window.utools.db.put(doc);
   };
 
-  // 将预设区的值合并回 extraFields 数组
-  const mergePresetsToFields = (fields) => {
+  // 将预设区的值合并回 extraFields 数组（可传入 values 覆盖默认 presetValues）
+  const mergePresetsToFields = (fields, values) => {
+    const vals = values || presetValues.value;
     const custom = stripPresetFields(fields);
     envPresets.forEach(preset => {
-      const val = presetValues.value[preset.key];
+      const val = vals[preset.key];
       if (preset.type === 'boolean') {
         if (val) custom.push({ key: preset.key, value: preset.trueValue });
       } else {
@@ -192,6 +193,7 @@ export function useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig)
     saveExtraFields,
     saveExtraFieldKeys,
     syncPresetsFromFields,
+    mergePresetsToFields,
     envPresets,
     presetKeys,
   };

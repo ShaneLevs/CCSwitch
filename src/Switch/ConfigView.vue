@@ -83,6 +83,16 @@ modelFields.forEach(field => {
   });
 });
 
+// Convert model fields from a config object to formData shape (strip [1m] suffix into separate booleans)
+const configModelsToForm = (src) => {
+  const result = {};
+  modelFields.forEach(field => {
+    result[field] = strip1m(src[field] || '');
+    result[field + '1m'] = has1m(src[field] || '');
+  });
+  return result;
+};
+
 const dialogTitle = computed(() => (editingConfig.value ? "编辑配置" : "新建配置"));
 
 const hasModelFields = computed(() =>
@@ -176,16 +186,7 @@ const openCreateDialog = () => {
     name: "",
     key: "",
     baseUrl: "",
-    model: "",
-    model1m: false,
-    defaultHaikuModel: "",
-    defaultHaikuModel1m: false,
-    defaultSonnetModel: "",
-    defaultSonnetModel1m: false,
-    defaultOpusModel: "",
-    defaultOpusModel1m: false,
-    subagentModel: "",
-    subagentModel1m: false,
+    ...configModelsToForm({}),
     extraFields: [],
   };
   syncDialogPresets([]);
@@ -201,16 +202,7 @@ const openEditDialog = (config) => {
     name: config.name,
     key: config.key,
     baseUrl: config.baseUrl,
-    model: strip1m(config.model),
-    model1m: has1m(config.model),
-    defaultHaikuModel: strip1m(config.defaultHaikuModel || ""),
-    defaultHaikuModel1m: has1m(config.defaultHaikuModel || ""),
-    defaultSonnetModel: strip1m(config.defaultSonnetModel || ""),
-    defaultSonnetModel1m: has1m(config.defaultSonnetModel || ""),
-    defaultOpusModel: strip1m(config.defaultOpusModel || ""),
-    defaultOpusModel1m: has1m(config.defaultOpusModel || ""),
-    subagentModel: strip1m(config.subagentModel || ""),
-    subagentModel1m: has1m(config.subagentModel || ""),
+    ...configModelsToForm(config),
     extraFields: fields,
   };
   syncDialogPresets(fields);
@@ -220,16 +212,7 @@ const openEditDialog = (config) => {
 const fillCurrentConfig = () => {
   formData.value.key = currentConfig.value.key;
   formData.value.baseUrl = currentConfig.value.baseUrl;
-  formData.value.model = strip1m(currentConfig.value.model);
-  formData.value.model1m = has1m(currentConfig.value.model);
-  formData.value.defaultHaikuModel = strip1m(currentConfig.value.defaultHaikuModel);
-  formData.value.defaultHaikuModel1m = has1m(currentConfig.value.defaultHaikuModel);
-  formData.value.defaultSonnetModel = strip1m(currentConfig.value.defaultSonnetModel);
-  formData.value.defaultSonnetModel1m = has1m(currentConfig.value.defaultSonnetModel);
-  formData.value.defaultOpusModel = strip1m(currentConfig.value.defaultOpusModel);
-  formData.value.defaultOpusModel1m = has1m(currentConfig.value.defaultOpusModel);
-  formData.value.subagentModel = strip1m(currentConfig.value.subagentModel);
-  formData.value.subagentModel1m = has1m(currentConfig.value.subagentModel);
+  Object.assign(formData.value, configModelsToForm(currentConfig.value));
 };
 
 const addDialogExtraField = () => formData.value.extraFields.push({ key: "", value: "" });
@@ -277,18 +260,7 @@ const saveConfig = () => {
   const now = Date.now();
   const id = editingConfig.value ? editingConfig.value.id : DB_PREFIX + now;
   // 合并预设 + 自定义字段
-  const customPart = (formData.value.extraFields || [])
-    .filter(f => f.key?.trim() && !presetKeys.has(f.key.trim()));
-  const presetPart = [];
-  envPresets.forEach(preset => {
-    const val = dialogPresetValues.value[preset.key];
-    if (preset.type === 'boolean' && val) {
-      presetPart.push({ key: preset.key, value: preset.trueValue });
-    } else if (preset.type === 'select' && val) {
-      presetPart.push({ key: preset.key, value: val });
-    }
-  });
-  const cleanExtraFields = [...customPart, ...presetPart]
+  const cleanExtraFields = mergePresetsToFields(formData.value.extraFields || [], dialogPresetValues.value)
     .map(f => ({ key: f.key.trim(), value: f.value?.trim() || "" }));
   // 检查重复 key
   const extraKeys = cleanExtraFields.map(f => f.key);
@@ -347,7 +319,7 @@ const { switchConfig, isCurrentConfig } = useConfigSwitch(currentConfig, loadCur
 const {
   showExtraFieldsDialog, extraFields, customFields, presetValues, activeConfigExtras, extraFieldKeyOptions,
   loadExtraFieldKeys, loadGlobalExtraFields, openExtraFieldsDialog, addExtraField, removeExtraField, saveExtraFields, saveExtraFieldKeys,
-  syncPresetsFromFields, envPresets, presetKeys,
+  syncPresetsFromFields, mergePresetsToFields, envPresets, presetKeys,
 } = useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig);
 
 const reloadFromSettings = () => {
