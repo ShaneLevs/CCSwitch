@@ -1,6 +1,6 @@
 import { ref, computed } from "vue";
 import { MessagePlugin } from "tdesign-vue-next";
-import { managedFields } from "../constants";
+import { managedFields, envPresets } from "../constants";
 
 const SAVED_FIELD_KEYS_ID = "extra_field_keys";
 export const fixedFieldKeyOptions = [
@@ -11,16 +11,26 @@ export const fixedFieldKeyOptions = [
   "CLAUDE_CODE_ATTRIBUTION_HEADER",
 ];
 
+// 预设 key 集合，用于快速判断
+const presetKeys = new Set(envPresets.map(p => p.key));
+
 export function useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig) {
   const showExtraFieldsDialog = ref(false);
   const extraFields = ref([]);
   const activeConfigExtras = ref(null); // { name, extraFields }
   const savedExtraFieldKeys = ref([]);
+  const presetValues = ref({}); // { [key]: value } 预设区状态
+
   const extraFieldKeyOptions = computed(() => {
     const all = [...fixedFieldKeyOptions, ...savedExtraFieldKeys.value];
-    const unique = [...new Set(all)];
+    const unique = [...new Set(all)].filter(k => !presetKeys.has(k));
     return unique.map(k => ({ label: k, value: k }));
   });
+
+  // 自定义字段 = extraFields 中不属于预设 key 的条目
+  const customFields = computed(() =>
+    extraFields.value.filter(f => !presetKeys.has(f.key?.trim()))
+  );
 
   const loadExtraFieldKeys = () => {
     const doc = window.utools.db.get(SAVED_FIELD_KEYS_ID);
@@ -36,20 +46,40 @@ export function useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig)
     return null;
   };
 
+  // 从 extraFields 数组中初始化预设区状态
+  const syncPresetsFromFields = (fields) => {
+    const pv = {};
+    envPresets.forEach(preset => {
+      const found = fields.find(f => f.key?.trim() === preset.key);
+      if (preset.type === 'boolean') {
+        pv[preset.key] = found ? true : false;
+      } else {
+        pv[preset.key] = found ? found.value?.trim() || '' : '';
+      }
+    });
+    presetValues.value = pv;
+  };
+
+  // 从 fields 中移除预设 key 对应的条目（避免重复）
+  const stripPresetFields = (fields) => fields.filter(f => !presetKeys.has(f.key?.trim()));
+
   const loadGlobalExtraFields = () => {
     const saved = window.services.getOverriddenEnv();
+    let fields;
     if (saved) {
-      extraFields.value = Object.keys(saved).map(key => ({ key, value: String(saved[key]) }));
+      fields = Object.keys(saved).map(key => ({ key, value: String(saved[key]) }));
     } else {
       const settings = window.services.readClaudeSettings() || {};
       const env = settings.env || {};
-      extraFields.value = [];
+      fields = [];
       Object.keys(env).forEach(key => {
         if (!managedFields.includes(key)) {
-          extraFields.value.push({ key, value: String(env[key]) });
+          fields.push({ key, value: String(env[key]) });
         }
       });
     }
+    extraFields.value = fields;
+    syncPresetsFromFields(fields);
   };
 
   const openExtraFieldsDialog = () => {
@@ -76,16 +106,34 @@ export function useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig)
     window.utools.db.put(doc);
   };
 
+  // 将预设区的值合并回 extraFields 数组
+  const mergePresetsToFields = (fields) => {
+    const custom = stripPresetFields(fields);
+    envPresets.forEach(preset => {
+      const val = presetValues.value[preset.key];
+      if (preset.type === 'boolean') {
+        if (val) custom.push({ key: preset.key, value: preset.trueValue });
+      } else {
+        // select 类型，空值 = 不设置
+        if (val) custom.push({ key: preset.key, value: val });
+      }
+    });
+    return custom;
+  };
+
   const saveExtraFields = () => {
-    // 检查重复 key
-    const keys = extraFields.value.map(f => f.key?.trim()).filter(Boolean);
+    // 合并预设 + 自定义字段
+    const mergedFields = mergePresetsToFields(extraFields.value);
+
+    // 检查自定义字段重复 key
+    const keys = mergedFields.map(f => f.key?.trim()).filter(Boolean);
     const duplicateKey = keys.find((k, i) => keys.indexOf(k) !== i);
     if (duplicateKey) return MessagePlugin.warning(`env字段 key 重复: ${duplicateKey}`);
 
     // 1. 构建全局 extras 并存 DB
     const globalExtras = {};
     const userKeys = [];
-    extraFields.value.forEach(field => {
+    mergedFields.forEach(field => {
       const key = field.key.trim();
       const value = field.value.trim();
       if (key) {
@@ -132,6 +180,8 @@ export function useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig)
   return {
     showExtraFieldsDialog,
     extraFields,
+    customFields,
+    presetValues,
     activeConfigExtras,
     extraFieldKeyOptions,
     loadExtraFieldKeys,
@@ -141,5 +191,8 @@ export function useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig)
     removeExtraField,
     saveExtraFields,
     saveExtraFieldKeys,
+    syncPresetsFromFields,
+    envPresets,
+    presetKeys,
   };
 }

@@ -15,6 +15,7 @@ import {
   RadioGroup,
   RadioButton,
   Checkbox,
+  Divider,
 } from "tdesign-vue-next";
 import {
   AddIcon,
@@ -34,6 +35,8 @@ import "./styles/ConfigView.css";
 
 const strip1m = (v) => (v || '').replace(/\[1m\]$/i, '');
 const has1m = (v) => /\[1m\]$/i.test(v || '');
+
+const effortLevelClass = (level) => level ? `effort-${level}` : '';
 
 const DB_PREFIX = "ccswitch_config_";
 
@@ -185,6 +188,7 @@ const openCreateDialog = () => {
     subagentModel1m: false,
     extraFields: [],
   };
+  syncDialogPresets([]);
   showDialog.value = true;
 };
 
@@ -192,6 +196,7 @@ const openEditDialog = (config) => {
   editingConfig.value = config;
   dialogTab.value = "basic";
   loadGlobalExtraFields();
+  const fields = (config.extraFields || []).map(f => ({ ...f }));
   formData.value = {
     name: config.name,
     key: config.key,
@@ -206,8 +211,9 @@ const openEditDialog = (config) => {
     defaultOpusModel1m: has1m(config.defaultOpusModel || ""),
     subagentModel: strip1m(config.subagentModel || ""),
     subagentModel1m: has1m(config.subagentModel || ""),
-    extraFields: (config.extraFields || []).map(f => ({ ...f })),
+    extraFields: fields,
   };
+  syncDialogPresets(fields);
   showDialog.value = true;
 };
 
@@ -229,6 +235,40 @@ const fillCurrentConfig = () => {
 const addDialogExtraField = () => formData.value.extraFields.push({ key: "", value: "" });
 const removeDialogExtraField = (idx) => formData.value.extraFields.splice(idx, 1);
 
+// 配置弹窗中的预设状态
+const dialogPresetValues = ref({});
+const dialogCustomFields = computed(() =>
+  (formData.value.extraFields || []).filter(f => !presetKeys.has(f.key?.trim()))
+);
+// 全局字段中属于预设的，用 disabled checkbox/radio 展示
+const globalPresetValues = computed(() => {
+  const pv = {};
+  envPresets.forEach(preset => {
+    const found = extraFields.value.find(f => f.key?.trim() === preset.key);
+    if (preset.type === 'boolean') {
+      pv[preset.key] = !!found;
+    } else {
+      pv[preset.key] = found ? found.value?.trim() || '' : '';
+    }
+  });
+  return pv;
+});
+const globalCustomFields = computed(() =>
+  extraFields.value.filter(f => !presetKeys.has(f.key?.trim()))
+);
+const syncDialogPresets = (fields) => {
+  const pv = {};
+  envPresets.forEach(preset => {
+    const found = fields.find(f => f.key?.trim() === preset.key);
+    if (preset.type === 'boolean') {
+      pv[preset.key] = found ? true : false;
+    } else {
+      pv[preset.key] = found ? found.value?.trim() || '' : '';
+    }
+  });
+  dialogPresetValues.value = pv;
+};
+
 const saveConfig = () => {
   if (!formData.value.name.trim()) return MessagePlugin.warning("请输入配置名称");
   if (!formData.value.key.trim()) return MessagePlugin.warning("请输入 Key");
@@ -236,8 +276,19 @@ const saveConfig = () => {
 
   const now = Date.now();
   const id = editingConfig.value ? editingConfig.value.id : DB_PREFIX + now;
-  const cleanExtraFields = (formData.value.extraFields || [])
-    .filter(f => f.key?.trim())
+  // 合并预设 + 自定义字段
+  const customPart = (formData.value.extraFields || [])
+    .filter(f => f.key?.trim() && !presetKeys.has(f.key.trim()));
+  const presetPart = [];
+  envPresets.forEach(preset => {
+    const val = dialogPresetValues.value[preset.key];
+    if (preset.type === 'boolean' && val) {
+      presetPart.push({ key: preset.key, value: preset.trueValue });
+    } else if (preset.type === 'select' && val) {
+      presetPart.push({ key: preset.key, value: val });
+    }
+  });
+  const cleanExtraFields = [...customPart, ...presetPart]
     .map(f => ({ key: f.key.trim(), value: f.value?.trim() || "" }));
   // 检查重复 key
   const extraKeys = cleanExtraFields.map(f => f.key);
@@ -294,8 +345,9 @@ const deleteConfig = (config) => {
 const { switchConfig, isCurrentConfig } = useConfigSwitch(currentConfig, loadCurrentConfig);
 
 const {
-  showExtraFieldsDialog, extraFields, activeConfigExtras, extraFieldKeyOptions,
+  showExtraFieldsDialog, extraFields, customFields, presetValues, activeConfigExtras, extraFieldKeyOptions,
   loadExtraFieldKeys, loadGlobalExtraFields, openExtraFieldsDialog, addExtraField, removeExtraField, saveExtraFields, saveExtraFieldKeys,
+  syncPresetsFromFields, envPresets, presetKeys,
 } = useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig);
 
 const reloadFromSettings = () => {
@@ -312,6 +364,7 @@ const reloadFromSettings = () => {
       extraFields.value.push({ key, value: String(env[key]) });
     }
   });
+  syncPresetsFromFields(extraFields.value);
   MessagePlugin.success('已从 settings.json 读取');
 };
 
@@ -465,30 +518,70 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
         <div class="form-item"><label>SUBAGENT</label><Input v-model="formData.subagentModel" placeholder="CLAUDE_CODE_SUBAGENT_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.subagentModel1m" size="small" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
       </div>
       <div v-else class="extra-fields-dialog">
-        <!-- 全局 env 其他字段参考（只读） -->
+        <div class="extra-fields-hint">
+          <p>以下字段会与全局 env 其他字段合并（配置优先），切换配置时生效。</p>
+        </div>
         <div v-if="extraFields.length" class="active-config-extras">
-          <div class="active-config-extras-title">全局 env 其他字段</div>
-          <div class="extra-fields-list">
-            <div v-for="(field, idx) in extraFields" :key="idx" class="extra-field-wrap extra-field-readonly">
+          <div class="active-config-extras-title">当前全局字段</div>
+          <!-- 预设项用 disabled checkbox/radio 展示 -->
+          <div v-if="extraFields.some(f => presetKeys.has(f.key?.trim()))" class="env-preset-list global-preset-list">
+            <div class="env-preset-row preset-checkboxes">
+              <Checkbox :checked="!!globalPresetValues['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS']" disabled>Teammates 模式</Checkbox>
+              <Checkbox :checked="!!globalPresetValues['ENABLE_TOOL_SEARCH']" disabled>启用工具搜索</Checkbox>
+              <Checkbox :checked="!!globalPresetValues['CLAUDE_CODE_NO_FLICKER']" disabled>关闭终端闪烁</Checkbox>
+            </div>
+            <div class="env-preset-row env-preset-row-effort">
+              <span class="env-preset-label">思考强度</span>
+              <RadioGroup :value="globalPresetValues['CLAUDE_CODE_EFFORT_LEVEL'] || ''" variant="default-filled" size="small" disabled :class="effortLevelClass(globalPresetValues['CLAUDE_CODE_EFFORT_LEVEL'] || '')">
+                <RadioButton value="">default</RadioButton>
+                <RadioButton value="low">low</RadioButton>
+                <RadioButton value="medium">medium</RadioButton>
+                <RadioButton value="high">high</RadioButton>
+                <RadioButton value="xhigh">xhigh</RadioButton>
+                <RadioButton value="max">max</RadioButton>
+              </RadioGroup>
+            </div>
+          </div>
+          <!-- 非预设的自定义全局字段 -->
+          <div v-if="globalCustomFields.length" class="extra-fields-list">
+            <div v-for="(field, idx) in globalCustomFields" :key="idx" class="extra-field-wrap extra-field-readonly">
               <div class="extra-field-row">
                 <div class="field-key-readonly">{{ field.key }}</div>
                 <div class="field-value-readonly">{{ field.value }}</div>
               </div>
-              <div v-if="formData.extraFields.some(f => f.key?.trim() === field.key?.trim())" class="field-tag-row">
-                <Tag size="small" theme="warning" variant="light">将被覆盖</Tag>
-              </div>
             </div>
           </div>
         </div>
-        <div class="extra-fields-hint">
-          <p>切换配置时，这些字段会与全局env其他字段做合并（配置优先）。</p>
+        <!-- 预设区 -->
+        <div class="env-preset-section">
+          <div class="env-preset-title">常用设置</div>
+          <div class="env-preset-list">
+            <div class="env-preset-row preset-checkboxes">
+              <Checkbox v-model="dialogPresetValues['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS']">Teammates 模式</Checkbox>
+              <Checkbox v-model="dialogPresetValues['ENABLE_TOOL_SEARCH']">启用工具搜索</Checkbox>
+              <Checkbox v-model="dialogPresetValues['CLAUDE_CODE_NO_FLICKER']">关闭终端闪烁</Checkbox>
+            </div>
+            <div class="env-preset-row env-preset-row-effort">
+              <span class="env-preset-label">思考强度</span>
+              <RadioGroup v-model="dialogPresetValues['CLAUDE_CODE_EFFORT_LEVEL']" variant="default-filled" size="small" :class="effortLevelClass(dialogPresetValues['CLAUDE_CODE_EFFORT_LEVEL'] || '')">
+                <RadioButton value="">default</RadioButton>
+                <RadioButton value="low">low</RadioButton>
+                <RadioButton value="medium">medium</RadioButton>
+                <RadioButton value="high">high</RadioButton>
+                <RadioButton value="xhigh">xhigh</RadioButton>
+                <RadioButton value="max">max</RadioButton>
+              </RadioGroup>
+            </div>
+          </div>
         </div>
+        <Divider />
+        <div class="env-preset-title">自定义字段</div>
         <div class="extra-fields-list">
-          <div v-for="(field, idx) in formData.extraFields" :key="idx" class="extra-field-wrap">
+          <div v-for="(field, idx) in dialogCustomFields" :key="idx" class="extra-field-wrap">
             <div class="extra-field-row">
               <AutoComplete v-model="field.key" class="field-key" :options="extraFieldKeyOptions" filterable placeholder="字段名" />
               <Input v-model="field.value" class="field-value" placeholder="字段值" />
-              <Button size="small" theme="danger" variant="text" @click="removeDialogExtraField(idx)"><DeleteIcon /></Button>
+              <Button size="small" theme="danger" variant="text" @click="removeDialogExtraField(formData.extraFields.indexOf(field))"><DeleteIcon /></Button>
             </div>
             <div v-if="extraFields.some(f => f.key?.trim() === field.key?.trim())" class="field-tag-row">
               <Tag size="small" theme="warning" variant="light">覆盖全局</Tag>
@@ -534,6 +627,31 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
 
     <Dialog v-model:visible="showExtraFieldsDialog" header="env其他字段设置" width="600px" @confirm="saveExtraFields">
       <div class="extra-fields-dialog">
+        <div class="extra-fields-hint">
+          <p>以下为全局基础值，切换配置时会与配置中的env其他字段合并（配置优先）。</p>
+        </div>
+        <!-- 预设区 -->
+        <div class="env-preset-section">
+          <div class="env-preset-title">常用设置</div>
+          <div class="env-preset-list">
+            <div class="env-preset-row preset-checkboxes">
+              <Checkbox v-model="presetValues['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS']">Teammates 模式</Checkbox>
+              <Checkbox v-model="presetValues['ENABLE_TOOL_SEARCH']">启用工具搜索</Checkbox>
+              <Checkbox v-model="presetValues['CLAUDE_CODE_NO_FLICKER']">关闭终端闪烁</Checkbox>
+            </div>
+            <div class="env-preset-row env-preset-row-effort">
+              <span class="env-preset-label">思考强度</span>
+              <RadioGroup v-model="presetValues['CLAUDE_CODE_EFFORT_LEVEL']" variant="default-filled" size="small" :class="effortLevelClass(presetValues['CLAUDE_CODE_EFFORT_LEVEL'] || '')">
+                <RadioButton value="">default</RadioButton>
+                <RadioButton value="low">low</RadioButton>
+                <RadioButton value="medium">medium</RadioButton>
+                <RadioButton value="high">high</RadioButton>
+                <RadioButton value="xhigh">xhigh</RadioButton>
+                <RadioButton value="max">max</RadioButton>
+              </RadioGroup>
+            </div>
+          </div>
+        </div>
         <!-- 当前活跃配置的 env 其他字段（只读） -->
         <div v-if="activeConfigExtras && activeConfigExtras.extraFields.length" class="active-config-extras">
           <div class="active-config-extras-title">{{ activeConfigExtras.name ? '来自当前配置「' + activeConfigExtras.name + '」' : '当前生效的 env 其他字段' }}</div>
@@ -544,21 +662,20 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
                 <div class="field-value-readonly">{{ field.value }}</div>
               </div>
               <div class="field-tag-row">
-                <Tag v-if="extraFields.some(f => f.key?.trim() === field.key)" size="small" theme="warning" variant="light">覆盖全局</Tag>
+                <Tag v-if="extraFields.some(f => f.key?.trim() === field.key) || (presetKeys.has(field.key?.trim()) && presetValues[field.key?.trim()])" size="small" theme="warning" variant="light">覆盖全局</Tag>
                 <Tag v-else size="small" theme="success" variant="light">生效中</Tag>
               </div>
             </div>
           </div>
         </div>
-        <div class="extra-fields-hint">
-          <p>以下为全局基础值，切换配置时会与配置中的env其他字段合并（配置优先）。</p>
-        </div>
+        <Divider />
+        <div class="env-preset-title">自定义字段</div>
         <div class="extra-fields-list">
-          <div v-for="(field, idx) in extraFields" :key="idx" class="extra-field-wrap">
+          <div v-for="(field, idx) in customFields" :key="idx" class="extra-field-wrap">
             <div class="extra-field-row">
               <AutoComplete v-model="field.key" class="field-key" :options="extraFieldKeyOptions" filterable placeholder="字段名" />
               <Input v-model="field.value" class="field-value" placeholder="字段值" />
-              <Button size="small" theme="danger" variant="text" @click="removeExtraField(idx)"><DeleteIcon /></Button>
+              <Button size="small" theme="danger" variant="text" @click="removeExtraField(extraFields.indexOf(field))"><DeleteIcon /></Button>
             </div>
             <div v-if="activeConfigExtras?.extraFields.some(f => f.key?.trim() === field.key?.trim())" class="field-tag-row">
               <Tag size="small" theme="warning" variant="light">被覆盖</Tag>

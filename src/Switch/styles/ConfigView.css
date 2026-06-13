@@ -46,10 +46,12 @@
 .model-tag:hover { opacity: 0.75; }
 
 /* 额外字段弹窗样式 */
-.extra-fields-dialog { display: flex; flex-direction: column; gap: 16px; }
+.extra-fields-dialog { display: flex; flex-direction: column; gap: 10px; }
+.extra-fields-dialog .t-divider { margin: 2px 0; }
 .active-config-extras { padding: 12px 16px; background: var(--td-bg-color-container-hover); border-radius: var(--td-radius-default); }
 .active-config-extras-title { font-size: 13px; font-weight: 500; color: var(--td-text-color-secondary); margin-bottom: 10px; }
 .extra-field-readonly { opacity: 0.85; }
+.global-preset-list { opacity: 0.55; pointer-events: none; }
 .field-key-readonly { flex: 1; font-size: 13px; font-family: monospace; color: var(--td-text-color-primary); }
 .field-value-readonly { flex: 0 0 120px; font-size: 13px; font-family: monospace; color: var(--td-text-color-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .extra-fields-hint { padding: 12px 16px; background: var(--td-bg-color-container-hover); border-radius: var(--td-radius-default); font-size: 13px; color: var(--td-text-color-secondary); }
@@ -64,6 +66,73 @@
 .extra-field-readonly .extra-field-row { align-items: center; }
 .extra-fields-actions { display: flex; gap: 8px; }
 .add-field-btn { align-self: flex-start; }
+
+/* 预设区样式 */
+.env-preset-section { display: flex; flex-direction: column; gap: 10px; }
+.env-preset-title { font-size: 13px; font-weight: 500; color: var(--td-text-color-secondary); }
+.env-preset-list { display: flex; flex-direction: column; gap: 10px; }
+.env-preset-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.env-preset-row-effort { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.env-preset-label { font-size: 14px; color: var(--td-text-color-primary); white-space: nowrap; }
+.env-preset-row-effort .t-radio-group { flex-wrap: wrap; }
+
+/* 思考强度边框动画 — 作用在滑块 __bg-block 上 */
+@property --effort-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes effort-spin {
+  to { --effort-angle: 360deg; }
+}
+
+/* low / medium / high: 静态彩色边框 */
+.effort-low .t-radio-group__bg-block { box-shadow: 0 0 0 2px #8B4513; }
+.effort-medium .t-radio-group__bg-block { box-shadow: 0 0 0 2px #27ae60; }
+.effort-high .t-radio-group__bg-block { box-shadow: 0 0 0 2px #2980b9; }
+
+/* xhigh: 紫色边框 + 白色高光跑马灯 */
+.effort-xhigh .t-radio-group__bg-block::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: calc(var(--td-radius-small) + 2px);
+  background: conic-gradient(from var(--effort-angle), #8e44ad, #8e44ad, #8e44ad, #8e44ad, rgba(255,255,255,0.9), #8e44ad, #8e44ad);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  padding: 2px;
+  animation: effort-spin 1.5s linear infinite;
+}
+
+/* max: 彩虹跑马灯 */
+.effort-max .t-radio-group__bg-block::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: calc(var(--td-radius-small) + 2px);
+  background: conic-gradient(from var(--effort-angle), #e74c3c, #e67e22, #f1c40f, #2ecc71, #3498db, #9b59b6, #e74c3c);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  padding: 2px;
+  animation: effort-spin 2s linear infinite;
+}
+
+/* 预设区复选框统一绿色主题 */
+.preset-checkboxes { --td-brand-color: var(--td-success-color); }
+
+/* 深色模式 */
+:root[theme-mode="dark"] .effort-low .t-radio-group__bg-block { box-shadow: 0 0 0 2px #A0522D; }
+:root[theme-mode="dark"] .effort-medium .t-radio-group__bg-block { box-shadow: 0 0 0 2px #2ecc71; }
+:root[theme-mode="dark"] .effort-high .t-radio-group__bg-block { box-shadow: 0 0 0 2px #3498db; }
+:root[theme-mode="dark"] .effort-xhigh .t-radio-group__bg-block::before {
+  background: conic-gradient(from var(--effort-angle), #9b59b6, #9b59b6, #9b59b6, #9b59b6, rgba(255,255,255,0.85), #9b59b6, #9b59b6);
+}
 
 /* 弹窗内 radio 切换 */
 .dialog-switch { margin-bottom: 16px; }
