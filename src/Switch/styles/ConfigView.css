@@ -33,7 +33,7 @@
 .preview-subtitle { font-size: 13px; font-weight: 500; color: var(--td-text-color-secondary); margin-bottom: 4px; }
 
 /* 当前配置展示 */
-.current-config-card { margin-bottom: 16px; padding: 16px; background: var(--td-bg-color-container); border-radius: var(--td-radius-medium); border: 1px solid var(--td-component-border); }
+.current-config-card { margin-top: 4px; margin-bottom: 16px; padding: 16px; background: var(--td-bg-color-container); border-radius: var(--td-radius-medium); border: 1px solid var(--td-component-border); }
 .current-config-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .current-config-title { font-size: 14px; font-weight: 500; color: var(--td-text-color-primary); }
 .current-config-content { display: flex; flex-direction: column; gap: 8px; }

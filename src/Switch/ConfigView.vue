@@ -73,9 +73,14 @@ const formData = ref({
 });
 
 // 当用户手动在输入框输入 [1m] 时，同步勾选复选框并自动清除输入中的 [1m]
+// 输入框为空时，同步取消勾选 1m
 const modelFields = ['model', 'defaultHaikuModel', 'defaultSonnetModel', 'defaultOpusModel', 'subagentModel'];
 modelFields.forEach(field => {
   watch(() => formData.value[field], (val) => {
+    if (!val || val.trim() === '') {
+      formData.value[field + '1m'] = false;
+      return;
+    }
     if (has1m(val)) {
       formData.value[field] = strip1m(val);
       formData.value[field + '1m'] = true;
@@ -481,13 +486,13 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
         <div class="form-item"><label>URL <span class="required">*</span></label><Input v-model="formData.baseUrl" placeholder="ANTHROPIC_BASE_URL" /></div>
         <div class="form-item"><label>TOKEN <span class="required">*</span></label><Input v-model="formData.key" type="password" placeholder="ANTHROPIC_AUTH_TOKEN" /></div>
         <div class="form-hint">设置默认对话模型，留空则跟随系统默认</div>
-        <div class="form-item"><label>MODEL</label><Input v-model="formData.model" placeholder="ANTHROPIC_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.model1m" size="small" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
+        <div class="form-item"><label>MODEL</label><Input v-model="formData.model" placeholder="ANTHROPIC_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.model1m" size="small" :disabled="!formData.model" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
         <div class="form-hint">分别指定各层级模型版本，留空则使用系统默认分配</div>
-        <div class="form-item"><label>HAIKU</label><Input v-model="formData.defaultHaikuModel" placeholder="ANTHROPIC_DEFAULT_HAIKU_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultHaikuModel1m" size="small" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
-        <div class="form-item"><label>SONNET</label><Input v-model="formData.defaultSonnetModel" placeholder="ANTHROPIC_DEFAULT_SONNET_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultSonnetModel1m" size="small" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
-        <div class="form-item"><label>OPUS</label><Input v-model="formData.defaultOpusModel" placeholder="ANTHROPIC_DEFAULT_OPUS_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultOpusModel1m" size="small" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
+        <div class="form-item"><label>HAIKU</label><Input v-model="formData.defaultHaikuModel" placeholder="ANTHROPIC_DEFAULT_HAIKU_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultHaikuModel1m" size="small" :disabled="!formData.defaultHaikuModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
+        <div class="form-item"><label>SONNET</label><Input v-model="formData.defaultSonnetModel" placeholder="ANTHROPIC_DEFAULT_SONNET_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultSonnetModel1m" size="small" :disabled="!formData.defaultSonnetModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
+        <div class="form-item"><label>OPUS</label><Input v-model="formData.defaultOpusModel" placeholder="ANTHROPIC_DEFAULT_OPUS_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultOpusModel1m" size="small" :disabled="!formData.defaultOpusModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
         <div class="form-hint">设置子代理（工具调用、后台任务等）使用的模型</div>
-        <div class="form-item"><label>SUBAGENT</label><Input v-model="formData.subagentModel" placeholder="CLAUDE_CODE_SUBAGENT_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.subagentModel1m" size="small" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
+        <div class="form-item"><label>SUBAGENT</label><Input v-model="formData.subagentModel" placeholder="CLAUDE_CODE_SUBAGENT_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.subagentModel1m" size="small" :disabled="!formData.subagentModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
       </div>
       <div v-else class="extra-fields-dialog">
         <div class="extra-fields-hint">

@@ -5,6 +5,7 @@ const crypto = require('./services/crypto')
 const config = require('./services/config')
 const mcp = require('./services/mcp')
 const opencode = require('./services/opencode')
+const plugins = require('./services/plugins')
 
 const {
   CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_SKILLS_PATH,
@@ -77,6 +78,25 @@ window.services = {
   addOpencodePlugin,
   removeOpencodePlugin,
   fetchModelsDevPresets,
+
+  // ==================== Plugins ====================
+
+  listMarketplaces: plugins.listMarketplaces,
+  addMarketplace: plugins.addMarketplace,
+  removeMarketplace: plugins.removeMarketplace,
+  updateMarketplace: plugins.updateMarketplace,
+  listMarketplacePlugins: plugins.listMarketplacePlugins,
+  listInstalledPlugins: plugins.listInstalledPlugins,
+  installPlugin: plugins.installPlugin,
+  uninstallPlugin: plugins.uninstallPlugin,
+  enablePlugin: plugins.enablePlugin,
+  disablePlugin: plugins.disablePlugin,
+  updatePlugin: plugins.updatePlugin,
+  getPluginsDir: plugins.getPluginsDir,
+  openPluginsDir: plugins.openPluginsDir,
+  getInstalledPluginComponents: plugins.getInstalledPluginComponents,
+  validatePluginName: plugins.validatePluginName,
+  validateScope: plugins.validateScope,
 
   // ==================== Skills ====================
 

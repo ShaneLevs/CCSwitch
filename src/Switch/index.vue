@@ -7,11 +7,13 @@ import {
   ServerIcon,
   BookIcon,
   ChevronDownIcon,
+  AppIcon,
 } from "tdesign-icons-vue-next";
 import ConfigView from "./ConfigView.vue";
 import UsageView from "./UsageView.vue";
 import McpView from "./McpView.vue";
 import SkillView from "./SkillView.vue";
+import PluginView from "./PluginView.vue";
 import OpenCodeConfigView from "./OpenCodeConfigView.vue";
 import wavingDark from '../assets/waving-dark.gif';
 import wavingLight from '../assets/waving-light.gif';
@@ -110,6 +112,9 @@ onMounted(() => {
           <Button size="small" :theme="activeTab === 'skill' ? 'primary' : 'default'" :variant="activeTab === 'skill' ? 'base' : 'outline'" @click="activeTab = 'skill'">
             <template #icon><BookIcon /></template> Skill
           </Button>
+          <Button size="small" :theme="activeTab === 'plugin' ? 'primary' : 'default'" :variant="activeTab === 'plugin' ? 'base' : 'outline'" @click="activeTab = 'plugin'">
+            <template #icon><AppIcon /></template> Plugin
+          </Button>
           <Button size="small" :theme="activeTab === 'usage' ? 'primary' : 'default'" :variant="activeTab === 'usage' ? 'base' : 'outline'" @click="activeTab = 'usage'">
             <template #icon><ChartIcon /></template> 使用统计
           </Button>
@@ -129,6 +134,7 @@ onMounted(() => {
       <UsageView v-else-if="activeTab === 'usage'" />
       <McpView v-else-if="activeTab === 'mcp'" />
       <SkillView v-else-if="activeTab === 'skill'" ref="skillViewRef" />
+      <PluginView v-else-if="activeTab === 'plugin'" />
     </template>
 
     <!-- Open Code views -->
@@ -140,7 +146,7 @@ onMounted(() => {
 
 <style scoped>
 .container { padding: 10px 20px 20px; min-height: 100vh; box-sizing: border-box; background: var(--td-bg-color-container); }
-.header { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+.header { display: flex; justify-content: space-between; align-items: center; }
 .header-left { display: flex; align-items: center; gap: 8px; }
 .header-right { display: flex; align-items: center; }
 .header .logo { width: 32px; height: 32px; border-radius: var(--td-radius-default); }
