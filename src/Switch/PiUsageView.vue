@@ -93,6 +93,7 @@ onMounted(loadUsage);
         <DateRangePicker
           v-model="dateRange"
           mode="date"
+          size="small"
           :enable-time-picker="false"
           :presets="[
             { label: '近 7 天', value: [new Date(Date.now() - 6*864e5), new Date()] },

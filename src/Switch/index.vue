@@ -24,6 +24,7 @@ import OpenCodeMcpView from "./OpenCodeMcpView.vue";
 import OpenCodeSkillView from "./OpenCodeSkillView.vue";
 import OpenCodePluginView from "./OpenCodePluginView.vue";
 import OpenCodeUsageView from "./OpenCodeUsageView.vue";
+import "./styles/view-panel.css";
 import wavingDark from '../assets/waving-dark.gif';
 import wavingLight from '../assets/waving-light.gif';
 import { useAppContext } from "../composables/useAppContext";
@@ -172,29 +173,35 @@ onMounted(() => {
 
     <!-- Claude Code views -->
     <template v-if="isClaude">
-      <ConfigView v-if="activeTab === 'config'" />
-      <UsageView v-else-if="activeTab === 'usage'" />
-      <McpView v-else-if="activeTab === 'mcp'" />
-      <SkillView v-else-if="activeTab === 'skill'" ref="skillViewRef" />
-      <PluginView v-else-if="activeTab === 'plugin'" />
+      <div class="view-panel">
+        <ConfigView v-if="activeTab === 'config'" />
+        <UsageView v-else-if="activeTab === 'usage'" />
+        <McpView v-else-if="activeTab === 'mcp'" />
+        <SkillView v-else-if="activeTab === 'skill'" ref="skillViewRef" />
+        <PluginView v-else-if="activeTab === 'plugin'" />
+      </div>
     </template>
 
     <!-- Pi Agent views -->
     <template v-else-if="isPi">
-      <PiConfigView v-if="activeTab === 'config'" />
-      <PiUsageView v-else-if="activeTab === 'usage'" />
-      <PiMcpView v-else-if="activeTab === 'mcp'" />
-      <PiSkillView v-else-if="activeTab === 'skill'" />
-      <PiPluginView v-else-if="activeTab === 'plugin'" />
+      <div class="view-panel">
+        <PiConfigView v-if="activeTab === 'config'" />
+        <PiUsageView v-else-if="activeTab === 'usage'" />
+        <PiMcpView v-else-if="activeTab === 'mcp'" />
+        <PiSkillView v-else-if="activeTab === 'skill'" />
+        <PiPluginView v-else-if="activeTab === 'plugin'" />
+      </div>
     </template>
 
     <!-- Open Code views -->
     <template v-else>
-      <OpenCodeConfigView v-if="activeTab === 'config'" />
-      <OpenCodeMcpView v-else-if="activeTab === 'mcp'" />
-      <OpenCodeSkillView v-else-if="activeTab === 'skill'" />
-      <OpenCodePluginView v-else-if="activeTab === 'plugin'" />
-      <OpenCodeUsageView v-else-if="activeTab === 'usage'" />
+      <div class="view-panel">
+        <OpenCodeConfigView v-if="activeTab === 'config'" />
+        <OpenCodeMcpView v-else-if="activeTab === 'mcp'" />
+        <OpenCodeSkillView v-else-if="activeTab === 'skill'" />
+        <OpenCodePluginView v-else-if="activeTab === 'plugin'" />
+        <OpenCodeUsageView v-else-if="activeTab === 'usage'" />
+      </div>
     </template>
   </div>
 </template>

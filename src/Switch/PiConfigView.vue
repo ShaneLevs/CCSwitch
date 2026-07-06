@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import {
-  Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin, Table, Loading, Popconfirm,
+  Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin, Table, Loading, Popconfirm, Alert as TAlert,
 } from "tdesign-vue-next";
 import {
   RefreshIcon, EditIcon, FolderOpen1Icon, StarIcon, ChevronDownIcon, ChevronRightIcon,
@@ -12,6 +12,7 @@ import "./styles/PiConfigView.css";
 const loading = ref(false);
 const providers = ref([]);
 const expanded = ref(new Set());
+const warningMsg = ref("");
 const editDialog = ref(false);
 const editingProvider = ref(null);
 const editForm = ref({ apiKey: '', baseUrl: '' });
@@ -29,10 +30,29 @@ const toggleExpand = (name) => {
 const loadProviders = () => {
   try {
     providers.value = window.services.getPiProviderList();
+    validateConfig();
   } catch (e) {
     console.error("加载 Pi 供应商失败:", e);
     providers.value = [];
   }
+};
+
+// 校验 defaultModel 是否在 defaultProvider 下，否则 Pi CLI 会报"无可用模型"
+const validateConfig = () => {
+  try {
+    const settings = window.services.readPiSettings();
+    const defProv = settings.defaultProvider;
+    const defModel = settings.defaultModel;
+    if (!defProv) { warningMsg.value = "未设置默认供应商，Pi CLI 可能无法启动"; return; }
+    if (!defModel) { warningMsg.value = "未设置默认模型，请在 [默认] 模型上点击星标设置"; return; }
+    const prov = providers.value.find(p => p.name === defProv);
+    if (!prov) { warningMsg.value = `默认供应商 "${defProv}" 不存在于 models.json`; return; }
+    if (!prov.models.some(m => m.id === defModel)) {
+      warningMsg.value = `默认模型 "${defModel}" 不在供应商 "${defProv}" 下，Pi CLI 将报"无可用模型"`;
+      return;
+    }
+    warningMsg.value = "";
+  } catch { /* ignore */ }
 };
 
 const handleEdit = (provider) => {
@@ -172,6 +192,10 @@ onMounted(refresh);
           </Button>
         </Tooltip>
       </div>
+    </div>
+
+    <div v-if="warningMsg" class="pi-config-warning">
+      <t-alert :message="warningMsg" theme="warning" show-icon />
     </div>
 
     <div v-if="providers.length === 0" class="pi-config-empty">

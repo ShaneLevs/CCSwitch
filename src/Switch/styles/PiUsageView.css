@@ -26,6 +26,11 @@
 .pi-date-picker {
   width: 240px;
 }
+.pi-date-picker :deep(.t-input),
+.pi-date-picker :deep(.t-input__wrap) {
+  height: 32px;
+  min-height: 32px;
+}
 
 /* 统计卡片行 */
 .pi-stats-row {

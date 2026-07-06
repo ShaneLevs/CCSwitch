@@ -3,6 +3,7 @@
 .pi-config-tip { font-size: 12px; color: var(--td-text-color-secondary); }
 .pi-config-actions { display: flex; gap: 8px; }
 .pi-config-empty { margin-top: 40px; }
+.pi-config-warning { margin-bottom: 12px; }
 .pi-provider-list { display: flex; flex-direction: column; gap: 8px; }
 .pi-provider-card { cursor: pointer; }
 .pi-provider-header { display: flex; justify-content: space-between; align-items: center; }
