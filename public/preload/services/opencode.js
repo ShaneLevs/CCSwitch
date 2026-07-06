@@ -5,10 +5,25 @@ const JSON5 = require('json5')
 const OPENCODE_DIR = path.join(window.utools.getPath('home'), '.config', 'opencode')
 const OPENCODE_CONFIG_PATH = path.join(OPENCODE_DIR, 'opencode.json')
 const OPENCODE_DATA_DIR = (() => {
-  // 新版 Opencode (>= 2025) 数据目录：Windows %LOCALAPPDATA%\opencode，macOS/Linux ~/.local/share/opencode
-  const localAppData = process.env.LOCALAPPDATA
-  if (localAppData) return path.join(localAppData, 'opencode')
-  return path.join(window.utools.getPath('home'), '.local', 'share', 'opencode')
+  // 新版 Opencode (>= 2025) 数据目录（按优先级）：
+  //   1. %LOCALAPPDATA%\opencode          （Windows 常规安装）
+  //   2. ~/.local/share/opencode          （Windows XDG 模式 + macOS/Linux）
+  // 注意：preload 环境 process.env.LOCALAPPDATA 可能为空（uTools Electron 精简）
+  const home = window.utools.getPath('home')
+  const candidates = []
+  if (process.env.LOCALAPPDATA) {
+    candidates.push(path.join(process.env.LOCALAPPDATA, 'opencode'))
+  }
+  candidates.push(path.join(home, '.local', 'share', 'opencode'))
+  // Windows 兜底：HOME\AppData\Local\opencode
+  if (process.platform === 'win32') {
+    candidates.push(path.join(home, 'AppData', 'Local', 'opencode'))
+  }
+  for (const c of candidates) {
+    try { if (fs.existsSync(path.join(c, 'opencode.db'))) return c } catch { /* ignore */ }
+  }
+  // 都找不到时返回 XDG 路径（后续逻辑会检测到 DB 不存在并返回空状态）
+  return path.join(home, '.local', 'share', 'opencode')
 })()
 const OPENCODE_DB_PATH = path.join(OPENCODE_DATA_DIR, 'opencode.db')
 const OPENCODE_STORAGE_DIR = path.join(OPENCODE_DATA_DIR, 'storage')
@@ -177,101 +192,76 @@ const readOpencodeUsage = () => {
 
 const readOpencodeUsageFromDb = (dbPath) => {
   const usage = require('./usage')
-  // 尝试加载更好用的 sqlite3，没有就用简化版
-  let Database
+  let DatabaseSync
   try {
-    Database = require('better-sqlite3')
+    ({ DatabaseSync } = require('node:sqlite'))
   } catch {
-    console.warn('[opencode] better-sqlite3 未安装，无法读取 DB')
+    console.warn('[opencode] node:sqlite 不可用，跳过 DB 读取')
     return usage.calculateStats([], new Map())
   }
-
-  const db = new Database(dbPath, { readonly: true })
+  const db = new DatabaseSync(dbPath, { open: true, readOnly: true })
   const sessionMap = new Map()
   const messageRecords = []
 
   try {
-    // 查表结构
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name)
-    if (!tables.includes('message')) return usage.calculateStats([], new Map())
+    if (!tables.includes('session')) return usage.calculateStats([], new Map())
 
-    // 查询 message 表（可能带 part 子表）
-    const msgCols = db.prepare("PRAGMA table_info(message)").all().map(c => c.name)
-    const partCols = tables.includes('part') ? db.prepare("PRAGMA table_info(part)").all().map(c => c.name) : []
+    // session 表 schema 确认：tokens_input, tokens_output, tokens_reasoning,
+    //                            tokens_cache_read, tokens_cache_write (独立列)
+    const sessionCols = new Set(db.prepare("PRAGMA table_info(session)").all().map(c => c.name))
+    const hasPerSessionTokens = sessionCols.has('tokens_input')
+    const sInputCol = sessionCols.has('tokens_input') ? 'tokens_input' : null
+    const sOutputCol = sessionCols.has('tokens_output') ? 'tokens_output' : null
+    const sReasonCol = sessionCols.has('tokens_reasoning') ? 'tokens_reasoning' : null
+    const sCacheReadCol = sessionCols.has('tokens_cache_read') ? 'tokens_cache_read' : null
+    const sCacheWriteCol = sessionCols.has('tokens_cache_write') ? 'tokens_cache_write' : null
 
-    // 先读 session
-    if (tables.includes('session')) {
-      const sessionCols = db.prepare("PRAGMA table_info(session)").all().map(c => c.name)
-      const sessions = db.prepare('SELECT * FROM session').all()
-      for (const s of sessions) {
-        sessionMap.get(s.id || s.sessionId)
-        sessionMap.set(s.id || s.sessionId, {
-          sessionId: s.id || s.sessionId,
-          timestamp: s.createdAt || s.created_at || s.updatedAt || s.updated_at || '',
-          inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0,
-          project: s.cwd || s.projectPath || 'unknown',
-          projectPath: s.cwd || s.projectPath || 'unknown',
-        })
-      }
-    }
-
-    // 读 message 及其关联的 part
-    const messages = db.prepare('SELECT * FROM message ORDER BY id').all()
-    // 批量取 part（text 内容包含 model 信息）
-    const partsByMsg = new Map()
-    if (tables.includes('part') && partCols.length) {
-      const allParts = db.prepare('SELECT * FROM part ORDER BY id').all()
-      for (const p of allParts) {
-        const mid = p.messageId || p.message_id
-        if (!mid) continue
-        if (!partsByMsg.has(mid)) partsByMsg.set(mid, [])
-        partsByMsg.get(mid).push(p)
-      }
-    }
-
-    for (const m of messages) {
-      const mid = m.id
-      const sessionId = m.sessionId || m.session_id || 'unknown'
-      // 汇总 token 使用：可能在 message 字段里也可能在 part 里
-      let inputTokens = m.inputTokens || m.input_tokens || m.promptTokens || m.prompt_tokens || 0
-      const outputTokens = m.outputTokens || m.output_tokens || m.completionTokens || m.completion_tokens || 0
-      const cacheRead = m.cacheReadTokens || m.cache_read_input_tokens || 0
-      const cacheCreate = m.cacheCreationTokens || m.cache_creation_input_tokens || 0
-
-      // 从 part 补充 model 名（summary/assistant 的 text 可能含 model）
-      let model = m.model || 'unknown'
-      const parts = partsByMsg.get(mid) || []
-      if (!model || model === 'unknown') {
-        for (const p of parts) {
-          if (p.type === 'text' && typeof p.text === 'string') {
-            // 可以从 part metadata 捕获 model，若没有则保持 unknown
-            if (p.model) { model = p.model; break }
-          }
-        }
-      }
-
-      if (inputTokens + outputTokens === 0) continue
-
-      const ts = m.createdAt || m.created_at || m.timestamp || ''
-      messageRecords.push({
-        sessionId, model,
-        project: sessionMap.get(sessionId)?.project || 'unknown',
-        projectPath: sessionMap.get(sessionId)?.projectPath || 'unknown',
+    const sessionSql = 'SELECT id, title, directory, time_created, time_updated FROM session'
+    const sessions = db.prepare(sessionSql).all()
+    for (const s of sessions) {
+      const ts = new Date(s.time_created).toISOString()
+      sessionMap.set(s.id, {
+        sessionId: s.id,
         timestamp: ts,
-        date: typeof ts === 'string' && ts ? ts.split('T')[0] : '',
-        inputTokens, outputTokens,
-        cacheReadTokens: cacheRead,
-        cacheCreationTokens: cacheCreate,
-        totalTokens: inputTokens + outputTokens + cacheRead + cacheCreate,
+        inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0,
+        project: s.directory || s.title || 'unknown',
+        projectPath: s.directory || 'unknown',
+        title: s.title || '',
       })
+    }
 
-      if (sessionMap.has(sessionId)) {
-        const s = sessionMap.get(sessionId)
-        s.inputTokens += inputTokens
-        s.outputTokens += outputTokens
-        s.cacheReadTokens += cacheRead
-        s.cacheCreationTokens += cacheCreate
-        if (ts && ts > s.timestamp) s.timestamp = ts
+    // 每个 session 一行 message record，汇总该 session 的 token
+    // time_created 是毫秒时间戳（不是 ISO 字符串）
+    // 别名不能与 SQLite 关键字冲突（to/from/tr 等）
+    const tokenSql = `SELECT id,${sInputCol} as inp,${sOutputCol} as out,${sReasonCol} as reas,${sCacheReadCol} as cread,${sCacheWriteCol} as cwrite,time_created FROM session WHERE (tokens_input > 0 OR tokens_output > 0)`
+    const rows = db.prepare(tokenSql).all()
+    for (const r of rows) {
+      const tsMs = r.time_created
+      if (!tsMs || tsMs <= 0) continue
+      const ts = new Date(tsMs).toISOString()
+      const total = (r.inp || 0) + (r.out || 0) + (r.reas || 0) + (r.cread || 0) + (r.cwrite || 0)
+      if (total === 0) continue
+      messageRecords.push({
+        sessionId: r.id,
+        model: 'unknown', // 历史消息级别的 model 需要解析 session metadata blob，暂不支持
+        project: sessionMap.get(r.id)?.project || 'unknown',
+        projectPath: sessionMap.get(r.id)?.projectPath || 'unknown',
+        timestamp: ts,
+        date: ts.split('T')[0],
+        inputTokens: r.inp || 0,
+        outputTokens: r.out || 0,
+        cacheReadTokens: r.cread || 0,
+        cacheCreationTokens: r.cwrite || 0,
+        totalTokens: total,
+      })
+      if (sessionMap.has(r.id)) {
+        const sess = sessionMap.get(r.id)
+        sess.inputTokens = r.inp || 0
+        sess.outputTokens = r.out || 0
+        sess.cacheReadTokens = r.cread || 0
+        sess.cacheCreationTokens = r.cwrite || 0
+        sess.timestamp = ts
       }
     }
   } finally {
