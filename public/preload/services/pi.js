@@ -77,8 +77,8 @@ const getPiProviderList = () => {
       contextWindow: m.contextWindow || 0,
       maxTokens: m.maxTokens || 0,
       reasoning: !!m.reasoning,
-      cost: m.cost || null,
-      compat: m.compat || null,
+      cost: m.cost || {},
+      compat: m.compat || {},
     })),
     isDefault: settings.defaultProvider === name,
   }))
@@ -145,8 +145,8 @@ const addPiModel = (providerName, model) => {
     contextWindow: model.contextWindow || 0,
     maxTokens: model.maxTokens || 0,
     reasoning: !!model.reasoning,
-    cost: model.cost || null,
-    compat: model.compat || null,
+    cost: model.cost || {},
+    compat: model.compat || {},
   })
   writePiModels(models)
 }
