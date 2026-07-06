@@ -74,10 +74,10 @@ const getPiProviderList = () => {
     models: (cfg.models || []).map(m => ({
       id: m.id,
       name: m.name || m.id,
-      contextWindow: m.contextWindow || 0,
-      maxTokens: m.maxTokens || 0,
+      contextWindow: m.contextWindow || undefined,
+      maxTokens: m.maxTokens || undefined,
       reasoning: !!m.reasoning,
-      cost: m.cost || {},
+      cost: (m.cost && m.cost.input != null) ? m.cost : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       compat: m.compat || {},
     })),
     isDefault: settings.defaultProvider === name,
@@ -139,13 +139,16 @@ const addPiModel = (providerName, model) => {
   const prov = models.providers[providerName]
   if (!prov.models) prov.models = []
   if (prov.models.some(m => m.id === model.id)) throw new Error(`模型 ${model.id} 已存在`)
+  const cost = (model.cost && model.cost.input != null)
+    ? model.cost
+    : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   prov.models.push({
     id: model.id,
     name: model.name || model.id,
-    contextWindow: model.contextWindow || 0,
-    maxTokens: model.maxTokens || 0,
+    contextWindow: model.contextWindow || undefined,
+    maxTokens: model.maxTokens || undefined,
     reasoning: !!model.reasoning,
-    cost: model.cost || {},
+    cost,
     compat: model.compat || {},
   })
   writePiModels(models)
