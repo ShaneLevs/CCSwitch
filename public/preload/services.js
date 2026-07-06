@@ -6,6 +6,8 @@ const config = require('./services/config')
 const mcp = require('./services/mcp')
 const opencode = require('./services/opencode')
 const plugins = require('./services/plugins')
+const usage = require('./services/usage')
+const pi = require('./services/pi')
 
 const {
   CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_SKILLS_PATH,
@@ -767,7 +769,7 @@ window.services = {
 
       console.log('开始全量处理...')
       const processedData = this._processAllUsageData(projectsDir)
-      const stats = this._calculateStats(processedData.messageRecords, processedData.sessionMap)
+      const stats = usage.calculateStats(processedData.messageRecords, processedData.sessionMap)
 
       // 合并历史热力图数据
       const history = getHeatmapHistory()
@@ -784,7 +786,7 @@ window.services = {
       }
       merged.sort((a, b) => a.date.localeCompare(b.date))
 
-      const contributions = this._fillEmptyContributions(merged)
+      const contributions = usage.fillEmptyContributions(merged)
       setTimeout(() => saveHeatmapHistory(contributions), 0)
 
       console.log(`处理完成: ${processedData.messageRecords.length} 条消息记录`)
@@ -905,10 +907,29 @@ window.services = {
       return {
         summary: { totalTokens: 0, inputTokens: 0, outputTokens: 0 },
         modelStats: [],
-        contributions: this._emptyResult().contributions
+        contributions: usage.fillEmptyContributions([])
       }
     }
-  }
+  },
+
+  // ==================== Pi Agent ====================
+
+  readPiSettings: pi.readPiSettings,
+  writePiSettings: pi.writePiSettings,
+  readPiModels: pi.readPiModels,
+  writePiModels: pi.writePiModels,
+  getPiProviderList: pi.getPiProviderList,
+  setPiDefaultProvider: pi.setPiDefaultProvider,
+  setPiDefaultModel: pi.setPiDefaultModel,
+  updatePiProvider: pi.updatePiProvider,
+  getPiExtensions: pi.getPiExtensions,
+  installPiExtension: pi.installPiExtension,
+  uninstallPiExtension: pi.uninstallPiExtension,
+  getPiSkills: pi.getPiSkills,
+  getPiMcpServers: pi.getPiMcpServers,
+  readPiUsage: pi.readPiUsage,
+  openPiDir: pi.openPiDir,
+  isPiInstalled: pi.isPiInstalled,
 }
 
 // 辅助函数：递归查找 SKILL.md

@@ -15,6 +15,11 @@ import McpView from "./McpView.vue";
 import SkillView from "./SkillView.vue";
 import PluginView from "./PluginView.vue";
 import OpenCodeConfigView from "./OpenCodeConfigView.vue";
+import PiConfigView from "./PiConfigView.vue";
+import PiMcpView from "./PiMcpView.vue";
+import PiSkillView from "./PiSkillView.vue";
+import PiPluginView from "./PiPluginView.vue";
+import PiUsageView from "./PiUsageView.vue";
 import wavingDark from '../assets/waving-dark.gif';
 import wavingLight from '../assets/waving-light.gif';
 import { useAppContext } from "../composables/useAppContext";
@@ -24,7 +29,7 @@ const props = defineProps({
   payload: String,
 });
 
-const { activeApp, setActiveApp, isClaude, isOpenCode } = useAppContext();
+const { activeApp, setActiveApp, isClaude, isOpenCode, isPi } = useAppContext();
 
 const activeTab = ref("config");
 const skillViewRef = ref(null);
@@ -41,18 +46,19 @@ const triggerWaving = () => {
   setTimeout(() => { showWaving.value = false; }, 3000);
 };
 
-const appLabel = computed(() => isClaude.value ? 'Claude Code' : 'Open Code');
+const appLabel = computed(() => {
+  if (isClaude.value) return 'Claude Code';
+  if (isOpenCode.value) return 'Open Code';
+  return 'Pi Agent';
+});
 
 const pageTitleSuffix = computed(() => {
-  if (isOpenCode.value) {
-    if (activeTab.value === 'mcp') return 'MCP 配置';
-    if (activeTab.value === 'skill') return 'Skill 配置';
-    return '配置管理';
+  const map = {
+    claude: { usage: '使用统计', mcp: 'MCP 配置', skill: 'Skill 配置', plugin: '插件管理', config: '配置切换' },
+    opencode: { config: '配置管理' },
+    pi: { config: '配置管理', mcp: 'MCP 配置', skill: 'Skill 管理', plugin: '扩展管理', usage: '使用统计' },
   }
-  if (activeTab.value === 'usage') return '使用统计';
-  if (activeTab.value === 'mcp') return 'MCP 配置';
-  if (activeTab.value === 'skill') return 'Skill 配置';
-  return '配置切换';
+  return map[activeApp.value]?.[activeTab.value] || '配置切换'
 });
 
 const pageTitle = computed(() => `${appLabel.value} ${pageTitleSuffix.value}`);
@@ -67,6 +73,7 @@ const switchApp = (app) => {
 const appDropdownOptions = [
   { content: 'Claude Code', value: 'claude' },
   { content: 'Open Code', value: 'opencode' },
+  { content: 'Pi Agent', value: 'pi' },
 ];
 
 const handleAppSelect = (data) => {
@@ -92,7 +99,8 @@ onMounted(() => {
       <div class="header-left">
         <img v-if="showWaving && isClaude" :key="wavingKey" :src="wavingSrc" alt="logo" class="logo" @click="triggerWaving" />
         <img v-else-if="isClaude" src="/logo.png" alt="logo" class="logo" @click="triggerWaving" />
-        <img v-else src="/icon-opencode.png" alt="logo" class="logo" />
+        <img v-else-if="isOpenCode" src="/icon-opencode.png" alt="logo" class="logo" />
+        <div v-else class="logo logo-pi">π</div>
         <Dropdown :options="appDropdownOptions" :min-column-width="160" @click="handleAppSelect">
           <span class="app-selector">
             {{ appLabel }} <ChevronDownIcon size="16px" />
@@ -119,7 +127,25 @@ onMounted(() => {
             <template #icon><ChartIcon /></template> 使用统计
           </Button>
         </div>
-        <!-- Open Code tabs -->
+        <!-- Pi Agent tabs -->
+        <div v-else-if="isPi" class="tab-buttons">
+          <Button size="small" :theme="activeTab === 'config' ? 'primary' : 'default'" :variant="activeTab === 'config' ? 'base' : 'outline'" @click="activeTab = 'config'">
+            <template #icon><DashboardIcon /></template> 配置管理
+          </Button>
+          <Button size="small" :theme="activeTab === 'mcp' ? 'primary' : 'default'" :variant="activeTab === 'mcp' ? 'base' : 'outline'" @click="activeTab = 'mcp'">
+            <template #icon><ServerIcon /></template> MCP
+          </Button>
+          <Button size="small" :theme="activeTab === 'skill' ? 'primary' : 'default'" :variant="activeTab === 'skill' ? 'base' : 'outline'" @click="activeTab = 'skill'">
+            <template #icon><BookIcon /></template> Skill
+          </Button>
+          <Button size="small" :theme="activeTab === 'plugin' ? 'primary' : 'default'" :variant="activeTab === 'plugin' ? 'base' : 'outline'" @click="activeTab = 'plugin'">
+            <template #icon><AppIcon /></template> 扩展
+          </Button>
+          <Button size="small" :theme="activeTab === 'usage' ? 'primary' : 'default'" :variant="activeTab === 'usage' ? 'base' : 'outline'" @click="activeTab = 'usage'">
+            <template #icon><ChartIcon /></template> 使用统计
+          </Button>
+        </div>
+        <!-- Open Code tabs (unchanged) -->
         <div v-else class="tab-buttons">
           <Button size="small" :theme="activeTab === 'config' ? 'primary' : 'default'" :variant="activeTab === 'config' ? 'base' : 'outline'" @click="activeTab = 'config'">
             <template #icon><DashboardIcon /></template> 配置管理
@@ -137,6 +163,15 @@ onMounted(() => {
       <PluginView v-else-if="activeTab === 'plugin'" />
     </template>
 
+    <!-- Pi Agent views -->
+    <template v-else-if="isPi">
+      <PiConfigView v-if="activeTab === 'config'" />
+      <PiUsageView v-else-if="activeTab === 'usage'" />
+      <PiMcpView v-else-if="activeTab === 'mcp'" />
+      <PiSkillView v-else-if="activeTab === 'skill'" />
+      <PiPluginView v-else-if="activeTab === 'plugin'" />
+    </template>
+
     <!-- Open Code views -->
     <template v-else>
       <OpenCodeConfigView />
@@ -151,6 +186,7 @@ onMounted(() => {
 .header-right { display: flex; align-items: center; }
 .header .logo { width: 32px; height: 32px; border-radius: var(--td-radius-default); }
 .header :deep(.t-typography-title) { margin: 0; }
+.logo-pi { display: flex; align-items: center; justify-content: center; background: #4B5563; color: #fff; font-weight: bold; font-size: 18px; font-family: 'Courier New', monospace; }
 .tab-buttons { display: flex; gap: 4px; }
 
 .app-selector {
