@@ -192,25 +192,40 @@ const readOpencodeUsage = () => {
 
 const readOpencodeUsageFromDb = (dbPath) => {
   const usage = require('./usage')
+  // 优先用原生 node:sqlite（Node 22.5+）
   let DatabaseSync
   try {
     ({ DatabaseSync } = require('node:sqlite'))
   } catch {
-    console.warn('[opencode] node:sqlite 不可用，跳过 DB 读取')
+    DatabaseSync = null
+  }
+
+  if (DatabaseSync) {
+    try {
+      const result = readOpencodeUsageFromDbNative(dbPath, DatabaseSync)
+      if (result.messageRecords.length > 0) return result
+    } catch (e) {
+      console.warn('[opencode] node:sqlite 读取失败，回退子进程方式:', e.message)
+    }
+  }
+
+  // 回退：通过子进程调用 node --experimental-sqlite 脚本
+  try {
+    return readOpencodeUsageFromDbViaChildProcess(dbPath)
+  } catch (e) {
+    console.warn('[opencode] 子进程读取也失败:', e.message)
     return usage.calculateStats([], new Map())
   }
-  const db = new DatabaseSync(dbPath, { open: true, readOnly: true })
-  const sessionMap = new Map()
-  const messageRecords = []
+}
 
+const readOpencodeUsageFromDbNative = (dbPath, DatabaseSync) => {
+  const usage = require('./usage')
+  const db = new DatabaseSync(dbPath, { open: true, readOnly: true })
   try {
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name)
     if (!tables.includes('session')) return usage.calculateStats([], new Map())
 
-    // session 表 schema 确认：tokens_input, tokens_output, tokens_reasoning,
-    //                            tokens_cache_read, tokens_cache_write (独立列)
     const sessionCols = new Set(db.prepare("PRAGMA table_info(session)").all().map(c => c.name))
-    const hasPerSessionTokens = sessionCols.has('tokens_input')
     const sInputCol = sessionCols.has('tokens_input') ? 'tokens_input' : null
     const sOutputCol = sessionCols.has('tokens_output') ? 'tokens_output' : null
     const sReasonCol = sessionCols.has('tokens_reasoning') ? 'tokens_reasoning' : null
@@ -219,6 +234,7 @@ const readOpencodeUsageFromDb = (dbPath) => {
 
     const sessionSql = 'SELECT id, title, directory, time_created, time_updated FROM session'
     const sessions = db.prepare(sessionSql).all()
+    const sessionMap = new Map()
     for (const s of sessions) {
       const ts = new Date(s.time_created).toISOString()
       sessionMap.set(s.id, {
@@ -231,11 +247,9 @@ const readOpencodeUsageFromDb = (dbPath) => {
       })
     }
 
-    // 每个 session 一行 message record，汇总该 session 的 token
-    // time_created 是毫秒时间戳（不是 ISO 字符串）
-    // 别名不能与 SQLite 关键字冲突（to/from/tr 等）
     const tokenSql = `SELECT id,${sInputCol} as inp,${sOutputCol} as out,${sReasonCol} as reas,${sCacheReadCol} as cread,${sCacheWriteCol} as cwrite,time_created FROM session WHERE (tokens_input > 0 OR tokens_output > 0)`
     const rows = db.prepare(tokenSql).all()
+    const messageRecords = []
     for (const r of rows) {
       const tsMs = r.time_created
       if (!tsMs || tsMs <= 0) continue
@@ -244,7 +258,7 @@ const readOpencodeUsageFromDb = (dbPath) => {
       if (total === 0) continue
       messageRecords.push({
         sessionId: r.id,
-        model: 'unknown', // 历史消息级别的 model 需要解析 session metadata blob，暂不支持
+        model: 'unknown',
         project: sessionMap.get(r.id)?.project || 'unknown',
         projectPath: sessionMap.get(r.id)?.projectPath || 'unknown',
         timestamp: ts,
@@ -264,11 +278,76 @@ const readOpencodeUsageFromDb = (dbPath) => {
         sess.timestamp = ts
       }
     }
+    return usage.calculateStats(messageRecords, sessionMap)
   } finally {
     db.close()
   }
+}
 
-  return usage.calculateStats(messageRecords, sessionMap)
+const readOpencodeUsageFromDbViaChildProcess = (dbPath) => {
+  const usage = require('./usage')
+  const { execSync } = require('node:child_process')
+  const fs = require('node:fs')
+  const os = require('os')
+  const tmpScript = path.join(os.tmpdir(), 'oc_usage_reader.js')
+  const script = `
+    const {DatabaseSync} = require('node:sqlite');
+    const db = new DatabaseSync(${JSON.stringify(dbPath)}, {open:true, readOnly:true});
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r=>r.name);
+    if (!tables.includes('session')) { db.close(); process.stdout.write('[]'); process.exit(0); }
+    const cols = new Set(db.prepare("PRAGMA table_info(session)").all().map(c=>c.name));
+    const sIn = cols.has('tokens_input') ? 'tokens_input' : 'null';
+    const sOut = cols.has('tokens_output') ? 'tokens_output' : 'null';
+    const sReas = cols.has('tokens_reasoning') ? 'tokens_reasoning' : 'null';
+    const sCread = cols.has('tokens_cache_read') ? 'tokens_cache_read' : 'null';
+    const sCwrite = cols.has('tokens_cache_write') ? 'tokens_cache_write' : 'null';
+    const sql = 'SELECT id, '+sIn+' as inp, '+sOut+' as out, '+sReas+' as reas, '+sCread+' as cread, '+sCwrite+' as cwrite, time_created, directory, title FROM session';
+    const rows = db.prepare(sql).all();
+    db.close();
+    process.stdout.write(JSON.stringify(rows));
+  `
+  fs.writeFileSync(tmpScript, script)
+  try {
+    const stdout = execSync(`node --experimental-sqlite "${tmpScript}"`, {
+      encoding: 'utf-8',
+      timeout: 15_000,
+      env: { ...process.env, NODE_OPTIONS: '--experimental-sqlite' },
+    })
+    let rows = []
+    try { rows = JSON.parse(stdout) } catch { return usage.calculateStats([], new Map()) }
+    const sessionMap = new Map()
+    const messageRecords = []
+    for (const r of rows) {
+      const tsMs = r.time_created
+      if (!tsMs || tsMs <= 0) continue
+      const ts = new Date(tsMs).toISOString()
+      const inp = r.inp || 0, out = r.out || 0, reas = r.reas || 0, cread = r.cread || 0, cwrite = r.cwrite || 0
+      const total = inp + out + reas + cread + cwrite
+      sessionMap.set(r.id, {
+        sessionId: r.id,
+        timestamp: ts,
+        inputTokens: inp, outputTokens: out,
+        cacheReadTokens: cread, cacheCreationTokens: cwrite,
+        project: r.directory || r.title || 'unknown',
+        projectPath: r.directory || 'unknown',
+        title: r.title || '',
+      })
+      if (total > 0) {
+        messageRecords.push({
+          sessionId: r.id, model: 'unknown',
+          project: r.directory || r.title || 'unknown',
+          projectPath: r.directory || 'unknown',
+          timestamp: ts, date: ts.split('T')[0],
+          inputTokens: inp, outputTokens: out,
+          cacheReadTokens: cread, cacheCreationTokens: cwrite,
+          totalTokens: total,
+        })
+      }
+    }
+    return usage.calculateStats(messageRecords, sessionMap)
+  } finally {
+    try { fs.unlinkSync(tmpScript) } catch { /* ignore */ }
+  }
 }
 
 const readOpencodeUsageFromJson = (storageDir) => {

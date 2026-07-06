@@ -113,7 +113,7 @@ onMounted(loadData);
 <template>
   <div class="oc-usage-view">
     <div class="oc-usage-header">
-      <span class="oc-usage-tip">统计仅供参考 · 数据来自 %LOCALAPPDATA%\opencode\opencode.db</span>
+      <span class="oc-usage-tip">统计仅供参考 · 解析 opencode.db 中的 session tokens_* 列</span>
       <div class="oc-usage-actions">
         <DateRangePicker
           v-model="dateRange"
