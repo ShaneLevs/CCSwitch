@@ -88,6 +88,7 @@ public/
 - **Usage Stats**: `~/.claude/projects/**/*.jsonl` → parsed & aggregated, with heatmap history persistence in DB
 - **MCP Usage**: Parsed from JSONL `tool_use` messages matching `mcp__{server}__{tool}` pattern
 - **OpenCode Config**: `~/.config/opencode.json` (json5 format) ↔ uTools DB
+- **OpenCode Usage**: `%LOCALAPPDATA%\opencode\opencode.db`（SQLite，含 session/part 表）或 `storage/`（JSON 兜底）→ 解析聚合 → usage.calculateStats
 - **Pi Agent Config**: `~/.pi/agent/settings.json` + `models.json` + `~/.pi/agent/sessions/**/*.jsonl`
   - Provider/model CRUD via `pi.js`; `setPiDefaultProvider` auto-syncs `defaultModel` to first model of new provider
   - `fetchProviderModels` calls `{baseUrl}/models` (OpenAI-compatible) for auto-fetch

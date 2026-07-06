@@ -80,6 +80,7 @@ window.services = {
   addOpencodePlugin,
   removeOpencodePlugin,
   fetchModelsDevPresets,
+  readOpencodeUsage: opencode.readOpencodeUsage,
 
   // ==================== Plugins ====================
 

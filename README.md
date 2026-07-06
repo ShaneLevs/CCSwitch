@@ -106,7 +106,7 @@ Claude:
 
 OpenCode:
   ~/.config/opencode.json (json5)  ←→  uTools DB
-  （使用统计暂无 — OpenCode session 格式与 Claude 不同，待补）
+  %LOCALAPPDATA%\opencode\opencode.db (SQLite) 或 storage/ (JSON)  →  解析 & 聚合  →  使用统计
 
 Pi Agent:
   ~/.pi/agent/settings.json + models.json  ←→  uTools DB

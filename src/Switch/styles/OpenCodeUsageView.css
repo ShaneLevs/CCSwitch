@@ -1,0 +1,23 @@
+.oc-usage-view { display: flex; flex-direction: column; gap: 12px; padding-top: 0; }
+.oc-usage-header { display: flex; justify-content: space-between; align-items: center; }
+.oc-usage-tip { font-size: 12px; color: var(--td-text-color-secondary); }
+.oc-usage-actions { display: flex; gap: 8px; align-items: center; }
+.oc-usage-empty { margin-top: 40px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.oc-usage-section-header { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 500; color: var(--td-text-color-primary); }
+.stat-cards-row { display: flex; gap: 12px; }
+.stat-card { flex: 1; padding: 12px 14px; border-radius: var(--td-radius-default); background: var(--td-bg-color-container); border: 1px solid var(--td-border-level-1-color); }
+.stat-card .t-statistic { margin: 0; }
+.stat-title-row { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--td-text-color-secondary); }
+.stat-icon-wrap { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 4px; }
+.stat-green .t-statistic__value { color: var(--td-success-color); }
+.stat-red .t-statistic__value { color: var(--td-error-color); }
+.stat-pink .t-statistic__value { color: #eb2f96; }
+.stat-card .t-statistic__value { font-size: 20px; font-weight: 600; }
+.stat-card .t-statistic__title { margin-top: 4px; }
+.oc-usage-model-bars { display: flex; flex-direction: column; gap: 8px; }
+.oc-usage-model-row { display: flex; flex-direction: column; gap: 2px; }
+.oc-usage-model-info { display: flex; justify-content: space-between; font-size: 12px; }
+.oc-usage-model-name { color: var(--td-text-color-primary); font-weight: 500; }
+.oc-usage-model-tokens { color: var(--td-text-color-secondary); }
+.oc-usage-model-bar-track { height: 6px; background: var(--td-bg-color-secondarycontainer); border-radius: 3px; overflow: hidden; }
+.oc-usage-model-bar { height: 100%; background: var(--td-brand-color); border-radius: 3px; transition: width 0.3s; }
