@@ -1,0 +1,13 @@
+.pi-mcp-container { display: flex; flex-direction: column; gap: 12px; padding-top: 0; }
+.pi-mcp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0; }
+.pi-mcp-tip { font-size: 12px; color: var(--td-text-color-secondary); }
+.pi-mcp-empty { margin-top: 40px; }
+.pi-mcp-list { display: flex; flex-direction: column; gap: 8px; }
+.pi-mcp-card { }
+.pi-mcp-card-header { display: flex; align-items: center; gap: 8px; }
+.pi-mcp-srv-name { font-weight: 600; font-size: 14px; color: var(--td-text-color-primary); }
+.pi-mcp-card-body { display: flex; flex-direction: column; gap: 6px; }
+.pi-mcp-info-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.pi-mcp-label { color: var(--td-text-color-placeholder); min-width: 80px; }
+.pi-mcp-value { color: var(--td-text-color-primary); }
+.mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; word-break: break-all; }

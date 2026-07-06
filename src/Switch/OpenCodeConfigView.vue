@@ -543,7 +543,7 @@ onMounted(() => {
           <template #icon><UploadIcon /></template> 导入
         </Button>
         <Button size="small" theme="primary" @click="openCreateDialog">
-          <template #icon><AddIcon /></template> New Provider
+          <template #icon><AddIcon /></template> 新建 Provider
         </Button>
       </Space>
     </div>

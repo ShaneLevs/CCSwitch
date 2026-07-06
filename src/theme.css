@@ -92,7 +92,7 @@
     --td-mask-active: rgba(0, 0, 0, .6);
     --td-mask-disabled: rgba(255, 255, 255, .6);
     --td-bg-color-page: var(--td-gray-color-2);
-    --td-bg-color-container: #fff;
+    --td-bg-color-container: #F4F4F4;
     --td-bg-color-container-hover: var(--td-gray-color-1);
     --td-bg-color-container-active: var(--td-gray-color-3);
     --td-bg-color-container-select: #fff;
@@ -224,7 +224,7 @@
     --td-mask-active: rgba(0, 0, 0, .4);
     --td-mask-disabled: rgba(0, 0, 0, .6);
     --td-bg-color-page: var(--td-gray-color-14);
-    --td-bg-color-container: var(--td-gray-color-13);
+    --td-bg-color-container: #303133;
     --td-bg-color-container-hover: var(--td-gray-color-12);
     --td-bg-color-container-active: var(--td-gray-color-10);
     --td-bg-color-container-select: var(--td-gray-color-9);

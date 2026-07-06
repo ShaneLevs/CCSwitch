@@ -1,0 +1,13 @@
+.pi-skill-container { display: flex; flex-direction: column; gap: 12px; padding-top: 0; }
+.pi-skill-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0; }
+.pi-skill-tip { font-size: 12px; color: var(--td-text-color-secondary); }
+.pi-skill-empty { margin-top: 40px; }
+.pi-skill-list { display: flex; flex-direction: column; gap: 8px; }
+.pi-skill-card { }
+.pi-skill-card-header { display: flex; align-items: center; gap: 8px; }
+.pi-skill-name { font-weight: 600; font-size: 14px; color: var(--td-text-color-primary); }
+.pi-skill-card-body { }
+.pi-skill-desc { font-size: 13px; color: var(--td-text-color-secondary); margin: 0 0 4px; }
+.pi-skill-frontmatter-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.pi-skill-fm-label { color: var(--td-text-color-placeholder); }
+.pi-skill-fm-value { color: var(--td-text-color-primary); }
