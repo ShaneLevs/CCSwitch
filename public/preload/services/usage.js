@@ -14,11 +14,15 @@ const fillEmptyContributions = (contributions) => {
   return result
 }
 
-const calculateStats = (messageRecords, sessionMap) => {
+const calculateStats = (messageRecords, sessionMap, options = {}) => {
+  const includeCost = options.includeCost || false
   const sessionArr = Array.from(sessionMap.values()).map(s => ({
     ...s, totalTokens: s.inputTokens + s.outputTokens + s.cacheReadTokens + s.cacheCreationTokens + s.cacheWriteTokens,
   }))
   sessionArr.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+
+  const summaryInit = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, cacheWriteTokens: 0, totalTokens: 0, messageCount: messageRecords.length, sessionCount: sessionMap.size }
+  if (includeCost) summaryInit.totalCost = 0
 
   const summary = messageRecords.reduce((acc, r) => {
     acc.inputTokens += r.inputTokens
@@ -27,8 +31,9 @@ const calculateStats = (messageRecords, sessionMap) => {
     if (r.cacheCreationTokens) acc.cacheCreationTokens += r.cacheCreationTokens
     if (r.cacheWriteTokens) acc.cacheWriteTokens += r.cacheWriteTokens
     acc.totalTokens += r.totalTokens
+    if (includeCost && r.cost) acc.totalCost += r.cost
     return acc
-  }, { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, cacheWriteTokens: 0, totalTokens: 0, messageCount: messageRecords.length, sessionCount: sessionMap.size })
+  }, summaryInit)
 
   const modelMap = new Map()
   messageRecords.forEach(r => {

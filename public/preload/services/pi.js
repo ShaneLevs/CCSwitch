@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { execSync } = require('node:child_process')
+const usage = require('./usage')
 
 const PI_DIR = () => path.join(require('os').homedir(), '.pi', 'agent')
 const PI_SETTINGS_PATH = () => path.join(PI_DIR(), 'settings.json')
@@ -201,7 +202,12 @@ const getPiMcpServers = () => {
 
 const decodePiSessionPath = (encodedDir) => {
   try {
-    return encodedDir.replace(/^--/, '').replace(/--$/, '').replace(/--/g, '\\')
+    // Pi Agent 用 -- 替代路径分隔符编码目录名，首尾也有 --
+    const sep = path.sep
+    let decoded = encodedDir.replace(/^--|--$/g, '').replace(/--/g, sep)
+    // Unix: 还原后需要补前导 /
+    if (sep === '/' && !decoded.startsWith('/')) decoded = '/' + decoded
+    return decoded
   } catch { return encodedDir }
 }
 
@@ -268,7 +274,7 @@ const readPiUsage = () => {
     }
   }
 
-  return calculateStats(messageRecords, sessionMap)
+  return usage.calculateStats(messageRecords, sessionMap, { includeCost: true })
 }
 
 const emptyResult = () => {
@@ -282,59 +288,6 @@ const emptyResult = () => {
     summary: { totalTokens: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalCost: 0, messageCount: 0, sessionCount: 0 },
     modelStats: [], contributions, avgTokensPerSession: 0, recentSessions: [],
   }
-}
-
-const calculateStats = (messageRecords, sessionMap) => {
-  const sessionArr = Array.from(sessionMap.values()).map(s => ({
-    ...s, totalTokens: s.inputTokens + s.outputTokens + s.cacheReadTokens + s.cacheWriteTokens,
-  }))
-  sessionArr.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-
-  const summary = messageRecords.reduce((acc, r) => {
-    acc.inputTokens += r.inputTokens
-    acc.outputTokens += r.outputTokens
-    acc.cacheReadTokens += r.cacheReadTokens
-    acc.cacheWriteTokens += r.cacheWriteTokens
-    acc.totalTokens += r.totalTokens
-    acc.totalCost += r.cost || 0
-    return acc
-  }, { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalTokens: 0, totalCost: 0, messageCount: messageRecords.length, sessionCount: sessionMap.size })
-
-  const modelMap = new Map()
-  messageRecords.forEach(r => {
-    if (!modelMap.has(r.model)) modelMap.set(r.model, { name: r.model, tokens: 0, inputTokens: 0, outputTokens: 0 })
-    const m = modelMap.get(r.model)
-    m.tokens += r.totalTokens; m.inputTokens += r.inputTokens; m.outputTokens += r.outputTokens
-  })
-  const modelStats = Array.from(modelMap.values()).sort((a, b) => b.tokens - a.tokens)
-
-  const contributionMap = new Map()
-  messageRecords.forEach(r => {
-    if (!contributionMap.has(r.date)) contributionMap.set(r.date, { date: r.date, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
-    const d = contributionMap.get(r.date)
-    d.tokens += r.totalTokens; d.inputTokens += r.inputTokens; d.outputTokens += r.outputTokens
-    if (!d.models[r.model]) d.models[r.model] = { inputTokens: 0, outputTokens: 0 }
-    d.models[r.model].inputTokens += r.inputTokens; d.models[r.model].outputTokens += r.outputTokens
-  })
-
-  const contributions = fillEmptyContributions(Array.from(contributionMap.values()).sort((a, b) => a.date.localeCompare(b.date)))
-  const avgTokensPerSession = sessionMap.size > 0 ? Math.round(summary.totalTokens / sessionMap.size) : 0
-  const recentSessions = sessionArr.slice(0, 10)
-
-  return { summary, modelStats, contributions, avgTokensPerSession, recentSessions, messageRecords }
-}
-
-const fillEmptyContributions = (contributions) => {
-  const now = new Date()
-  const dateMap = new Map()
-  for (const d of contributions) dateMap.set(d.date, d)
-  const result = []
-  for (let i = 364; i >= 0; i--) {
-    const d = new Date(now); d.setDate(d.getDate() - i)
-    const key = d.toISOString().split('T')[0]
-    result.push(dateMap.get(key) || { date: key, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
-  }
-  return result
 }
 
 // ==================== 目录操作 ====================

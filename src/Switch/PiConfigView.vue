@@ -154,7 +154,7 @@ onMounted(refresh);
               <div class="pi-model-meta">
                 <span class="pi-model-stat">上下文: {{ formatNumber(m.contextWindow) }}</span>
                 <span class="pi-model-stat">最大输出: {{ formatNumber(m.maxTokens) }}</span>
-                <span v-if="m.cost" class="pi-model-stat">
+                <span v-if="m.cost && m.cost.input != null" class="pi-model-stat">
                   费用: ¥{{ m.cost.input }}/1K in · ¥{{ m.cost.output }}/1K out
                 </span>
               </div>
