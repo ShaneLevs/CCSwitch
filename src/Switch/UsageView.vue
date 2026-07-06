@@ -102,9 +102,21 @@ const loadData = async () => {
   await nextTick();
   setTimeout(() => {
     try {
-      usageData.value = window.services.readPersistedUsage();
+      // 优先从 JSONL 全量解析，首次加载会写入 DB 持久化
+      const result = window.services.readClaudeUsage();
+      usageData.value = {
+        summary: result.summary || { totalTokens: 0, inputTokens: 0, outputTokens: 0 },
+        modelStats: result.modelStats || [],
+        contributions: result.contributions || [],
+        recentSessions: result.recentSessions || [],
+      };
     } catch {
-      // keep defaults
+      // 失败时回退到历史缓存
+      try {
+        usageData.value = window.services.readPersistedUsage();
+      } catch {
+        // keep defaults
+      }
     }
     loading.value = false;
   }, 50);

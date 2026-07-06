@@ -106,6 +106,7 @@ Claude:
 
 OpenCode:
   ~/.config/opencode.json (json5)  ←→  uTools DB
+  （使用统计暂无 — OpenCode session 格式与 Claude 不同，待补）
 
 Pi Agent:
   ~/.pi/agent/settings.json + models.json  ←→  uTools DB
