@@ -55,7 +55,7 @@ src/
     ├── OpenCodeMcpView.vue    # OpenCode MCP server management (LOCAL/REMOTE)
     ├── OpenCodeSkillView.vue  # OpenCode skill placeholder (no native skill concept)
     ├── OpenCodePluginView.vue # OpenCode plugin management (opencode.json/plugin array)
-    ├── OpenCodeUsageView.vue  # OpenCode usage placeholder (no session logs)
+    ├── OpenCodeUsageView.vue  # OpenCode usage stats (opencode.db SQLite + JSON storage fallback)
     ├── PiConfigView.vue       # Pi Agent provider/model CRUD + auto-fetch
     ├── PiMcpView.vue          # Pi MCP servers (from extensions)
     ├── PiSkillView.vue        # Pi Skills (from extensions)
@@ -85,10 +85,17 @@ public/
 - **Claude MCP**: `~/.claude.json` (server definitions) + uTools DB (disabled state)
   - Tool discovery via MCP SDK (StreamableHTTP → SSE fallback for HTTP; StdioClientTransport for STDIO)
 - **Claude Skills**: `~/.claude/skills/` (global + project-level) + `.claude.json` (usage data)
-- **Usage Stats**: `~/.claude/projects/**/*.jsonl` → parsed & aggregated, with heatmap history persistence in DB
+- **Usage Stats (Claude)**: `~/.claude/projects/**/*.jsonl` → parsed & aggregated；heatmap 持久化到 uTools DB
+  - **DB 缓存层**：UsageView 读 `readClaudeUsage()` 时按 `signature = file_count:max_mtimeMs` 做轻量校验；命中缓存直接返回 summary/modelStats/contributions，跳过 JSONL 解析；未命中全量解析后写缓存；"刷新" 按钮强制重算
 - **MCP Usage**: Parsed from JSONL `tool_use` messages matching `mcp__{server}__{tool}` pattern
 - **OpenCode Config**: `~/.config/opencode.json` (json5 format) ↔ uTools DB
-- **OpenCode Usage**: `%LOCALAPPDATA%\opencode\opencode.db`（SQLite，含 session/part 表）或 `storage/`（JSON 兜底）→ 解析聚合 → usage.calculateStats
+- **OpenCode Usage**:
+  - 数据目录（Windows/macOS/Linux 通用 XDG 风格）：`~/.local/share/opencode/opencode.db`
+  - 多候选回退：`%LOCALAPPDATA%\opencode\` → 以上 XDG 路径 → Windows 专有 `~/AppLocal/Local/opencode/`
+  - 读取路径：`node:sqlite`（原生）→ 子进程 `--experimental-sqlite` 回退（Electron 沙箱）
+  - 数据兜底：SQLite 优先，其次 `storage/*.json`
+  - 模型名：`session.model` 列存 JSON `{"id":"...","providerID":"..."}`，需 `JSON.parse` 取 `id` 字段，否则显示 `unknown`
+  - `usage.calculateStats` 汇总 session tokens_* 列（input/output/reasoning/cache_read/cache_write）
 - **Pi Agent Config**: `~/.pi/agent/settings.json` + `models.json` + `~/.pi/agent/sessions/**/*.jsonl`
   - Provider/model CRUD via `pi.js`; `setPiDefaultProvider` auto-syncs `defaultModel` to first model of new provider
   - `fetchProviderModels` calls `{baseUrl}/models` (OpenAI-compatible) for auto-fetch

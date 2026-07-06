@@ -7,10 +7,10 @@
 - **三应用切换** — Claude Code / OpenCode / Pi Agent 独立配置，一键切换
 - **配置管理** — 读取、保存、切换各应用的 API 配置（Claude 的 `settings.json`、OpenCode 的 `opencode.json`、Pi 的 `models.json`）
 - **MCP 配置** — 管理各应用的 MCP Server，支持工具发现画布
-- **Skill 管理** — 从 SkillHub / 魔搭社区一键安装 Skill
+- **Skill 管理** — 从 SkillHub / 魔搭社区一键安装 Skill（OpenCode 无原生 Skill 概念，见 Plugin）
 - **Plugin / Extension 管理** — Claude Marketplace 仓库 + 插件生命周期、OpenCode plugin 数组、Pi Extension (npm/git)
-- **使用统计** — Token 用量、模型分布、GitHub 风格贡献墙热力图
-- **Pi 模型 CRUD** — 供应商/模型增删、自动从 `/models` API 拉取模型列表、切换供应商自动同步默认模型
+- **使用统计** — Token 用量、模型分布、GitHub 风格贡献墙热力图；Claude 支持 DB 缓存加速二次打开
+- **Pi 模型 CRUD** — 供应商/模型增删、自动从 `/models` API 拉取模型列表、切换供应商自动同步默认模型；模型行按钮固定一行
 - **导入导出** — 支持 JSON 文件方式或压缩加密字符串方式
 - **密钥加密** — API Key 使用 AES-256-CBC 加密存储到 uTools 数据库
 - **深色模式** — 自动跟随系统主题切换
@@ -73,7 +73,9 @@ src/
 │   ├── ContributionGrid.vue   # 贡献墙热力图
 │   ├── OpenCodeConfigView.vue # OpenCode provider CRUD
 │   ├── OpenCodeMcpView.vue    # OpenCode MCP 管理
+│   ├── OpenCodeSkillView.vue  # OpenCode skill 占位（无原生 skill 概念）
 │   ├── OpenCodePluginView.vue # OpenCode plugin 管理
+│   ├── OpenCodeUsageView.vue  # OpenCode 使用统计（opencode.db）
 │   ├── PiConfigView.vue       # Pi 供应商/模型 CRUD
 │   ├── PiMcpView.vue          # Pi MCP（来自扩展）
 │   ├── PiSkillView.vue        # Pi Skill（来自扩展）
@@ -87,12 +89,12 @@ public/
 ├── preload/
 │   ├── services.js            # 服务入口 → window.services
 │   └── services/
-│       ├── config.js          # Claude settings/claude.json I/O
-│       ├── crypto.js          # AES-256-CBC 加密
-│       ├── mcp.js             # MCP 管理 + SDK 工具发现
-│       ├── opencode.js        # OpenCode config CRUD (json5)
-│       ├── pi.js              # Pi Agent 全功能服务层
-│       └── usage.js           # 共享 JSONL 解析（Claude + Pi）
+│       ├── config.js          # Claude settings/claude.json I/O，含 uTools DB 缓存读写
+│       ├── crypto.js          # AES-256-CBC 加密 + 替换加密
+│       ├── mcp.js             # MCP 管理 + SDK 工具发现（STDIO/HTTP/SSE）
+│       ├── opencode.js        # OpenCode config CRUD + SQLite/子进程双读 + 模型名解析
+│       ├── pi.js              # Pi Agent 全功能服务层（/providers /models /extensions /sessions）
+│       └── usage.js           # 共享统计聚合（Claude + OpenCode + Pi 都用 calculateStats）
 ├── plugin.json                # uTools 插件配置
 └── logo.png / icon-opencode.png / icon-pi.png
 ```
@@ -101,16 +103,24 @@ public/
 
 ```
 Claude:
-  ~/.claude/settings.json  ←→  uTools DB（加密存储）
-  ~/.claude/projects/**/*.jsonl  →  解析 & 聚合  →  使用统计
+  ~/.claude/settings.json  ←→  uTools DB（AES-256-CBC 加密）
+  ~/.claude/projects/**/*.jsonl  →  UsageView 通过 readClaudeUsage() 全量解析
+                                  → signature = file_count:max_mtime 校验 → DB 缓存命中秒开
+                                  → 热力图历史持久化到 uTools DB
 
 OpenCode:
   ~/.config/opencode.json (json5)  ←→  uTools DB
-  %LOCALAPPDATA%\opencode\opencode.db (SQLite) 或 storage/ (JSON)  →  解析 & 聚合  →  使用统计
+  使用统计：
+    数据目录（全平台）：~/.local/share/opencode/opencode.db
+    回退候选：%LOCALAPPDATA%\opencode\ → ~/AppData/Local/opencode\ → storage/*.json
+    读取路径：原生 node:sqlite → 子进程 --experimental-sqlite（Electron 沙箱回退）
+    模型名：session.model 列存 JSON {"id":"...","providerID":"..."}，需取 .id 字段
+    usage.calculateStats 汇总 tokens_* 五列（input/output/reasoning/cache_read/cache_write）
 
 Pi Agent:
-  ~/.pi/agent/settings.json + models.json  ←→  uTools DB
+  ~/.pi/agent/settings.json + models.json  + extensions  ←→  uTools DB
   ~/.pi/agent/sessions/**/*.jsonl  →  解析 & 聚合  →  使用统计
+  特殊 schema：cost 必须含 {input, output, cacheRead, cacheWrite} 四项；contextWindow 为 0 则省略
 ```
 
 ## 开发
