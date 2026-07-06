@@ -1,0 +1,14 @@
+.oc-plugin-container { padding: 0; }
+.oc-plugin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.oc-plugin-header-left { display: flex; align-items: center; gap: 8px; }
+.oc-plugin-tip { font-size: 12px; color: var(--td-text-color-secondary); }
+.oc-plugin-actions { display: flex; gap: 8px; }
+.oc-plugin-empty { margin-top: 40px; }
+.oc-plugin-list { display: flex; flex-direction: column; gap: 8px; }
+.oc-plugin-card-header { display: flex; align-items: center; gap: 8px; }
+.oc-plugin-name { font-weight: 600; font-size: 14px; color: var(--td-text-color-primary); }
+.oc-plugin-card-body { display: flex; flex-direction: column; gap: 6px; }
+.oc-plugin-info-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.oc-plugin-label { color: var(--td-text-color-placeholder); min-width: 80px; }
+.oc-plugin-value { color: var(--td-text-color-primary); word-break: break-all; }
+.mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }
