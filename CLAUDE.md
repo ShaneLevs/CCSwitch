@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Project Name**: CCSwitch (uTools plugin name: CCConfig)
 - **Type**: uTools Plugin (Multi-app Config Switcher)
-- **Core Functionality**: 管理 Claude Code 和 Open Code 的 API 配置切换、MCP/Skill 管理、使用统计分析
-- **Target Users**: 使用 Claude Code / Open Code 的开发者
+- **Core Functionality**: 管理 Claude Code / OpenCode / Pi Agent 的 API 配置切换、MCP/Skill/Plugin 管理、使用统计分析
+- **Target Users**: 使用 Claude Code / OpenCode / Pi Agent 的开发者
 
 ## Tech Stack
 
@@ -52,8 +52,15 @@ src/
     ├── UsageView.vue          # Usage statistics dashboard
     ├── ContributionGrid.vue   # GitHub-style contribution heatmap
     ├── OpenCodeConfigView.vue # OpenCode provider CRUD + models.dev presets
-    ├── OpenCodeMcpViewView.vue # OpenCode MCP server management (LOCAL/REMOTE)
-    ├── OpenCodeSkillView.vue  # OpenCode plugin management
+    ├── OpenCodeMcpView.vue    # OpenCode MCP server management (LOCAL/REMOTE)
+    ├── OpenCodeSkillView.vue  # OpenCode skill placeholder (no native skill concept)
+    ├── OpenCodePluginView.vue # OpenCode plugin management (opencode.json/plugin array)
+    ├── OpenCodeUsageView.vue  # OpenCode usage placeholder (no session logs)
+    ├── PiConfigView.vue       # Pi Agent provider/model CRUD + auto-fetch
+    ├── PiMcpView.vue          # Pi MCP servers (from extensions)
+    ├── PiSkillView.vue        # Pi Skills (from extensions)
+    ├── PiPluginView.vue       # Pi Extensions (npm/git packages)
+    ├── PiUsageView.vue        # Pi usage statistics (JSONL sessions)
     └── styles/                # Per-view CSS files
 
 public/
@@ -65,7 +72,9 @@ public/
         ├── config.js          # settings.json / .claude.json I/O, compression, persistence
         ├── crypto.js          # AES-256-CBC encryption + substitution cipher
         ├── mcp.js             # MCP enable/disable + SDK tool discovery (STDIO/HTTP/SSE)
-        └── opencode.js        # OpenCode config CRUD (json5) + models.dev presets
+        ├── opencode.js        # OpenCode config CRUD (json5) + models.dev presets
+        ├── pi.js              # Pi Agent provider/model/extension CRUD, auto-fetch via /models API
+        └── usage.js           # Shared JSONL parsing (used by Claude + Pi)
 ```
 
 **Data Flow:**
@@ -78,7 +87,11 @@ public/
 - **Claude Skills**: `~/.claude/skills/` (global + project-level) + `.claude.json` (usage data)
 - **Usage Stats**: `~/.claude/projects/**/*.jsonl` → parsed & aggregated, with heatmap history persistence in DB
 - **MCP Usage**: Parsed from JSONL `tool_use` messages matching `mcp__{server}__{tool}` pattern
-- **OpenCode Config**: `~/.config/opencode/opencode.json` (json5 format) ↔ uTools DB
+- **OpenCode Config**: `~/.config/opencode.json` (json5 format) ↔ uTools DB
+- **Pi Agent Config**: `~/.pi/agent/settings.json` + `models.json` + `~/.pi/agent/sessions/**/*.jsonl`
+  - Provider/model CRUD via `pi.js`; `setPiDefaultProvider` auto-syncs `defaultModel` to first model of new provider
+  - `fetchProviderModels` calls `{baseUrl}/models` (OpenAI-compatible) for auto-fetch
+  - Pi schema rules: `cost` must be `{input, output, cacheRead, cacheWrite}` object; `contextWindow: 0` is invalid (omit instead)
 - **Skill Install**: SkillHub / ModelScope URL → fetch metadata → download zip → extract → find SKILL.md
 
 **Key Architecture Pattern — "Fat Preload":**
@@ -90,14 +103,16 @@ All Node.js-sensitive operations (file I/O, network requests, child process exec
 ## Key Features
 
 1. **配置管理**: 读取/保存/切换 Claude API 配置 (8 managed env fields + variable extra fields)
-2. **多应用支持**: Claude Code / Open Code 应用切换，各自独立的配置/MCP/Skill 视图
+2. **多应用支持**: Claude Code / OpenCode / Pi Agent 三路切换，各自独立的配置/MCP/Skill/Plugin/Usage 视图
 3. **MCP 管理**: MCP 服务器启用/禁用、JSON 编辑、实时工具发现画布
 4. **Skill 管理**: 全局/项目级 Skill 列表、启用/禁用、从 SkillHub/ModelScope 安装
-5. **导入导出**: 文件方式(JSON) 或 字符串方式(zlib 压缩 + 替换加密)
-6. **使用统计**: Token 用量、模型分布、贡献墙热力图(持久化)、MCP 使用追踪
-7. **模型后缀**: `[1m]` 后缀标记百万上下文模型，切换时自动处理
-8. **Env 额外字段**: 全局基准 + 配置特定覆盖的 env 字段合并机制
-9. **跳过登录**: `hasCompletedOnboarding` 开关，跳过 Claude Code 登录验证
+5. **Plugin/Extension 管理**: Claude Marketplace 仓库 + 插件生命周期；OpenCode plugin 数组；Pi Extension (npm/git)
+6. **导入导出**: 文件方式(JSON) 或 字符串方式(zlib 压缩 + 替换加密)
+7. **使用统计**: Token 用量、模型分布、贡献墙热力图(持久化)、MCP 使用追踪
+8. **模型后缀**: `[1m]` 后缀标记百万上下文模型，切换时自动处理
+9. **Env 额外字段**: 全局基准 + 配置特定覆盖的 env 字段合并机制
+10. **跳过登录**: `hasCompletedOnboarding` 开关，跳过 Claude Code 登录验证
+11. **Pi 供应商-模型 CRUD**: 添加/删除供应商和模型，自动从 `/models` API 拉取模型列表，切换供应商自动同步默认模型
 
 ## Managed Env Fields (constants.js)
 
