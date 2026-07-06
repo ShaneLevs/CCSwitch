@@ -142,6 +142,15 @@ const getPiProviderList = () => {
 const setPiDefaultProvider = (providerName) => {
   const settings = readPiSettings()
   settings.defaultProvider = providerName
+  // 如果当前 defaultModel 不属于新供应商，自动切到该供应商第一个模型
+  const models = readPiModels()
+  const prov = models.providers?.[providerName]
+  if (prov?.models?.length) {
+    const stillValid = prov.models.some(m => m.id === settings.defaultModel)
+    if (!stillValid) {
+      settings.defaultModel = prov.models[0].id
+    }
+  }
   writePiSettings(settings)
 }
 
@@ -149,6 +158,25 @@ const setPiDefaultModel = (modelId) => {
   const settings = readPiSettings()
   settings.defaultModel = modelId
   writePiSettings(settings)
+}
+
+const updatePiModel = (providerName, modelId, updates) => {
+  const models = readPiModels()
+  if (!models.providers?.[providerName]) throw new Error(`供应商 ${providerName} 不存在`)
+  const prov = models.providers[providerName]
+  if (!prov.models) return
+  const idx = prov.models.findIndex(m => m.id === modelId)
+  if (idx === -1) throw new Error(`模型 ${modelId} 不存在`)
+  // 不允许通过编辑改 id（id 是唯一标识）
+  const next = { ...prov.models[idx] }
+  if (updates.name !== undefined) next.name = updates.name
+  if (updates.contextWindow !== undefined) next.contextWindow = updates.contextWindow || undefined
+  if (updates.maxTokens !== undefined) next.maxTokens = updates.maxTokens || undefined
+  if (updates.reasoning !== undefined) next.reasoning = !!updates.reasoning
+  if (updates.cost !== undefined) next.cost = updates.cost
+  if (updates.compat !== undefined) next.compat = updates.compat
+  prov.models[idx] = next
+  writePiModels(models)
 }
 
 const updatePiProvider = (providerName, updates) => {
@@ -428,7 +456,7 @@ const isPiInstalled = () => {
 module.exports = {
   readPiSettings, writePiSettings,
   readPiModels, writePiModels,
-  getPiProviderList, setPiDefaultProvider, setPiDefaultModel, updatePiProvider,
+  getPiProviderList, setPiDefaultProvider, setPiDefaultModel, updatePiProvider, updatePiModel,
   addPiProvider, deletePiProvider, addPiModel, deletePiModel,
   getPiExtensions, installPiExtension, uninstallPiExtension,
   getPiSkills, getPiMcpServers,

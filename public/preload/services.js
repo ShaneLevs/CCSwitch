@@ -922,6 +922,7 @@ window.services = {
   setPiDefaultProvider: pi.setPiDefaultProvider,
   setPiDefaultModel: pi.setPiDefaultModel,
   updatePiProvider: pi.updatePiProvider,
+  updatePiModel: pi.updatePiModel,
   addPiProvider: pi.addPiProvider,
   deletePiProvider: pi.deletePiProvider,
   addPiModel: pi.addPiModel,
