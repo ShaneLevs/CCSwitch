@@ -97,13 +97,12 @@ const getStatValue = (key) => {
   }
 };
 
-const loadData = async () => {
+const loadData = async (forceRefresh = false) => {
   loading.value = true;
   await nextTick();
   setTimeout(() => {
     try {
-      // 优先从 JSONL 全量解析，首次加载会写入 DB 持久化
-      const result = window.services.readClaudeUsage();
+      const result = window.services.readClaudeUsage(forceRefresh);
       usageData.value = {
         summary: result.summary || { totalTokens: 0, inputTokens: 0, outputTokens: 0 },
         modelStats: result.modelStats || [],
@@ -111,7 +110,6 @@ const loadData = async () => {
         recentSessions: result.recentSessions || [],
       };
     } catch {
-      // 失败时回退到历史缓存
       try {
         usageData.value = window.services.readPersistedUsage();
       } catch {
@@ -122,7 +120,7 @@ const loadData = async () => {
   }, 50);
 };
 
-const handleRefresh = () => loadData();
+const handleRefresh = () => loadData(true);  // 刷新按钮强制重算
 
 onMounted(() => loadData());
 

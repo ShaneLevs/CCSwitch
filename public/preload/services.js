@@ -16,7 +16,8 @@ const {
   getNativeId, getMcpServers, upsertMcpServer, deleteMcpServer,
   exportConfigsToFile, importConfigsFromFile,
   compressConfigs, decompressConfigs,
-  saveOverriddenEnv, getOverriddenEnv, saveHeatmapHistory, getHeatmapHistory
+  saveOverriddenEnv, getOverriddenEnv, saveHeatmapHistory, getHeatmapHistory,
+  saveUsageCache, getUsageCache,
 } = config
 
 const {
@@ -575,6 +576,23 @@ window.services = {
     return results
   },
 
+  _calcUsageSignature(projectsDir) {
+    try {
+      if (!fs.existsSync(projectsDir)) return '0:0'
+      const files = this._findAllJsonlFiles(projectsDir)
+      let maxMtime = 0
+      for (const f of files) {
+        try {
+          const st = fs.statSync(f)
+          if (st.mtimeMs > maxMtime) maxMtime = st.mtimeMs
+        } catch { /* skip */ }
+      }
+      return `${files.length}:${Math.floor(maxMtime)}`
+    } catch {
+      return '0:0'
+    }
+  },
+
   _processSingleJsonlFile(filePath, messageRecords, sessionMap, projectMap, projectPathMap) {
     const homeDir = window.utools.getPath('home')
     const projectsDir = path.join(homeDir, '.claude', 'projects')
@@ -762,13 +780,21 @@ window.services = {
     return result
   },
 
-  readClaudeUsage() {
+  readClaudeUsage(forceRefresh = false) {
     try {
       const homeDir = window.utools.getPath('home')
       const projectsDir = path.join(homeDir, '.claude', 'projects')
       if (!fs.existsSync(projectsDir)) return this._emptyResult()
 
-      console.log('开始全量处理...')
+      const signature = this._calcUsageSignature(projectsDir)
+      const cached = getUsageCache()
+
+      if (!forceRefresh && cached && cached.signature === signature) {
+        console.log('[Claude Usage] 缓存命中，跳过 JSONL 解析')
+        return cached.stats
+      }
+
+      console.log(`[Claude Usage] 缓存未命中 (${cached?.signature ?? 'null'} → ${signature})，开始全量处理...`)
       const processedData = this._processAllUsageData(projectsDir)
       const stats = usage.calculateStats(processedData.messageRecords, processedData.sessionMap)
 
@@ -790,8 +816,13 @@ window.services = {
       const contributions = usage.fillEmptyContributions(merged)
       setTimeout(() => saveHeatmapHistory(contributions), 0)
 
-      console.log(`处理完成: ${processedData.messageRecords.length} 条消息记录`)
-      return { ...stats, contributions, messageRecords: processedData.messageRecords }
+      const result = { ...stats, contributions, messageRecords: processedData.messageRecords }
+
+      // 写入缓存（不含 messageRecords，太大）
+      saveUsageCache(signature, { summary: result.summary, modelStats: result.modelStats, contributions: result.contributions })
+
+      console.log(`[Claude Usage] 处理完成: ${processedData.messageRecords.length} 条消息记录`)
+      return result
     } catch (error) {
       console.error('读取 Claude usage 数据失败:', error)
       return this._emptyResult()
