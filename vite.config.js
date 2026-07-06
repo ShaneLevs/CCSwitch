@@ -25,6 +25,19 @@ function bundlePreloadPlugin() {
 }
 
 export default defineConfig({
-  plugins: [vue(), bundlePreloadPlugin()],
-  base: './'
+  plugins: [
+    vue(),
+    bundlePreloadPlugin(),
+    {
+      name: 'remove-crossorigin',
+      enforce: 'post',
+      transformIndexHtml: {
+        order: 'post',
+        handler(html) {
+          return html.replace(/ crossorigin/g, '')
+        },
+      },
+    },
+  ],
+  base: './',
 })
