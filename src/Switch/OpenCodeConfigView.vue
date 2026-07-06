@@ -76,7 +76,7 @@ const formData = ref({
 
 // ==================== Computed ====================
 
-const dialogTitle = computed(() => (dialogMode.value === "edit" ? "编辑 Provider" : "新建 Provider"));
+const dialogTitle = computed(() => (dialogMode.value === "edit" ? "编辑配置" : "新建配置"));
 
 const providerList = computed(() => {
   return Object.entries(providers.value).map(([id, config]) => ({
@@ -543,17 +543,17 @@ onMounted(() => {
           <template #icon><UploadIcon /></template> 导入
         </Button>
         <Button size="small" theme="primary" @click="openCreateDialog">
-          <template #icon><AddIcon /></template> 新建 Provider
+          <template #icon><AddIcon /></template> 新建配置
         </Button>
       </Space>
     </div>
 
     <!-- Empty State -->
     <div v-if="!providerList.length" class="empty-state">
-      <Empty description="暂无 Provider 配置">
+      <Empty description="暂无配置">
         <template #action>
           <Button theme="primary" @click="openCreateDialog">
-            <template #icon><AddIcon /></template> 添加第一个 Provider
+            <template #icon><AddIcon /></template> 添加第一个配置
           </Button>
         </template>
       </Empty>

@@ -218,6 +218,18 @@ const readOpencodeUsageFromDb = (dbPath) => {
   }
 }
 
+const parseOpenCodeModel = (raw) => {
+  if (!raw || raw === 'unknown') return 'unknown'
+  try {
+    const m = JSON.parse(raw)
+    if (typeof m === 'object' && m !== null) {
+      return m.id || m.model || m.name || 'unknown'
+    }
+    if (typeof m === 'string' && m) return m
+  } catch { /* not JSON */ }
+  return raw
+}
+
 const readOpencodeUsageFromDbNative = (dbPath, DatabaseSync) => {
   const usage = require('./usage')
   const db = new DatabaseSync(dbPath, { open: true, readOnly: true })
@@ -232,7 +244,7 @@ const readOpencodeUsageFromDbNative = (dbPath, DatabaseSync) => {
     const sCacheReadCol = sessionCols.has('tokens_cache_read') ? 'tokens_cache_read' : null
     const sCacheWriteCol = sessionCols.has('tokens_cache_write') ? 'tokens_cache_write' : null
 
-    const sessionSql = 'SELECT id, title, directory, time_created, time_updated FROM session'
+    const sessionSql = 'SELECT id, title, directory, model, time_created, time_updated FROM session'
     const sessions = db.prepare(sessionSql).all()
     const sessionMap = new Map()
     for (const s of sessions) {
@@ -244,10 +256,11 @@ const readOpencodeUsageFromDbNative = (dbPath, DatabaseSync) => {
         project: s.directory || s.title || 'unknown',
         projectPath: s.directory || 'unknown',
         title: s.title || '',
+        model: parseOpenCodeModel(s.model),
       })
     }
 
-    const tokenSql = `SELECT id,${sInputCol} as inp,${sOutputCol} as out,${sReasonCol} as reas,${sCacheReadCol} as cread,${sCacheWriteCol} as cwrite,time_created FROM session WHERE (tokens_input > 0 OR tokens_output > 0)`
+    const tokenSql = `SELECT id, model,${sInputCol} as inp,${sOutputCol} as out,${sReasonCol} as reas,${sCacheReadCol} as cread,${sCacheWriteCol} as cwrite,time_created FROM session WHERE (tokens_input > 0 OR tokens_output > 0)`
     const rows = db.prepare(tokenSql).all()
     const messageRecords = []
     for (const r of rows) {
@@ -258,7 +271,7 @@ const readOpencodeUsageFromDbNative = (dbPath, DatabaseSync) => {
       if (total === 0) continue
       messageRecords.push({
         sessionId: r.id,
-        model: 'unknown',
+        model: parseOpenCodeModel(r.model) || sessionMap.get(r.id)?.model || 'unknown',
         project: sessionMap.get(r.id)?.project || 'unknown',
         projectPath: sessionMap.get(r.id)?.projectPath || 'unknown',
         timestamp: ts,
@@ -301,7 +314,7 @@ const readOpencodeUsageFromDbViaChildProcess = (dbPath) => {
     const sReas = cols.has('tokens_reasoning') ? 'tokens_reasoning' : 'null';
     const sCread = cols.has('tokens_cache_read') ? 'tokens_cache_read' : 'null';
     const sCwrite = cols.has('tokens_cache_write') ? 'tokens_cache_write' : 'null';
-    const sql = 'SELECT id, '+sIn+' as inp, '+sOut+' as out, '+sReas+' as reas, '+sCread+' as cread, '+sCwrite+' as cwrite, time_created, directory, title FROM session';
+    const sql = 'SELECT id, model, '+sIn+' as inp, '+sOut+' as out, '+sReas+' as reas, '+sCread+' as cread, '+sCwrite+' as cwrite, time_created, directory, title FROM session';
     const rows = db.prepare(sql).all();
     db.close();
     process.stdout.write(JSON.stringify(rows));
@@ -331,10 +344,11 @@ const readOpencodeUsageFromDbViaChildProcess = (dbPath) => {
         project: r.directory || r.title || 'unknown',
         projectPath: r.directory || 'unknown',
         title: r.title || '',
+        model: parseOpenCodeModel(r.model),
       })
       if (total > 0) {
         messageRecords.push({
-          sessionId: r.id, model: 'unknown',
+          sessionId: r.id, model: parseOpenCodeModel(r.model),
           project: r.directory || r.title || 'unknown',
           projectPath: r.directory || 'unknown',
           timestamp: ts, date: ts.split('T')[0],
