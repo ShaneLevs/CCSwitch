@@ -16,7 +16,7 @@
 .pi-info-label { color: var(--td-text-color-placeholder); min-width: 80px; }
 .pi-info-value { color: var(--td-text-color-primary); }
 .pi-models-section { border-top: 1px solid var(--td-border-level-1-color); padding-top: 8px; }
-.pi-models-title { font-size: 13px; font-weight: 500; color: var(--td-text-color-placeholder); margin-bottom: 8px; }
+.pi-models-title { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 500; color: var(--td-text-color-placeholder); margin-bottom: 8px; }
 .pi-model-item { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-radius: var(--td-radius-default); }
 .pi-model-item:hover { background: var(--td-bg-color-container-hover); }
 .pi-model-info { display: flex; align-items: center; gap: 6px; min-width: 200px; }
@@ -30,6 +30,9 @@
 .pi-form-item label { font-size: 13px; color: var(--td-text-color-secondary); }
 .pi-edit-provider-name { font-size: 14px; font-weight: 600; color: var(--td-text-color-primary); }
 .pi-form-hint { font-size: 12px; color: var(--td-text-color-placeholder); margin-top: 4px; }
+.pi-form-required { color: var(--td-error-color); }
+.pi-form-row { display: flex; gap: 12px; }
+.pi-form-row .pi-form-item { flex: 1; }
 .hint-link { cursor: pointer; text-decoration: underline; color: var(--td-brand-color); }
 .hint-link:hover { opacity: 0.8; }
 .mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }

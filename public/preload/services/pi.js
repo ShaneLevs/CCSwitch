@@ -104,6 +104,68 @@ const updatePiProvider = (providerName, updates) => {
   writePiModels(models)
 }
 
+const addPiProvider = (providerName, cfg = {}) => {
+  if (!providerName || typeof providerName !== 'string') throw new Error('供应商名不能为空')
+  const models = readPiModels()
+  if (!models.providers) models.providers = {}
+  if (models.providers[providerName]) throw new Error(`供应商 ${providerName} 已存在`)
+  models.providers[providerName] = {
+    apiKey: cfg.apiKey || '',
+    baseUrl: cfg.baseUrl || '',
+    api: cfg.api || 'openai-completions',
+    models: [],
+  }
+  writePiModels(models)
+}
+
+const deletePiProvider = (providerName) => {
+  const models = readPiModels()
+  if (!models.providers?.[providerName]) throw new Error('供应商不存在')
+  delete models.providers[providerName]
+  writePiModels(models)
+  // 清理 settings 中的 defaultProvider 指向
+  const settings = readPiSettings()
+  if (settings.defaultProvider === providerName) {
+    settings.defaultProvider = ''
+    writePiSettings(settings)
+  }
+}
+
+const addPiModel = (providerName, model) => {
+  if (!providerName) throw new Error('供应商名不能为空')
+  if (!model?.id) throw new Error('模型 ID 不能为空')
+  const models = readPiModels()
+  if (!models.providers?.[providerName]) throw new Error(`供应商 ${providerName} 不存在`)
+  const prov = models.providers[providerName]
+  if (!prov.models) prov.models = []
+  if (prov.models.some(m => m.id === model.id)) throw new Error(`模型 ${model.id} 已存在`)
+  prov.models.push({
+    id: model.id,
+    name: model.name || model.id,
+    contextWindow: model.contextWindow || 0,
+    maxTokens: model.maxTokens || 0,
+    reasoning: !!model.reasoning,
+    cost: model.cost || null,
+    compat: model.compat || null,
+  })
+  writePiModels(models)
+}
+
+const deletePiModel = (providerName, modelId) => {
+  const models = readPiModels()
+  if (!models.providers?.[providerName]) throw new Error(`供应商 ${providerName} 不存在`)
+  const prov = models.providers[providerName]
+  if (!prov.models) return
+  prov.models = prov.models.filter(m => m.id !== modelId)
+  writePiModels(models)
+  // 清理 defaultModel 指向
+  const settings = readPiSettings()
+  if (settings.defaultModel === modelId) {
+    settings.defaultModel = ''
+    writePiSettings(settings)
+  }
+}
+
 // ==================== Extensions (Packages) ====================
 
 const getPiExtensions = () => {
@@ -309,6 +371,7 @@ module.exports = {
   readPiSettings, writePiSettings,
   readPiModels, writePiModels,
   getPiProviderList, setPiDefaultProvider, setPiDefaultModel, updatePiProvider,
+  addPiProvider, deletePiProvider, addPiModel, deletePiModel,
   getPiExtensions, installPiExtension, uninstallPiExtension,
   getPiSkills, getPiMcpServers,
   readPiUsage,

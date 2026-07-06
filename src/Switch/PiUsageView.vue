@@ -5,6 +5,7 @@ import {
   RefreshIcon, ArrowDownIcon, ArrowUpIcon, SumIcon,
 } from "tdesign-icons-vue-next";
 import ContributionGrid from "./ContributionGrid.vue";
+import "./styles/PiUsageView.css";
 
 const loading = ref(false);
 const showAllModels = ref(false);
@@ -160,10 +161,8 @@ onMounted(loadUsage);
 </template>
 
 <style scoped>
-.pi-cost-value {
-  text-align: center;
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--td-text-color-primary);
+/* Pi scoped overrides — 仅覆盖 TDesign CSS 变量难以表达的细节 */
+.pi-date-picker :deep(.t-input) {
+  background: var(--td-bg-color-container);
 }
 </style>

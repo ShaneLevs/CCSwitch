@@ -1,9 +1,12 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import {
-  Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, MessagePlugin, Table, Loading,
+  Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin, Table, Loading, Popconfirm,
 } from "tdesign-vue-next";
-import { RefreshIcon, EditIcon, FolderOpen1Icon, StarIcon, ChevronDownIcon, ChevronRightIcon } from "tdesign-icons-vue-next";
+import {
+  RefreshIcon, EditIcon, FolderOpen1Icon, StarIcon, ChevronDownIcon, ChevronRightIcon,
+  AddIcon, DeleteIcon,
+} from "tdesign-icons-vue-next";
 import "./styles/PiConfigView.css";
 
 const loading = ref(false);
@@ -12,6 +15,11 @@ const expanded = ref(new Set());
 const editDialog = ref(false);
 const editingProvider = ref(null);
 const editForm = ref({ apiKey: '', baseUrl: '' });
+const addProviderDialog = ref(false);
+const addProviderForm = ref({ name: '', apiKey: '', baseUrl: '' });
+const addModelDialog = ref(false);
+const addModelProvider = ref(null);
+const addModelForm = ref({ id: '', name: '', contextWindow: 0, maxTokens: 0, reasoning: false });
 
 const toggleExpand = (name) => {
   if (expanded.value.has(name)) expanded.value.delete(name);
@@ -63,6 +71,69 @@ const setDefaultModel = (providerName, modelId) => {
   }
 };
 
+const openAddProviderDialog = () => {
+  addProviderForm.value = { name: '', apiKey: '', baseUrl: '' };
+  addProviderDialog.value = true;
+};
+
+const handleAddProvider = async () => {
+  try {
+    const name = addProviderForm.value.name.trim();
+    if (!name) { MessagePlugin.warning('请输入供应商名称'); return; }
+    window.services.addPiProvider(name, { apiKey: addProviderForm.value.apiKey, baseUrl: addProviderForm.value.baseUrl });
+    MessagePlugin.success(`供应商 ${name} 已添加`);
+    addProviderDialog.value = false;
+    loadProviders();
+  } catch (e) {
+    MessagePlugin.error('添加失败: ' + e.message);
+  }
+};
+
+const handleDeleteProvider = async (providerName) => {
+  try {
+    window.services.deletePiProvider(providerName);
+    MessagePlugin.success(`供应商 ${providerName} 已删除`);
+    loadProviders();
+  } catch (e) {
+    MessagePlugin.error('删除失败: ' + e.message);
+  }
+};
+
+const openAddModelDialog = (providerName) => {
+  addModelProvider.value = providerName;
+  addModelForm.value = { id: '', name: '', contextWindow: 0, maxTokens: 0, reasoning: false };
+  addModelDialog.value = true;
+};
+
+const handleAddModel = async () => {
+  try {
+    const id = addModelForm.value.id.trim();
+    if (!id) { MessagePlugin.warning('请输入模型 ID'); return; }
+    window.services.addPiModel(addModelProvider.value, {
+      id,
+      name: addModelForm.value.name.trim() || id,
+      contextWindow: Number(addModelForm.value.contextWindow) || 0,
+      maxTokens: Number(addModelForm.value.maxTokens) || 0,
+      reasoning: addModelForm.value.reasoning,
+    });
+    MessagePlugin.success(`模型 ${id} 已添加`);
+    addModelDialog.value = false;
+    loadProviders();
+  } catch (e) {
+    MessagePlugin.error('添加失败: ' + e.message);
+  }
+};
+
+const handleDeleteModel = async (providerName, modelId) => {
+  try {
+    window.services.deletePiModel(providerName, modelId);
+    MessagePlugin.success(`模型 ${modelId} 已删除`);
+    loadProviders();
+  } catch (e) {
+    MessagePlugin.error('删除失败: ' + e.message);
+  }
+};
+
 const formatNumber = (n) => {
   if (!n) return '0';
   if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
@@ -90,6 +161,11 @@ onMounted(refresh);
         <span class="hint-link" @click="openPiDir">~/.pi/agent</span>
       </span>
       <div class="pi-config-actions">
+        <Tooltip content="添加供应商" placement="top">
+          <Button size="small" variant="outline" @click="openAddProviderDialog">
+            <template #icon><AddIcon /></template> 添加供应商
+          </Button>
+        </Tooltip>
         <Tooltip content="刷新" placement="top">
           <Button size="small" variant="outline" :loading="loading" @click="refresh">
             <template #icon><RefreshIcon /></template> 刷新
@@ -126,6 +202,11 @@ onMounted(refresh);
                     <template #icon><EditIcon /></template>
                   </Button>
                 </Tooltip>
+                <Popconfirm content="确定删除此供应商？其下所有模型也会被删除。" @confirm="handleDeleteProvider(prov.name)">
+                  <Button size="small" variant="text" theme="danger">
+                    <template #icon><DeleteIcon /></template>
+                  </Button>
+                </Popconfirm>
               </Space>
             </div>
           </div>
@@ -144,7 +225,12 @@ onMounted(refresh);
           </div>
 
           <div class="pi-models-section">
-            <div class="pi-models-title">模型列表</div>
+            <div class="pi-models-title">
+              <span>模型列表</span>
+              <Button size="small" variant="text" @click="openAddModelDialog(prov.name)">
+                <template #icon><AddIcon /></template> 添加模型
+              </Button>
+            </div>
             <div class="pi-model-item" v-for="m in prov.models" :key="m.id">
               <div class="pi-model-info">
                 <span class="pi-model-name">{{ m.name }}</span>
@@ -164,6 +250,11 @@ onMounted(refresh);
                     <template #icon><StarIcon /></template>
                   </Button>
                 </Tooltip>
+                <Popconfirm content="确定删除此模型？" @confirm="handleDeleteModel(prov.name, m.id)">
+                  <Button size="small" variant="text" theme="danger">
+                    <template #icon><DeleteIcon /></template>
+                  </Button>
+                </Popconfirm>
               </div>
             </div>
           </div>
@@ -191,7 +282,67 @@ onMounted(refresh);
           <label>Base URL</label>
           <Input v-model="editForm.baseUrl" placeholder="留空则使用默认 URL" />
         </div>
-        <div class="pi-form-hint">模型列表请在 ~/.pi/agent/models.json 中编辑</div>
+      </div>
+    </Dialog>
+
+    <Dialog
+      v-model:visible="addProviderDialog"
+      header="添加供应商"
+      width="480px"
+      :confirm-btn="{ content: '添加', theme: 'primary' }"
+      @confirm="handleAddProvider"
+    >
+      <div class="pi-edit-form">
+        <div class="pi-form-item">
+          <label>供应商名称 <span class="pi-form-required">*</span></label>
+          <Input v-model="addProviderForm.name" placeholder="例如：openai、deepseek、zhipu" />
+        </div>
+        <div class="pi-form-item">
+          <label>API Key</label>
+          <Input v-model="addProviderForm.apiKey" placeholder="输入 API Key（可留空后续再填）" />
+        </div>
+        <div class="pi-form-item">
+          <label>Base URL</label>
+          <Input v-model="addProviderForm.baseUrl" placeholder="留空使用供应商默认 URL" />
+        </div>
+      </div>
+    </Dialog>
+
+    <Dialog
+      v-model:visible="addModelDialog"
+      header="添加模型"
+      width="480px"
+      :confirm-btn="{ content: '添加', theme: 'primary' }"
+      @confirm="handleAddModel"
+    >
+      <div class="pi-edit-form">
+        <div class="pi-form-item">
+          <label>所属供应商</label>
+          <div class="pi-edit-provider-name">{{ addModelProvider }}</div>
+        </div>
+        <div class="pi-form-item">
+          <label>模型 ID <span class="pi-form-required">*</span></label>
+          <Input v-model="addModelForm.id" placeholder="例如：gpt-4o、deepseek-chat" />
+        </div>
+        <div class="pi-form-item">
+          <label>显示名称</label>
+          <Input v-model="addModelForm.name" placeholder="留空则使用模型 ID" />
+        </div>
+        <div class="pi-form-row">
+          <div class="pi-form-item">
+            <label>上下文窗口</label>
+            <InputNumber v-model="addModelForm.contextWindow" :min="0" placeholder="如 128000" />
+          </div>
+          <div class="pi-form-item">
+            <label>最大输出</label>
+            <InputNumber v-model="addModelForm.maxTokens" :min="0" placeholder="如 8192" />
+          </div>
+        </div>
+        <div class="pi-form-item">
+          <label>
+            <input type="checkbox" v-model="addModelForm.reasoning" /> 推理模型
+          </label>
+        </div>
       </div>
     </Dialog>
   </div>

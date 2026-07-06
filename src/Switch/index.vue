@@ -145,11 +145,11 @@ onMounted(() => {
             <template #icon><ChartIcon /></template> 使用统计
           </Button>
         </div>
-        <!-- Open Code tabs (unchanged) -->
+        <!-- Open Code tabs — 仅一个 tab，显示标题而非按钮 -->
         <div v-else class="tab-buttons">
-          <Button size="small" :theme="activeTab === 'config' ? 'primary' : 'default'" :variant="activeTab === 'config' ? 'base' : 'outline'" @click="activeTab = 'config'">
-            <template #icon><DashboardIcon /></template> 配置管理
-          </Button>
+          <span class="opencode-static-title">
+            <DashboardIcon size="16px" /> 配置管理
+          </span>
         </div>
       </div>
     </div>
@@ -186,7 +186,8 @@ onMounted(() => {
 .header-right { display: flex; align-items: center; }
 .header .logo { width: 32px; height: 32px; border-radius: var(--td-radius-default); }
 .header :deep(.t-typography-title) { margin: 0; }
-.tab-buttons { display: flex; gap: 4px; }
+.tab-buttons { display: flex; gap: 4px; align-items: center; }
+.opencode-static-title { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 500; color: var(--td-text-color-primary); padding: 0 8px; }
 
 .app-selector {
   display: inline-flex;
