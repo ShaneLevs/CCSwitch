@@ -122,7 +122,40 @@ const handleDeleteProvider = async (providerName) => {
 const openAddModelDialog = (providerName) => {
   addModelProvider.value = providerName;
   addModelForm.value = { id: '', name: '', contextWindow: 0, maxTokens: 0, reasoning: false };
+  autoModels.value = [];
+  autoModelsLoading.value = false;
   addModelDialog.value = true;
+};
+
+const autoModels = ref([]);
+const autoModelsLoading = ref(false);
+
+const handleAutoFetchModels = async () => {
+  const prov = providers.value.find(p => p.name === addModelProvider.value);
+  if (!prov || !prov.baseUrl) {
+    MessagePlugin.warning('该供应商未配置 Base URL，无法自动获取');
+    return;
+  }
+  autoModelsLoading.value = true;
+  try {
+    const list = await window.services.fetchProviderModels(prov.baseUrl, prov.apiKey);
+    autoModels.value = list;
+    if (list.length === 0) MessagePlugin.info('接口返回空列表');
+  } catch (e) {
+    MessagePlugin.error('获取失败: ' + e.message);
+  } finally {
+    autoModelsLoading.value = false;
+  }
+};
+
+const applyAutoModel = (m) => {
+  addModelForm.value = {
+    id: m.id,
+    name: m.name || m.id,
+    contextWindow: m.contextWindow || 0,
+    maxTokens: m.maxTokens || 0,
+    reasoning: !!m.reasoning,
+  };
 };
 
 const handleAddModel = async () => {
@@ -335,7 +368,7 @@ onMounted(refresh);
     <Dialog
       v-model:visible="addModelDialog"
       header="添加模型"
-      width="480px"
+      width="520px"
       :confirm-btn="{ content: '添加', theme: 'primary' }"
       @confirm="handleAddModel"
     >
@@ -344,6 +377,32 @@ onMounted(refresh);
           <label>所属供应商</label>
           <div class="pi-edit-provider-name">{{ addModelProvider }}</div>
         </div>
+
+        <!-- 自动获取模型 -->
+        <div class="pi-form-item">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <label>从供应商接口自动获取</label>
+            <Button size="small" variant="outline" :loading="autoModelsLoading" @click="handleAutoFetchModels">
+              <template #icon><RefreshIcon /></template> 自动获取
+            </Button>
+          </div>
+          <div v-if="autoModels.length > 0" class="pi-auto-model-list">
+            <div
+              v-for="m in autoModels"
+              :key="m.id"
+              class="pi-auto-model-item"
+              @click="applyAutoModel(m)"
+            >
+              <span class="pi-auto-model-id">{{ m.name || m.id }}</span>
+              <span v-if="m.contextWindow" class="pi-auto-model-meta">{{ formatNumber(m.contextWindow) }} ctx</span>
+              <span v-if="m.reasoning" class="pi-auto-model-tag">推理</span>
+            </div>
+          </div>
+          <div v-else-if="!autoModelsLoading" class="pi-form-hint">
+            点击「自动获取」从供应商 /models 接口拉取，点击列表项即可自动填入
+          </div>
+        </div>
+
         <div class="pi-form-item">
           <label>模型 ID <span class="pi-form-required">*</span></label>
           <Input v-model="addModelForm.id" placeholder="例如：gpt-4o、deepseek-chat" />

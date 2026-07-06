@@ -931,6 +931,7 @@ window.services = {
   uninstallPiExtension: pi.uninstallPiExtension,
   getPiSkills: pi.getPiSkills,
   getPiMcpServers: pi.getPiMcpServers,
+  fetchProviderModels: pi.fetchProviderModels,
   readPiUsage: pi.readPiUsage,
   openPiDir: pi.openPiDir,
   isPiInstalled: pi.isPiInstalled,

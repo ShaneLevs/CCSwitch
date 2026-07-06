@@ -3,7 +3,8 @@
 .pi-usage-container {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  padding-top: 0;
 }
 
 .pi-usage-header {

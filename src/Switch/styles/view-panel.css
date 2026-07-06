@@ -1,7 +1,2 @@
-/* 所有 app 视图统一容器：消除 Claude/Pi/OpenCode 切换时的间距割裂感 */
-.view-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding-top: 4px;
-}
+/* 三 app 统一间距 token，各视图 CSS 通过 @import 或独立引入共享 */
+/* 当前采用：在各 app CSS 文件首条统一书写 */

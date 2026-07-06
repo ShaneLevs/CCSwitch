@@ -1,5 +1,5 @@
-.oc-plugin-container { padding: 0; }
-.oc-plugin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.oc-plugin-container { display: flex; flex-direction: column; gap: 12px; padding-top: 0; }
+.oc-plugin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0; }
 .oc-plugin-header-left { display: flex; align-items: center; gap: 8px; }
 .oc-plugin-tip { font-size: 12px; color: var(--td-text-color-secondary); }
 .oc-plugin-actions { display: flex; gap: 8px; }

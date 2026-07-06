@@ -1,5 +1,5 @@
-.pi-skill-container { padding: 0; }
-.pi-skill-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.pi-skill-container { display: flex; flex-direction: column; gap: 12px; padding-top: 0; }
+.pi-skill-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0; }
 .pi-skill-tip { font-size: 12px; color: var(--td-text-color-secondary); }
 .pi-skill-empty { margin-top: 40px; }
 .pi-skill-list { display: flex; flex-direction: column; gap: 8px; }

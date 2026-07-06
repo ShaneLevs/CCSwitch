@@ -1,5 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
+const http = require('node:http')
+const https = require('node:https')
 const { execSync } = require('node:child_process')
 const usage = require('./usage')
 
@@ -62,6 +64,59 @@ const writePiSettings = (data) => writeJson(PI_SETTINGS_PATH(), data)
 
 const readPiModels = () => readJson(PI_MODELS_PATH()) || { providers: {} }
 const writePiModels = (data) => writeJson(PI_MODELS_PATH(), data)
+
+// ==================== 自动获取模型列表 ====================
+
+// GET {baseUrl}/models —— OpenAI-compatible 接口
+const fetchProviderModels = (baseUrl, apiKey, timeout = 10_000) => {
+  const base = baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`
+  const url = new URL('/models', base.endsWith('/') ? base : base + '/')
+  const mod = url.protocol === 'https:' ? https : http
+  return new Promise((resolve, reject) => {
+    const req = mod.get({
+      hostname: url.hostname,
+      port: url.port,
+      path: url.pathname,
+      headers: {
+        'accept': 'application/json',
+        ...(apiKey ? { 'authorization': `Bearer ${apiKey}` } : {}),
+      },
+      timeout,
+    }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return resolve(fetchProviderModels(res.headers.location, apiKey, timeout))
+      }
+      if (res.statusCode !== 200) {
+        res.resume()
+        return reject(new Error(`HTTP ${res.statusCode}`))
+      }
+      let data = ''
+      res.on('data', c => data += c)
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data)
+          const list = parsed.data || parsed.models || parsed
+          if (!Array.isArray(list)) return reject(new Error('响应格式错误'))
+          resolve(list.map(m => {
+            const id = m.id || m.name
+            if (!id) return null
+            // OpenAI 风格返回的可能是纯字符串数组，补充默认值
+            const item = typeof m === 'string' ? { id: m } : (m || {})
+            return {
+              id,
+              name: item.name || item.id || id,
+              contextWindow: item.context_window || item.context_length || item.contextWindow || item.max_context_length || 0,
+              maxTokens: item.max_tokens || item.maxTokens || 0,
+              reasoning: !!((item.capabilities || item.architecture?.modality || '').toString().includes('reasoning')),
+            }
+          }).filter(Boolean))
+        } catch (e) { reject(e) }
+      })
+    })
+    req.on('error', reject)
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
+  })
+}
 
 const getPiProviderList = () => {
   const models = readPiModels()
@@ -378,5 +433,6 @@ module.exports = {
   getPiExtensions, installPiExtension, uninstallPiExtension,
   getPiSkills, getPiMcpServers,
   readPiUsage,
+  fetchProviderModels,
   openPiDir, isPiInstalled, resolvePiPath,
 }
