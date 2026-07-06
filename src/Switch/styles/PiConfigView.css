@@ -63,7 +63,7 @@
   font-size: 11px;
   padding: 1px 6px;
   border-radius: 999px;
-  background: rgba(245, 34, 45, 0.1);
+  background: var(--td-error-color-light);
   color: var(--td-error-color);
   font-weight: 500;
 }

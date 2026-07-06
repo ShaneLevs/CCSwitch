@@ -789,8 +789,35 @@ window.services = {
       const contributions = usage.fillEmptyContributions(merged)
       setTimeout(() => saveHeatmapHistory(contributions), 0)
 
+      // 从合并后的 contributions 重新计算 summary + modelStats，确保与热力图口径一致
+      let mergedTotal = 0, mergedInput = 0, mergedOutput = 0
+      const mergedModelMap = new Map()
+      for (const day of contributions) {
+        mergedTotal += day.tokens || 0
+        mergedInput += day.inputTokens || 0
+        mergedOutput += day.outputTokens || 0
+        if (day.models) {
+          for (const [modelName, modelData] of Object.entries(day.models)) {
+            if (!mergedModelMap.has(modelName)) mergedModelMap.set(modelName, { name: modelName, tokens: 0, inputTokens: 0, outputTokens: 0 })
+            const m = mergedModelMap.get(modelName)
+            const mt = (modelData.inputTokens || 0) + (modelData.outputTokens || 0)
+            m.tokens += mt
+            m.inputTokens += modelData.inputTokens || 0
+            m.outputTokens += modelData.outputTokens || 0
+          }
+        }
+      }
+
+      const mergedSummary = {
+        ...stats.summary,
+        totalTokens: mergedTotal,
+        inputTokens: mergedInput,
+        outputTokens: mergedOutput,
+      }
+      const mergedModelStats = Array.from(mergedModelMap.values()).sort((a, b) => b.tokens - a.tokens)
+
       console.log(`处理完成: ${processedData.messageRecords.length} 条消息记录`)
-      return { ...stats, contributions, messageRecords: processedData.messageRecords }
+      return { summary: mergedSummary, modelStats: mergedModelStats, contributions, messageRecords: processedData.messageRecords, avgTokensPerSession: stats.avgTokensPerSession, recentSessions: stats.recentSessions }
     } catch (error) {
       console.error('读取 Claude usage 数据失败:', error)
       return this._emptyResult()

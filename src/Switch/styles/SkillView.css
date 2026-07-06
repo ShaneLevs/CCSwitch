@@ -156,10 +156,15 @@
 
 .install-info-version {
   font-size: 12px;
-  padding: 2px 6px;
+  line-height: 20px;
+  padding: 0 6px;
   background: var(--td-brand-color);
-  color: #fff;
+  color: var(--td-font-white-1);
   border-radius: var(--td-radius-small);
+}
+
+.install-info-source {
+  margin-left: auto;
 }
 
 .install-info-meta {

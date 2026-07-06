@@ -254,10 +254,12 @@ onMounted(() => loadSkills());
         <div v-if="installInfo" class="install-info-card">
           <div class="install-info-header">
             <span class="install-info-name">{{ installInfo.displayName }}</span>
-            <Tag size="small" :theme="installInfo.source === 'skillhub' ? 'primary' : 'warning'" variant="light">{{ installInfo.source === 'skillhub' ? 'SkillHub' : '魔搭社区' }}</Tag>
+          </div>
+          <div class="install-info-meta">
+            <span>作者: {{ installInfo.author }}</span><span>下载: {{ installInfo.downloads }}</span>
+            <Tag size="small" :theme="installInfo.source === 'skillhub' ? 'primary' : 'warning'" variant="light" class="install-info-source">{{ installInfo.source === 'skillhub' ? 'SkillHub' : '魔搭社区' }}</Tag>
             <span class="install-info-version">v{{ installInfo.version }}</span>
           </div>
-          <div class="install-info-meta"><span>作者: {{ installInfo.author }}</span><span>下载: {{ installInfo.downloads }}</span></div>
           <div class="install-info-summary">{{ installInfo.summary }}</div>
           <div v-if="installProgress > 0 && installProgress < 100" class="install-progress"><Loading size="small" /><span>下载中... {{ installProgress }}%</span></div>
         </div>

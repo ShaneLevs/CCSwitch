@@ -102,7 +102,7 @@ const loadData = async () => {
   await nextTick();
   setTimeout(() => {
     try {
-      usageData.value = window.services.readPersistedUsage();
+      usageData.value = window.services.readClaudeUsage();
     } catch {
       // keep defaults
     }
@@ -110,7 +110,10 @@ const loadData = async () => {
   }, 50);
 };
 
-const handleRefresh = () => loadData();
+const handleRefresh = () => {
+  dateRange.value = [];
+  loadData();
+};
 
 onMounted(() => loadData());
 
