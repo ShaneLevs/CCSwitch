@@ -100,7 +100,7 @@ onMounted(() => {
         <img v-if="showWaving && isClaude" :key="wavingKey" :src="wavingSrc" alt="logo" class="logo" @click="triggerWaving" />
         <img v-else-if="isClaude" src="/logo.png" alt="logo" class="logo" @click="triggerWaving" />
         <img v-else-if="isOpenCode" src="/icon-opencode.png" alt="logo" class="logo" />
-        <div v-else class="logo logo-pi">π</div>
+        <img v-else src="/icon-pi.png" alt="logo" class="logo" />
         <Dropdown :options="appDropdownOptions" :min-column-width="160" @click="handleAppSelect">
           <span class="app-selector">
             {{ appLabel }} <ChevronDownIcon size="16px" />
@@ -186,7 +186,6 @@ onMounted(() => {
 .header-right { display: flex; align-items: center; }
 .header .logo { width: 32px; height: 32px; border-radius: var(--td-radius-default); }
 .header :deep(.t-typography-title) { margin: 0; }
-.logo-pi { display: flex; align-items: center; justify-content: center; background: #4B5563; color: #fff; font-weight: bold; font-size: 18px; font-family: 'Courier New', monospace; }
 .tab-buttons { display: flex; gap: 4px; }
 
 .app-selector {
