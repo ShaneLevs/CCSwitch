@@ -21,7 +21,6 @@ import PiSkillView from "./PiSkillView.vue";
 import PiPluginView from "./PiPluginView.vue";
 import PiUsageView from "./PiUsageView.vue";
 import OpenCodeMcpView from "./OpenCodeMcpView.vue";
-import OpenCodeSkillView from "./OpenCodeSkillView.vue";
 import OpenCodePluginView from "./OpenCodePluginView.vue";
 import OpenCodeUsageView from "./OpenCodeUsageView.vue";
 import wavingDark from '../assets/waving-dark.gif';
@@ -86,6 +85,10 @@ const handleAppSelect = (data) => {
 };
 
 onMounted(() => {
+  // 根据入口命令预选对应应用
+  const appMap = { claudeConfig: 'claude', opencodeConfig: 'opencode', piConfig: 'pi' };
+  if (appMap[props.route]) setActiveApp(appMap[props.route]);
+
   if (props.route === 'installSkill' && props.payload) {
     activeTab.value = 'skill';
     setTimeout(() => {
@@ -116,7 +119,7 @@ onMounted(() => {
         <!-- Claude Code tabs -->
         <div v-if="isClaude" class="tab-buttons">
           <Button size="small" :theme="activeTab === 'config' ? 'primary' : 'default'" :variant="activeTab === 'config' ? 'base' : 'outline'" @click="activeTab = 'config'">
-            <template #icon><DashboardIcon /></template> 配置管理
+            <template #icon><DashboardIcon /></template> 配置
           </Button>
           <Button size="small" :theme="activeTab === 'mcp' ? 'primary' : 'default'" :variant="activeTab === 'mcp' ? 'base' : 'outline'" @click="activeTab = 'mcp'">
             <template #icon><ServerIcon /></template> MCP
@@ -128,13 +131,13 @@ onMounted(() => {
             <template #icon><AppIcon /></template> Plugin
           </Button>
           <Button size="small" :theme="activeTab === 'usage' ? 'primary' : 'default'" :variant="activeTab === 'usage' ? 'base' : 'outline'" @click="activeTab = 'usage'">
-            <template #icon><ChartIcon /></template> 使用统计
+            <template #icon><ChartIcon /></template> 统计
           </Button>
         </div>
         <!-- Pi Agent tabs -->
         <div v-else-if="isPi" class="tab-buttons">
           <Button size="small" :theme="activeTab === 'config' ? 'primary' : 'default'" :variant="activeTab === 'config' ? 'base' : 'outline'" @click="activeTab = 'config'">
-            <template #icon><DashboardIcon /></template> 配置管理
+            <template #icon><DashboardIcon /></template> 配置
           </Button>
           <Button size="small" :theme="activeTab === 'mcp' ? 'primary' : 'default'" :variant="activeTab === 'mcp' ? 'base' : 'outline'" @click="activeTab = 'mcp'">
             <template #icon><ServerIcon /></template> MCP
@@ -146,25 +149,22 @@ onMounted(() => {
             <template #icon><AppIcon /></template> Plugin
           </Button>
           <Button size="small" :theme="activeTab === 'usage' ? 'primary' : 'default'" :variant="activeTab === 'usage' ? 'base' : 'outline'" @click="activeTab = 'usage'">
-            <template #icon><ChartIcon /></template> 使用统计
+            <template #icon><ChartIcon /></template> 统计
           </Button>
         </div>
         <!-- Open Code tabs -->
         <div v-else class="tab-buttons">
           <Button size="small" :theme="activeTab === 'config' ? 'primary' : 'default'" :variant="activeTab === 'config' ? 'base' : 'outline'" @click="activeTab = 'config'">
-            <template #icon><DashboardIcon /></template> 配置管理
+            <template #icon><DashboardIcon /></template> 配置
           </Button>
           <Button size="small" :theme="activeTab === 'mcp' ? 'primary' : 'default'" :variant="activeTab === 'mcp' ? 'base' : 'outline'" @click="activeTab = 'mcp'">
             <template #icon><ServerIcon /></template> MCP
-          </Button>
-          <Button size="small" :theme="activeTab === 'skill' ? 'primary' : 'default'" :variant="activeTab === 'skill' ? 'base' : 'outline'" @click="activeTab = 'skill'">
-            <template #icon><BookIcon /></template> Skill
           </Button>
           <Button size="small" :theme="activeTab === 'plugin' ? 'primary' : 'default'" :variant="activeTab === 'plugin' ? 'base' : 'outline'" @click="activeTab = 'plugin'">
             <template #icon><AppIcon /></template> Plugin
           </Button>
           <Button size="small" :theme="activeTab === 'usage' ? 'primary' : 'default'" :variant="activeTab === 'usage' ? 'base' : 'outline'" @click="activeTab = 'usage'">
-            <template #icon><ChartIcon /></template> 使用统计
+            <template #icon><ChartIcon /></template> 统计
           </Button>
         </div>
       </div>
@@ -192,7 +192,6 @@ onMounted(() => {
     <template v-else>
       <OpenCodeConfigView v-if="activeTab === 'config'" />
       <OpenCodeMcpView v-else-if="activeTab === 'mcp'" />
-      <OpenCodeSkillView v-else-if="activeTab === 'skill'" />
       <OpenCodePluginView v-else-if="activeTab === 'plugin'" />
       <OpenCodeUsageView v-else-if="activeTab === 'usage'" />
     </template>

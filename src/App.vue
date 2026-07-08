@@ -18,5 +18,5 @@ onMounted(() => {
 </script>
 
 <template>
-  <Switch v-if="route === 'switch' || route === 'installSkill'" :route="route" :payload="payload" />
+  <Switch v-if="['claudeConfig', 'opencodeConfig', 'piConfig', 'installSkill'].includes(route)" :route="route" :payload="payload" />
 </template>

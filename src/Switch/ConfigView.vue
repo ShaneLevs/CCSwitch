@@ -321,6 +321,75 @@ const deleteConfig = (config) => {
 
 const { switchConfig, isCurrentConfig } = useConfigSwitch(currentConfig, loadCurrentConfig);
 
+// 首次打开检测：新设备上自动将当前配置入库
+const checkFirstOpen = () => {
+  const marker = window.utools.db.get('ccswitch_first_open_done');
+  if (marker) return;
+
+  const settings = window.services.readClaudeSettings();
+  const token = settings?.env?.ANTHROPIC_AUTH_TOKEN;
+  const url = settings?.env?.ANTHROPIC_BASE_URL;
+
+  if (token && url) {
+    const now = Date.now();
+    const doc = {
+      _id: DB_PREFIX + now,
+      name: 'default',
+      key: window.services.encryptKey(token),
+      baseUrl: url,
+      model: settings.env.ANTHROPIC_MODEL || '',
+      defaultHaikuModel: settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL || '',
+      defaultSonnetModel: settings.env.ANTHROPIC_DEFAULT_SONNET_MODEL || '',
+      defaultOpusModel: settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL || '',
+      subagentModel: settings.env.CLAUDE_CODE_SUBAGENT_MODEL || '',
+      extraFields: [],
+      updatedAt: now,
+    };
+    window.utools.db.put(doc);
+  }
+
+  window.utools.db.put({ _id: 'ccswitch_first_open_done', done: true });
+};
+
+// 清除敏感配置
+const hasSensitiveConfig = computed(() =>
+  !!(currentConfig.value.key || currentConfig.value.baseUrl || currentConfig.value.model ||
+     currentConfig.value.defaultHaikuModel || currentConfig.value.defaultSonnetModel ||
+     currentConfig.value.defaultOpusModel || currentConfig.value.subagentModel)
+);
+
+const showClearDialog = ref(false);
+
+const clearConfirmContent = computed(() => {
+  const items = [];
+  if (currentConfig.value.key) items.push('Token (ANTHROPIC_AUTH_TOKEN)');
+  if (currentConfig.value.baseUrl) items.push('URL (ANTHROPIC_BASE_URL)');
+  if (currentConfig.value.model) items.push('默认模型 (ANTHROPIC_MODEL)');
+  if (currentConfig.value.defaultHaikuModel) items.push('Haiku 模型');
+  if (currentConfig.value.defaultSonnetModel) items.push('Sonnet 模型');
+  if (currentConfig.value.defaultOpusModel) items.push('Opus 模型');
+  if (currentConfig.value.subagentModel) items.push('Subagent 模型');
+  return items.map((s, i) => (i + 1) + '. ' + s).join('\n');
+});
+
+const confirmClearConfig = () => {
+  const settings = window.services.readClaudeSettings();
+  if (!settings?.env) return;
+
+  const managedFieldsList = ['ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL',
+    'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL',
+    'ANTHROPIC_DEFAULT_OPUS_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL'];
+  managedFieldsList.forEach(key => delete settings.env[key]);
+
+  if (window.services.writeClaudeSettings(settings)) {
+    MessagePlugin.success('已清除配置');
+    showClearDialog.value = false;
+    loadCurrentConfig();
+  } else {
+    MessagePlugin.error('清除失败');
+  }
+};
+
 const {
   showExtraFieldsDialog, extraFields, customFields, presetValues, activeConfigExtras, extraFieldKeyOptions,
   loadExtraFieldKeys, loadGlobalExtraFields, openExtraFieldsDialog, addExtraField, removeExtraField, saveExtraFields, saveExtraFieldKeys,
@@ -376,7 +445,7 @@ const copyModelName = (name) => {
   MessagePlugin.success('已复制: ' + name);
 };
 
-onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys(); loadGroupOrder(); loadSkipLogin(); });
+onMounted(() => { loadCurrentConfig(); checkFirstOpen(); loadSavedConfigs(); loadExtraFieldKeys(); loadGroupOrder(); loadSkipLogin(); });
 </script>
 
 <template>
@@ -394,7 +463,14 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
     <!-- 当前配置展示 -->
     <div class="current-config-card">
       <div class="current-config-header">
-        <span class="current-config-title">当前生效配置</span>
+        <div class="current-config-header-left">
+          <span class="current-config-title">当前生效配置</span>
+          <span
+            class="clear-sensitive-btn"
+            :class="{ disabled: !hasSensitiveConfig }"
+            @click="hasSensitiveConfig && (showClearDialog = true)"
+          >清除配置</span>
+        </div>
         <Button size="small" theme="primary" variant="text" @click="openExtraFieldsDialog"><template #icon><SettingIcon /></template>env其他字段设置</Button>
       </div>
       <div class="current-config-content">
@@ -668,6 +744,19 @@ onMounted(() => { loadCurrentConfig(); loadSavedConfigs(); loadExtraFieldKeys();
         <Button variant="outline" @click="showExtraFieldsDialog = false">取消</Button>
         <Button theme="primary" @click="saveExtraFields">保存</Button>
       </template>
+    </Dialog>
+
+    <!-- 清除配置确认弹窗 -->
+    <Dialog v-model:visible="showClearDialog" header="清除配置" width="480px" :footer="false">
+      <div class="clear-dialog-body">
+        <p class="clear-dialog-warning">以下配置项将被清除，操作不可恢复：</p>
+        <pre class="clear-dialog-list">{{ clearConfirmContent }}</pre>
+        <p class="clear-dialog-note">其余 env 字段将保留。</p>
+      </div>
+      <div class="clear-dialog-footer">
+        <Button variant="outline" @click="showClearDialog = false">取消</Button>
+        <Button theme="danger" @click="confirmClearConfig">确认清除</Button>
+      </div>
     </Dialog>
   </div>
 </template>

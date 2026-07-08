@@ -9,9 +9,22 @@
   },
   "features": [
     {
-      "code": "switch",
+      "code": "claudeConfig",
       "explain": "Claude Code 配置管理工具",
-      "cmds": ["CCConfig", "Claude配置切换", "切换Claude配置"]
+      "icon": "logo.png",
+      "cmds": ["Claude Code配置"]
+    },
+    {
+      "code": "opencodeConfig",
+      "explain": "Open Code 配置管理工具",
+      "icon": "icon-opencode.png",
+      "cmds": ["Open Code配置"]
+    },
+    {
+      "code": "piConfig",
+      "explain": "Pi Agent 配置管理工具",
+      "icon": "icon-pi.png",
+      "cmds": ["Pi Agents配置"]
     },
     {
       "code": "installSkill",

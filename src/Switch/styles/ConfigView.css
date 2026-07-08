@@ -36,6 +36,10 @@
 .current-config-card { margin-top: 4px; margin-bottom: 16px; padding: 16px; background: var(--td-bg-color-container); border-radius: var(--td-radius-medium); border: 1px solid var(--td-component-border); }
 .current-config-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .current-config-title { font-size: 14px; font-weight: 500; color: var(--td-text-color-primary); }
+.current-config-header-left { display: flex; align-items: center; gap: 8px; }
+.clear-sensitive-btn { font-size: 12px; color: var(--td-text-color-secondary); text-decoration: underline; cursor: pointer; user-select: none; transition: color 0.15s; }
+.clear-sensitive-btn:hover:not(.disabled) { color: var(--td-error-color); }
+.clear-sensitive-btn.disabled { color: var(--td-text-color-placeholder); cursor: not-allowed; text-decoration: none; }
 .current-config-content { display: flex; flex-direction: column; gap: 8px; }
 .current-config-main { display: flex; align-items: center; gap: 8px; font-size: 13px; font-family: monospace; }
 .current-config-token { color: var(--td-text-color-primary); }
@@ -149,3 +153,10 @@
 .model-1m-checkbox .t-checkbox__label { font-size: 12px; font-family: monospace; padding-left: 2px; }
 .dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .dialog-footer-right { display: flex; gap: 8px; }
+
+/* 清除配置弹窗 */
+.clear-dialog-body { display: flex; flex-direction: column; gap: 12px; }
+.clear-dialog-warning { font-size: 14px; color: var(--td-text-color-primary); margin: 0; }
+.clear-dialog-list { margin: 0; padding: 12px 16px; background: var(--td-bg-color-container-hover); border-radius: var(--td-radius-default); font-size: 13px; line-height: 1.8; color: var(--td-text-color-primary); white-space: pre-line; }
+.clear-dialog-note { font-size: 12px; color: var(--td-text-color-placeholder); margin: 0; }
+.clear-dialog-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
