@@ -160,6 +160,14 @@ onMounted(loadData);
         </div>
       </div>
 
+      <!-- 贡献墙 -->
+      <Card :bordered="true" v-if="usageData.contributions.length > 0">
+        <template #header>
+          <span class="oc-usage-section-header">每日用量热力图</span>
+        </template>
+        <ContributionGrid :contributions="filteredData.contributions" />
+      </Card>
+
       <!-- 模型分布 -->
       <Card :bordered="true" v-if="usageData.modelStats.length > 0">
         <template #header>
@@ -184,14 +192,6 @@ onMounted(loadData);
             </div>
           </div>
         </div>
-      </Card>
-
-      <!-- 贡献墙 -->
-      <Card :bordered="true" v-if="usageData.contributions.length > 0">
-        <template #header>
-          <span class="oc-usage-section-header">每日用量热力图</span>
-        </template>
-        <ContributionGrid :contributions="filteredData.contributions" />
       </Card>
     </template>
   </div>

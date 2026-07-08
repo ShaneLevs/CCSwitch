@@ -117,6 +117,9 @@ const deleteSkill = (skill) => {
   }
 };
 
+const enabledSkills = computed(() => skills.value.filter(s => !s.disabled));
+const disabledSkills = computed(() => skills.value.filter(s => s.disabled));
+
 const showMoveDialog = ref(false);
 const moveTarget = ref(null);
 const moveToGlobal = (skill) => {
@@ -165,12 +168,13 @@ onMounted(() => loadSkills());
     </div>
 
     <div v-else class="skill-list">
+      <!-- 已启用 -->
+      <!-- 已启用 -->
       <Card
-        v-for="skill in skills"
-        :key="(skill.scope === 'project' ? skill.projectPath + '/' : '') + skill.name + (skill.disabled ? '-disabled' : '')"
+        v-for="skill in enabledSkills"
+        :key="(skill.scope === 'project' ? skill.projectPath + '/' : '') + skill.name"
         :bordered="true"
         class="skill-card"
-        :class="{ 'skill-card-disabled': skill.disabled }"
         hover
       >
         <template #header>
@@ -184,9 +188,9 @@ onMounted(() => loadSkills());
               </Tooltip>
             </div>
             <Space size="small">
-              <Switch :value="!skill.disabled" @change="(val) => toggleSkill(skill, val)" />
+              <Switch :value="true" @change="(val) => toggleSkill(skill, val)" />
               <Tooltip v-if="skill.scope === 'project'" content="转移到用户目录" placement="top">
-                <Button size="small" theme="default" variant="text" :disabled="skill.disabled" @click.stop="moveToGlobal(skill)"><FileExportIcon /></Button>
+                <Button size="small" theme="default" variant="text" @click.stop="moveToGlobal(skill)"><FileExportIcon /></Button>
               </Tooltip>
               <Popconfirm theme="danger" content="删除后不可恢复，确认删除？" @confirm="deleteSkill(skill)">
                 <Tooltip content="删除" placement="top">
@@ -204,6 +208,51 @@ onMounted(() => loadSkills());
           <span class="skill-last-used">{{ formatLastUsed(skill.lastUsedAt) }}</span>
         </div>
       </Card>
+
+      <!-- 已禁用分组 -->
+      <template v-if="disabledSkills.length > 0">
+        <div class="skill-section-divider">
+          <span class="skill-section-label">已禁用 ({{ disabledSkills.length }})</span>
+        </div>
+        <Card
+          v-for="skill in disabledSkills"
+          :key="(skill.scope === 'project' ? skill.projectPath + '/' : '') + skill.name + '-disabled'"
+          :bordered="true"
+          class="skill-card skill-card-disabled"
+          hover
+        >
+          <template #header>
+            <div class="skill-header-wrapper">
+              <div class="skill-header-left">
+                <Tooltip content="点击复制名称" placement="top">
+                  <span class="skill-name-link" @click.stop="copySkillName(skill.name)">{{ skill.name }}</span>
+                </Tooltip>
+                <Tooltip v-if="skill.scope === 'project'" :content="'项目: ' + skill.projectPath" placement="top">
+                  <Tag size="small" variant="light" theme="success" class="project-tag" @click.stop="openProjectDir(skill.projectPath)">{{ skill.projectName }}</Tag>
+                </Tooltip>
+              </div>
+              <Space size="small">
+                <Switch :value="false" @change="(val) => toggleSkill(skill, val)" />
+                <Tooltip v-if="skill.scope === 'project'" content="转移到用户目录" placement="top">
+                  <Button size="small" theme="default" variant="text" :disabled="true" @click.stop="moveToGlobal(skill)"><FileExportIcon /></Button>
+                </Tooltip>
+                <Popconfirm theme="danger" content="删除后不可恢复，确认删除？" @confirm="deleteSkill(skill)">
+                  <Tooltip content="删除" placement="top">
+                    <Button size="small" theme="danger" variant="text"><DeleteIcon /></Button>
+                  </Tooltip>
+                </Popconfirm>
+              </Space>
+            </div>
+          </template>
+          <div class="skill-description" @click="openDetail(skill)">
+            {{ parseFrontmatter(skill.frontmatter).description || '暂无描述' }}
+          </div>
+          <div class="skill-stats">
+            <Tag size="small" variant="light" theme="primary">使用 {{ skill.usageCount }} 次</Tag>
+            <span class="skill-last-used">{{ formatLastUsed(skill.lastUsedAt) }}</span>
+          </div>
+        </Card>
+      </template>
     </div>
 
     <!-- 详情弹窗 -->

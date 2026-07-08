@@ -68,7 +68,7 @@ const resourceBadges = [
 const formatSource = (src) => src ? src.replace(/^npm:/, '') : '';
 
 const openPiDir = () => {
-  try { window.services.openPiDir(); } catch { MessagePlugin.error("打开目录失败"); }
+  try { window.services.openPiDir(); } catch { MessagePlugin.error("打开配置目录失败"); }
 };
 
 const refreshAll = () => {
@@ -83,15 +83,9 @@ onMounted(refreshAll);
   <div class="pi-plugin-container">
     <div class="pi-plugin-header">
       <span class="pi-plugin-tip">
-        管理 Pi Agent 扩展 —
-        <span class="hint-link" @click="openPiDir">~/.pi/agent</span>
+        管理 Pi Agent 扩展
       </span>
       <div class="pi-plugin-actions">
-        <Tooltip content="打开 pi 配置目录" placement="top">
-          <Button size="small" variant="outline" @click="openPiDir">
-            <template #icon><FolderOpen1Icon /></template> 配置目录
-          </Button>
-        </Tooltip>
         <Tooltip content="安装扩展" placement="top">
           <Button size="small" theme="primary" @click="showInstallDialog = true">
             <template #icon><AddIcon /></template> 安装扩展

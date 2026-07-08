@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, nextTick } from "vue";
 import { Button, Dropdown } from "tdesign-vue-next";
 import {
   ChartIcon,
@@ -37,6 +37,19 @@ const { activeApp, setActiveApp, isClaude, isOpenCode, isPi } = useAppContext();
 
 const activeTab = ref("config");
 const skillViewRef = ref(null);
+// 记录哪些应用已被激活过，激活后保留组件不销毁，避免 v-show 导致热力图宽度计算为 0
+const activatedApps = ref(new Set(['claude']));
+
+const ensureAppActivated = (app) => {
+  if (!activatedApps.value.has(app)) {
+    activatedApps.value.add(app);
+  }
+};
+
+// 初始化当前应用为已 activated
+ensureAppActivated(activeApp.value);
+
+const isAppReady = (app) => activatedApps.value.has(app);
 const wavingKey = ref(0);
 const showWaving = ref(true);
 const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -71,6 +84,9 @@ const switchApp = (app) => {
   if (activeApp.value !== app) {
     setActiveApp(app);
     activeTab.value = 'config';
+    ensureAppActivated(app);
+    // 切到新应用后，触发一次 resize 让热力图重新计算宽度
+    nextTick(() => window.dispatchEvent(new Event('resize')));
   }
 };
 
@@ -171,30 +187,30 @@ onMounted(() => {
     </div>
 
     <!-- Claude Code views -->
-    <template v-if="isClaude">
-      <ConfigView v-if="activeTab === 'config'" />
-      <UsageView v-else-if="activeTab === 'usage'" />
-      <McpView v-else-if="activeTab === 'mcp'" />
-      <SkillView v-else-if="activeTab === 'skill'" ref="skillViewRef" />
-      <PluginView v-else-if="activeTab === 'plugin'" />
+    <template v-if="isAppReady('claude')">
+      <ConfigView v-if="isClaude && activeTab === 'config'" />
+      <UsageView v-if="isClaude && activeTab === 'usage'" />
+      <McpView v-if="isClaude && activeTab === 'mcp'" />
+      <SkillView v-if="isClaude && activeTab === 'skill'" ref="skillViewRef" />
+      <PluginView v-if="isClaude && activeTab === 'plugin'" />
     </template>
 
     <!-- Pi Agent views -->
-    <template v-else-if="isPi">
-      <PiConfigView v-if="activeTab === 'config'" />
-      <PiUsageView v-else-if="activeTab === 'usage'" />
-      <PiMcpView v-else-if="activeTab === 'mcp'" />
-      <PiSkillView v-else-if="activeTab === 'skill'" />
-      <PiPluginView v-else-if="activeTab === 'plugin'" />
+    <template v-if="isAppReady('pi')">
+      <PiConfigView v-if="isPi && activeTab === 'config'" />
+      <PiUsageView v-if="isPi && activeTab === 'usage'" />
+      <PiMcpView v-if="isPi && activeTab === 'mcp'" />
+      <PiSkillView v-if="isPi && activeTab === 'skill'" />
+      <PiPluginView v-if="isPi && activeTab === 'plugin'" />
     </template>
 
     <!-- Open Code views -->
-    <template v-else>
-      <OpenCodeConfigView v-if="activeTab === 'config'" />
-      <OpenCodeMcpView v-else-if="activeTab === 'mcp'" />
-      <OpenCodeSkillView v-else-if="activeTab === 'skill'" />
-      <OpenCodePluginView v-else-if="activeTab === 'plugin'" />
-      <OpenCodeUsageView v-else-if="activeTab === 'usage'" />
+    <template v-if="isAppReady('opencode')">
+      <OpenCodeConfigView v-if="isOpenCode && activeTab === 'config'" />
+      <OpenCodeMcpView v-if="isOpenCode && activeTab === 'mcp'" />
+      <OpenCodeSkillView v-if="isOpenCode && activeTab === 'skill'" />
+      <OpenCodePluginView v-if="isOpenCode && activeTab === 'plugin'" />
+      <OpenCodeUsageView v-if="isOpenCode && activeTab === 'usage'" />
     </template>
   </div>
 </template>
