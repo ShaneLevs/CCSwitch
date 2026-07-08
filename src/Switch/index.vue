@@ -143,7 +143,7 @@ onMounted(() => {
             <template #icon><BookIcon /></template> Skill
           </Button>
           <Button size="small" :theme="activeTab === 'plugin' ? 'primary' : 'default'" :variant="activeTab === 'plugin' ? 'base' : 'outline'" @click="activeTab = 'plugin'">
-            <template #icon><AppIcon /></template> 扩展
+            <template #icon><AppIcon /></template> Plugin
           </Button>
           <Button size="small" :theme="activeTab === 'usage' ? 'primary' : 'default'" :variant="activeTab === 'usage' ? 'base' : 'outline'" @click="activeTab = 'usage'">
             <template #icon><ChartIcon /></template> 使用统计
@@ -161,7 +161,7 @@ onMounted(() => {
             <template #icon><BookIcon /></template> Skill
           </Button>
           <Button size="small" :theme="activeTab === 'plugin' ? 'primary' : 'default'" :variant="activeTab === 'plugin' ? 'base' : 'outline'" @click="activeTab = 'plugin'">
-            <template #icon><AppIcon /></template> 扩展
+            <template #icon><AppIcon /></template> Plugin
           </Button>
           <Button size="small" :theme="activeTab === 'usage' ? 'primary' : 'default'" :variant="activeTab === 'usage' ? 'base' : 'outline'" @click="activeTab = 'usage'">
             <template #icon><ChartIcon /></template> 使用统计

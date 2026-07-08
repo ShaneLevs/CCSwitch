@@ -4,6 +4,29 @@ const JSON5 = require('json5')
 
 const OPENCODE_DIR = path.join(window.utools.getPath('home'), '.config', 'opencode')
 const OPENCODE_CONFIG_PATH = path.join(OPENCODE_DIR, 'opencode.json')
+const OPENCODE_DATA_DIR = (() => {
+  // 新版 Opencode (>= 2025) 数据目录（按优先级）：
+  //   1. %LOCALAPPDATA%\opencode          （Windows 常规安装）
+  //   2. ~/.local/share/opencode          （Windows XDG 模式 + macOS/Linux）
+  // 注意：preload 环境 process.env.LOCALAPPDATA 可能为空（uTools Electron 精简）
+  const home = window.utools.getPath('home')
+  const candidates = []
+  if (process.env.LOCALAPPDATA) {
+    candidates.push(path.join(process.env.LOCALAPPDATA, 'opencode'))
+  }
+  candidates.push(path.join(home, '.local', 'share', 'opencode'))
+  // Windows 兜底：HOME\AppData\Local\opencode
+  if (process.platform === 'win32') {
+    candidates.push(path.join(home, 'AppData', 'Local', 'opencode'))
+  }
+  for (const c of candidates) {
+    try { if (fs.existsSync(path.join(c, 'opencode.db'))) return c } catch { /* ignore */ }
+  }
+  // 都找不到时返回 XDG 路径（后续逻辑会检测到 DB 不存在并返回空状态）
+  return path.join(home, '.local', 'share', 'opencode')
+})()
+const OPENCODE_DB_PATH = path.join(OPENCODE_DATA_DIR, 'opencode.db')
+const OPENCODE_STORAGE_DIR = path.join(OPENCODE_DATA_DIR, 'storage')
 
 const getOpencodeConfigPath = () => OPENCODE_CONFIG_PATH
 
@@ -144,6 +167,273 @@ const fetchModelsDevPresets = () => {
   })
 }
 
+// ==================== Usage Statistics ====================
+
+const readOpencodeUsage = () => {
+  const usage = require('./usage')
+  // 优先 SQLite，回退 JSON storage
+  if (fs.existsSync(OPENCODE_DB_PATH)) {
+    try {
+      const data = readOpencodeUsageFromDb(OPENCODE_DB_PATH)
+      if (data.messageRecords.length > 0) return data
+    } catch (e) {
+      console.warn('[opencode] SQLite 读取失败，回退 JSON storage:', e.message)
+    }
+  }
+  if (fs.existsSync(OPENCODE_STORAGE_DIR)) {
+    try {
+      return readOpencodeUsageFromJson(OPENCODE_STORAGE_DIR)
+    } catch (e) {
+      console.warn('[opencode] JSON storage 读取失败:', e.message)
+    }
+  }
+  return usage.calculateStats([], new Map())
+}
+
+const readOpencodeUsageFromDb = (dbPath) => {
+  const usage = require('./usage')
+  // 优先用原生 node:sqlite（Node 22.5+）
+  let DatabaseSync
+  try {
+    ({ DatabaseSync } = require('node:sqlite'))
+  } catch {
+    DatabaseSync = null
+  }
+
+  if (DatabaseSync) {
+    try {
+      const result = readOpencodeUsageFromDbNative(dbPath, DatabaseSync)
+      if (result.messageRecords.length > 0) return result
+    } catch (e) {
+      console.warn('[opencode] node:sqlite 读取失败，回退子进程方式:', e.message)
+    }
+  }
+
+  // 回退：通过子进程调用 node --experimental-sqlite 脚本
+  try {
+    return readOpencodeUsageFromDbViaChildProcess(dbPath)
+  } catch (e) {
+    console.warn('[opencode] 子进程读取也失败:', e.message)
+    return usage.calculateStats([], new Map())
+  }
+}
+
+const parseOpenCodeModel = (raw) => {
+  if (!raw || raw === 'unknown') return 'unknown'
+  try {
+    const m = JSON.parse(raw)
+    if (typeof m === 'object' && m !== null) {
+      return m.id || m.model || m.name || 'unknown'
+    }
+    if (typeof m === 'string' && m) return m
+  } catch { /* not JSON */ }
+  return raw
+}
+
+const readOpencodeUsageFromDbNative = (dbPath, DatabaseSync) => {
+  const usage = require('./usage')
+  const db = new DatabaseSync(dbPath, { open: true, readOnly: true })
+  try {
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name)
+    if (!tables.includes('session')) return usage.calculateStats([], new Map())
+
+    const sessionCols = new Set(db.prepare("PRAGMA table_info(session)").all().map(c => c.name))
+    const sInputCol = sessionCols.has('tokens_input') ? 'tokens_input' : null
+    const sOutputCol = sessionCols.has('tokens_output') ? 'tokens_output' : null
+    const sReasonCol = sessionCols.has('tokens_reasoning') ? 'tokens_reasoning' : null
+    const sCacheReadCol = sessionCols.has('tokens_cache_read') ? 'tokens_cache_read' : null
+    const sCacheWriteCol = sessionCols.has('tokens_cache_write') ? 'tokens_cache_write' : null
+
+    const sessionSql = 'SELECT id, title, directory, model, time_created, time_updated FROM session'
+    const sessions = db.prepare(sessionSql).all()
+    const sessionMap = new Map()
+    for (const s of sessions) {
+      const ts = new Date(s.time_created).toISOString()
+      sessionMap.set(s.id, {
+        sessionId: s.id,
+        timestamp: ts,
+        inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0,
+        project: s.directory || s.title || 'unknown',
+        projectPath: s.directory || 'unknown',
+        title: s.title || '',
+        model: parseOpenCodeModel(s.model),
+      })
+    }
+
+    const tokenSql = `SELECT id, model,${sInputCol} as inp,${sOutputCol} as out,${sReasonCol} as reas,${sCacheReadCol} as cread,${sCacheWriteCol} as cwrite,time_created FROM session WHERE (tokens_input > 0 OR tokens_output > 0)`
+    const rows = db.prepare(tokenSql).all()
+    const messageRecords = []
+    for (const r of rows) {
+      const tsMs = r.time_created
+      if (!tsMs || tsMs <= 0) continue
+      const ts = new Date(tsMs).toISOString()
+      const total = (r.inp || 0) + (r.out || 0) + (r.reas || 0) + (r.cread || 0) + (r.cwrite || 0)
+      if (total === 0) continue
+      messageRecords.push({
+        sessionId: r.id,
+        model: parseOpenCodeModel(r.model) || sessionMap.get(r.id)?.model || 'unknown',
+        project: sessionMap.get(r.id)?.project || 'unknown',
+        projectPath: sessionMap.get(r.id)?.projectPath || 'unknown',
+        timestamp: ts,
+        date: ts.split('T')[0],
+        inputTokens: r.inp || 0,
+        outputTokens: r.out || 0,
+        cacheReadTokens: r.cread || 0,
+        cacheCreationTokens: r.cwrite || 0,
+        totalTokens: total,
+      })
+      if (sessionMap.has(r.id)) {
+        const sess = sessionMap.get(r.id)
+        sess.inputTokens = r.inp || 0
+        sess.outputTokens = r.out || 0
+        sess.cacheReadTokens = r.cread || 0
+        sess.cacheCreationTokens = r.cwrite || 0
+        sess.timestamp = ts
+      }
+    }
+    return usage.calculateStats(messageRecords, sessionMap)
+  } finally {
+    db.close()
+  }
+}
+
+const readOpencodeUsageFromDbViaChildProcess = (dbPath) => {
+  const usage = require('./usage')
+  const { execSync } = require('node:child_process')
+  const fs = require('node:fs')
+  const os = require('os')
+  const tmpScript = path.join(os.tmpdir(), 'oc_usage_reader.js')
+  const script = `
+    const {DatabaseSync} = require('node:sqlite');
+    const db = new DatabaseSync(${JSON.stringify(dbPath)}, {open:true, readOnly:true});
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r=>r.name);
+    if (!tables.includes('session')) { db.close(); process.stdout.write('[]'); process.exit(0); }
+    const cols = new Set(db.prepare("PRAGMA table_info(session)").all().map(c=>c.name));
+    const sIn = cols.has('tokens_input') ? 'tokens_input' : 'null';
+    const sOut = cols.has('tokens_output') ? 'tokens_output' : 'null';
+    const sReas = cols.has('tokens_reasoning') ? 'tokens_reasoning' : 'null';
+    const sCread = cols.has('tokens_cache_read') ? 'tokens_cache_read' : 'null';
+    const sCwrite = cols.has('tokens_cache_write') ? 'tokens_cache_write' : 'null';
+    const sql = 'SELECT id, model, '+sIn+' as inp, '+sOut+' as out, '+sReas+' as reas, '+sCread+' as cread, '+sCwrite+' as cwrite, time_created, directory, title FROM session';
+    const rows = db.prepare(sql).all();
+    db.close();
+    process.stdout.write(JSON.stringify(rows));
+  `
+  fs.writeFileSync(tmpScript, script)
+  try {
+    const stdout = execSync(`node --experimental-sqlite "${tmpScript}"`, {
+      encoding: 'utf-8',
+      timeout: 15_000,
+      env: { ...process.env, NODE_OPTIONS: '--experimental-sqlite' },
+    })
+    let rows = []
+    try { rows = JSON.parse(stdout) } catch { return usage.calculateStats([], new Map()) }
+    const sessionMap = new Map()
+    const messageRecords = []
+    for (const r of rows) {
+      const tsMs = r.time_created
+      if (!tsMs || tsMs <= 0) continue
+      const ts = new Date(tsMs).toISOString()
+      const inp = r.inp || 0, out = r.out || 0, reas = r.reas || 0, cread = r.cread || 0, cwrite = r.cwrite || 0
+      const total = inp + out + reas + cread + cwrite
+      sessionMap.set(r.id, {
+        sessionId: r.id,
+        timestamp: ts,
+        inputTokens: inp, outputTokens: out,
+        cacheReadTokens: cread, cacheCreationTokens: cwrite,
+        project: r.directory || r.title || 'unknown',
+        projectPath: r.directory || 'unknown',
+        title: r.title || '',
+        model: parseOpenCodeModel(r.model),
+      })
+      if (total > 0) {
+        messageRecords.push({
+          sessionId: r.id, model: parseOpenCodeModel(r.model),
+          project: r.directory || r.title || 'unknown',
+          projectPath: r.directory || 'unknown',
+          timestamp: ts, date: ts.split('T')[0],
+          inputTokens: inp, outputTokens: out,
+          cacheReadTokens: cread, cacheCreationTokens: cwrite,
+          totalTokens: total,
+        })
+      }
+    }
+    return usage.calculateStats(messageRecords, sessionMap)
+  } finally {
+    try { fs.unlinkSync(tmpScript) } catch { /* ignore */ }
+  }
+}
+
+const readOpencodeUsageFromJson = (storageDir) => {
+  const usage = require('./usage')
+  const sessionMap = new Map()
+  const messageRecords = []
+
+  const sessionDir = path.join(storageDir, 'session')
+  const partDir = path.join(storageDir, 'part')
+
+  if (!fs.existsSync(sessionDir)) return usage.calculateStats([], new Map())
+
+  let sessionFiles = []
+  try {
+    sessionFiles = fs.readdirSync(sessionDir).filter(f => f.endsWith('.json'))
+  } catch { return usage.calculateStats([], new Map()) }
+
+  for (const sf of sessionFiles) {
+    try {
+      const s = JSON.parse(fs.readFileSync(path.join(sessionDir, sf), 'utf8'))
+      const sessionId = s.id || sf.replace('.json', '')
+      sessionMap.set(sessionId, {
+        sessionId,
+        timestamp: s.createdAt || s.updatedAt || '',
+        inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0,
+        project: s.cwd || s.title || 'unknown',
+        projectPath: s.cwd || 'unknown',
+      })
+
+      // part 文件：{id}-part-{n}.json
+      let partFiles = []
+      try {
+        partFiles = fs.readdirSync(partDir).filter(f => f.startsWith(sessionId))
+      } catch { /* ignore */ }
+
+      for (const pf of partFiles) {
+        try {
+          const p = JSON.parse(fs.readFileSync(path.join(partDir, pf), 'utf8'))
+          if (p.role !== 'assistant') continue
+          const u = p.usage || p.metadata?.usage || {}
+          const inputTokens = u.inputTokens || u.input_tokens || u.promptTokens || 0
+          const outputTokens = u.outputTokens || u.output_tokens || u.completionTokens || 0
+          if (inputTokens + outputTokens === 0) continue
+          const ts = p.createdAt || p.timestamp || ''
+          messageRecords.push({
+            sessionId,
+            model: p.model || 'unknown',
+            project: sessionMap.get(sessionId)?.project || 'unknown',
+            projectPath: sessionMap.get(sessionId)?.projectPath || 'unknown',
+            timestamp: ts,
+            date: typeof ts === 'string' && ts ? ts.split('T')[0] : '',
+            inputTokens, outputTokens,
+            cacheReadTokens: u.cacheReadTokens || u.cache_read_input_tokens || 0,
+            cacheCreationTokens: u.cacheCreationTokens || u.cache_creation_input_tokens || 0,
+            totalTokens: inputTokens + outputTokens + (u.cacheReadTokens || 0) + (u.cacheCreationTokens || 0),
+          })
+          if (sessionMap.has(sessionId)) {
+            const sess = sessionMap.get(sessionId)
+            sess.inputTokens += inputTokens
+            sess.outputTokens += outputTokens
+            sess.cacheReadTokens += u.cacheReadTokens || 0
+            sess.cacheCreationTokens += u.cacheCreationTokens || 0
+            if (ts && ts > sess.timestamp) sess.timestamp = ts
+          }
+        } catch { /* skip */ }
+      }
+    } catch { /* skip */ }
+  }
+
+  return usage.calculateStats(messageRecords, sessionMap)
+}
+
 module.exports = {
   getOpencodeConfigPath,
   readOpencodeConfig,
@@ -160,4 +450,5 @@ module.exports = {
   addOpencodePlugin,
   removeOpencodePlugin,
   fetchModelsDevPresets,
+  readOpencodeUsage,
 }

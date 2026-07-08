@@ -97,14 +97,24 @@ const getStatValue = (key) => {
   }
 };
 
-const loadData = async () => {
+const loadData = async (forceRefresh = false) => {
   loading.value = true;
   await nextTick();
   setTimeout(() => {
     try {
-      usageData.value = window.services.readClaudeUsage();
+      const result = window.services.readClaudeUsage(forceRefresh);
+      usageData.value = {
+        summary: result.summary || { totalTokens: 0, inputTokens: 0, outputTokens: 0 },
+        modelStats: result.modelStats || [],
+        contributions: result.contributions || [],
+        recentSessions: result.recentSessions || [],
+      };
     } catch {
-      // keep defaults
+      try {
+        usageData.value = window.services.readPersistedUsage();
+      } catch {
+        // keep defaults
+      }
     }
     loading.value = false;
   }, 50);
@@ -112,7 +122,7 @@ const loadData = async () => {
 
 const handleRefresh = () => {
   dateRange.value = [];
-  loadData();
+  loadData(true);  // 刷新按钮强制重算
 };
 
 onMounted(() => loadData());

@@ -159,6 +159,46 @@ const getHeatmapHistory = () => {
   }
 }
 
+// ==================== Claude 使用统计缓存 ====================
+// 缓存策略：
+//   signature = `${messageCount}:${maxMtimeMs}` — 轻量计算，只需 readdir + statSync
+//   命中缓存 → 直接返回 stats，不解析 JSONL
+//   未命中 → 全量解析后写缓存
+//   refresh 按钮 → 强制跳过缓存
+
+const saveUsageCache = (signature, stats) => {
+  try {
+    const nativeId = getNativeId()
+    const docId = `ccswitch_usage_cache_${nativeId}`
+    const doc = {
+      _id: docId,
+      nativeId,
+      signature,
+      stats: {
+        summary: stats.summary,
+        modelStats: stats.modelStats,
+        contributions: stats.contributions,
+      },
+      updatedAt: Date.now(),
+    }
+    const existing = window.utools.db.get(docId)
+    if (existing) doc._rev = existing._rev
+    window.utools.db.put(doc)
+  } catch (error) {
+    console.error('保存 usage 缓存失败:', error)
+  }
+}
+
+const getUsageCache = () => {
+  try {
+    const docId = `ccswitch_usage_cache_${getNativeId()}`
+    const doc = window.utools.db.get(docId)
+    return doc ? { signature: doc.signature, stats: doc.stats, updatedAt: doc.updatedAt } : null
+  } catch (error) {
+    return null
+  }
+}
+
 module.exports = {
   CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_SKILLS_PATH,
   readClaudeSettings, writeClaudeSettings, getClaudeSettingsPath,
@@ -166,5 +206,6 @@ module.exports = {
   getNativeId, getMcpServers, upsertMcpServer, deleteMcpServer,
   exportConfigsToFile, importConfigsFromFile,
   compressConfigs, decompressConfigs,
-  saveOverriddenEnv, getOverriddenEnv, saveHeatmapHistory, getHeatmapHistory
+  saveOverriddenEnv, getOverriddenEnv, saveHeatmapHistory, getHeatmapHistory,
+  saveUsageCache, getUsageCache,
 }
