@@ -16,9 +16,9 @@
     },
     {
       "code": "opencodeConfig",
-      "explain": "Open Code 配置管理工具",
+      "explain": "OpenCode 配置管理工具",
       "icon": "icon-opencode.png",
-      "cmds": ["Open Code配置"]
+      "cmds": ["OpenCode配置"]
     },
     {
       "code": "piConfig",

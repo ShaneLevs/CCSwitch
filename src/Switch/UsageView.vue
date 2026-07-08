@@ -125,7 +125,7 @@ const handleRefresh = () => {
   loadData(true);  // 刷新按钮强制重算
 };
 
-onMounted(() => loadData());
+onMounted(() => loadData(true));
 
 defineExpose({ loadData });
 </script>

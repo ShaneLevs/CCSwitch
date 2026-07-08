@@ -326,6 +326,13 @@ const checkFirstOpen = () => {
   const marker = window.utools.db.get('ccswitch_first_open_done');
   if (marker) return;
 
+  // 已经有过配置（老用户升级），跳过首次入库
+  const existingConfigs = window.utools.db.allDocs().filter(d => d._id.startsWith(DB_PREFIX));
+  if (existingConfigs.length > 0) {
+    window.utools.db.put({ _id: 'ccswitch_first_open_done', done: true });
+    return;
+  }
+
   const settings = window.services.readClaudeSettings();
   const token = settings?.env?.ANTHROPIC_AUTH_TOKEN;
   const url = settings?.env?.ANTHROPIC_BASE_URL;
