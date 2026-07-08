@@ -38,11 +38,11 @@
 }
 
 /* 统计卡片颜色 - 浅色模式 */
-.stat-green { background: #f6ffed; }
+.stat-green { background: var(--td-success-color-1); }
 .stat-blue { background: #e6f7ff; }
 .stat-teal { background: #e6fffb; }
-.stat-red { background: #fff1f0; }
-.stat-orange { background: #fff7e6; }
+.stat-red { background: var(--td-error-color-1); }
+.stat-orange { background: var(--td-warning-color-1); }
 .stat-purple { background: #f9f0ff; }
 .stat-pink { background: #fff0f6; }
 

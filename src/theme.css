@@ -129,6 +129,11 @@
   --td-scrollbar-color: rgba(0, 0, 0, 0.1);
   --td-scrollbar-hover-color: rgba(0, 0, 0, 0.3);
   --td-scroll-track-color: #fff;
+
+  /* 思考强度指示器颜色 */
+  --cc-effort-low-color: #8B4513;
+  --cc-effort-medium-color: #27ae60;
+  --cc-effort-high-color: #2980b9;
 }
 
 :root.dark,
@@ -262,6 +267,11 @@
   --td-scrollbar-color: rgba(255, 255, 255, 0.1);
   --td-scrollbar-hover-color: rgba(255, 255, 255, 0.3);
   --td-scroll-track-color: #333;
+
+  /* 思考强度指示器颜色（深色模式） */
+  --cc-effort-low-color: #A0522D;
+  --cc-effort-medium-color: #2ecc71;
+  --cc-effort-high-color: #3498db;
 }
 
 :root {
@@ -399,12 +409,12 @@
 
 :root[theme-mode="dark"] .t-button--theme-primary.t-button--variant-base,
 :root[theme-mode="dark"] .t-button--theme-primary.t-button--variant-base:hover {
-  color: #000;
+  color: var(--td-gray-color-14);
 }
 
 /* 安装 Skill 弹窗中的版本标签：深色模式下品牌色背景变浅，文字需反色 */
 :root[theme-mode="dark"] .install-info-version {
-  color: #000;
+  color: var(--td-gray-color-14);
 }
 
 /* Switch 开启状态使用绿色 */

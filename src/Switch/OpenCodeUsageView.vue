@@ -161,17 +161,14 @@ onMounted(loadData);
       </div>
 
       <!-- 模型分布 -->
-      <Card :bordered="true" v-if="usageData.modelStats.length > 0">
-        <template #header>
-          <div class="oc-usage-section-header">
-            <span>模型分布</span>
-            <Button v-if="hasMoreModels" size="small" variant="text" @click="showAllModels = !showAllModels">
-              {{ showAllModels ? '收起' : '展开全部' }}
-              <template #icon>
-                <component :is="showAllModels ? ChevronUpIcon : ChevronDownIcon" />
-              </template>
-            </Button>
-          </div>
+      <Card title="模型分布" v-if="usageData.modelStats.length > 0">
+        <template #actions>
+          <Button v-if="hasMoreModels" size="small" variant="text" @click="showAllModels = !showAllModels">
+            {{ showAllModels ? '收起' : '展开全部' }}
+            <template #icon>
+              <component :is="showAllModels ? ChevronUpIcon : ChevronDownIcon" />
+            </template>
+          </Button>
         </template>
         <div class="oc-usage-model-bars">
           <div v-for="m in displayedModelStats" :key="m.name" class="oc-usage-model-row">
@@ -187,10 +184,7 @@ onMounted(loadData);
       </Card>
 
       <!-- 贡献墙 -->
-      <Card :bordered="true" v-if="usageData.contributions.length > 0">
-        <template #header>
-          <span class="oc-usage-section-header">每日用量热力图</span>
-        </template>
+      <Card title="热力图" v-if="usageData.contributions.length > 0">
         <ContributionGrid :contributions="filteredData.contributions" />
       </Card>
     </template>

@@ -110,33 +110,37 @@ onMounted(loadUsage);
       </div>
     </div>
 
-    <div class="pi-stats-row">
-      <Card v-for="stat in stats" :key="stat.key" :bordered="true" hover class="pi-stat-card">
+    <div class="stat-cards-row">
+      <div v-for="stat in stats" :key="stat.key" class="stat-card" :class="stat.colorClass">
         <Statistic
-          :title="stat.title"
-          :value="formatNumber(filteredData.summary[stat.key === 'total' ? 'totalTokens' : stat.key === 'input' ? 'inputTokens' : 'outputTokens'])"
+          :value="filteredData.summary[stat.key === 'total' ? 'totalTokens' : stat.key === 'input' ? 'inputTokens' : 'outputTokens']"
+          :format="formatNumber"
         >
-          <template #prefix>
-            <component :is="stat.icon" :style="{ color: stat.iconColor }" />
+          <template #title>
+            <span class="stat-title-row">
+              <span class="stat-icon-wrap" :style="{ background: stat.iconColor + '20', color: stat.iconColor }">
+                <component :is="stat.icon" size="14px" />
+              </span>
+              <span>{{ stat.title }}</span>
+            </span>
           </template>
         </Statistic>
-      </Card>
+      </div>
     </div>
 
-    <ContributionGrid :contributions="filteredData.contributions" />
+    <Card title="热力图">
+      <ContributionGrid :contributions="filteredData.contributions" />
+    </Card>
 
     <div v-if="filteredData.modelStats.length === 0" class="pi-usage-empty">
       <Empty description="暂无使用数据，使用 Pi Agent 后会在此处显示" />
     </div>
 
-    <Card v-else :bordered="true" class="pi-model-card">
-      <template #header>
-        <div class="pi-model-header">
-          <span>模型使用分布</span>
-          <Button size="small" variant="text" @click="showAllModels = !showAllModels">
-            {{ showAllModels ? '收起' : '展开全部 (' + filteredData.modelStats.length + ')' }}
-          </Button>
-        </div>
+    <Card v-else title="模型使用分布" class="pi-model-card">
+      <template #actions>
+        <Button size="small" variant="text" @click="showAllModels = !showAllModels">
+          {{ showAllModels ? '收起' : '展开全部 (' + filteredData.modelStats.length + ')' }}
+        </Button>
       </template>
       <div
         v-for="(model, i) in (showAllModels ? filteredData.modelStats : filteredData.modelStats.slice(0, displayLimit))"

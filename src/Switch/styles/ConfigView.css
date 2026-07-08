@@ -91,9 +91,9 @@
 }
 
 /* low / medium / high: 静态彩色边框 */
-.effort-low .t-radio-group__bg-block { box-shadow: 0 0 0 2px #8B4513; }
-.effort-medium .t-radio-group__bg-block { box-shadow: 0 0 0 2px #27ae60; }
-.effort-high .t-radio-group__bg-block { box-shadow: 0 0 0 2px #2980b9; }
+.effort-low .t-radio-group__bg-block { box-shadow: 0 0 0 2px var(--cc-effort-low-color); }
+.effort-medium .t-radio-group__bg-block { box-shadow: 0 0 0 2px var(--cc-effort-medium-color); }
+.effort-high .t-radio-group__bg-block { box-shadow: 0 0 0 2px var(--cc-effort-high-color); }
 
 /* xhigh: 紫色边框 + 白色高光跑马灯 */
 .effort-xhigh .t-radio-group__bg-block::before {
@@ -131,9 +131,6 @@
 .preset-checkboxes { --td-brand-color: var(--td-success-color); }
 
 /* 深色模式 */
-:root[theme-mode="dark"] .effort-low .t-radio-group__bg-block { box-shadow: 0 0 0 2px #A0522D; }
-:root[theme-mode="dark"] .effort-medium .t-radio-group__bg-block { box-shadow: 0 0 0 2px #2ecc71; }
-:root[theme-mode="dark"] .effort-high .t-radio-group__bg-block { box-shadow: 0 0 0 2px #3498db; }
 :root[theme-mode="dark"] .effort-xhigh .t-radio-group__bg-block::before {
   background: conic-gradient(from var(--effort-angle), #9b59b6, #9b59b6, #9b59b6, #9b59b6, rgba(255,255,255,0.85), #9b59b6, #9b59b6);
 }
