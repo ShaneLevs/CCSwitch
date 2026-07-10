@@ -160,6 +160,11 @@ onMounted(loadData);
         </div>
       </div>
 
+      <!-- 贡献墙 -->
+      <Card title="热力图" v-if="usageData.contributions.length > 0">
+        <ContributionGrid :contributions="filteredData.contributions" />
+      </Card>
+
       <!-- 模型分布 -->
       <Card title="模型分布" v-if="usageData.modelStats.length > 0">
         <template #actions>
@@ -181,11 +186,6 @@ onMounted(loadData);
             </div>
           </div>
         </div>
-      </Card>
-
-      <!-- 贡献墙 -->
-      <Card title="热力图" v-if="usageData.contributions.length > 0">
-        <ContributionGrid :contributions="filteredData.contributions" />
       </Card>
     </template>
   </div>

@@ -994,6 +994,7 @@ window.services = {
   fetchProviderModels: pi.fetchProviderModels,
   readPiUsage: pi.readPiUsage,
   openPiDir: pi.openPiDir,
+  openPiExtDir: pi.openPiExtDir,
   isPiInstalled: pi.isPiInstalled,
 }
 

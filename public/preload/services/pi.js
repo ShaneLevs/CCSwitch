@@ -446,6 +446,18 @@ const openPiDir = () => {
   try { window.utools.shellOpenPath(dir) } catch { /* ignore */ }
 }
 
+const openPiExtDir = () => {
+  const dir = PI_NPM_DIR()
+  console.log('[openPiExtDir] target dir:', dir, 'exists:', fs.existsSync(dir))
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  try {
+    const result = window.utools.shellOpenPath(dir)
+    console.log('[openPiExtDir] shellOpenPath result:', result)
+  } catch (e) {
+    console.error('[openPiExtDir] error:', e.message)
+  }
+}
+
 const isPiInstalled = () => {
   try {
     const piBin = resolvePiPath()
@@ -462,5 +474,5 @@ module.exports = {
   getPiSkills, getPiMcpServers,
   readPiUsage,
   fetchProviderModels,
-  openPiDir, isPiInstalled, resolvePiPath,
+  openPiDir, openPiExtDir, isPiInstalled, resolvePiPath,
 }

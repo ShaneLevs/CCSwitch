@@ -42,6 +42,23 @@
   opacity: 0.6;
 }
 
+.skill-section-divider {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--td-component-border);
+}
+
+.skill-section-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--td-text-color-placeholder);
+  white-space: nowrap;
+}
+
 .skill-card .t-card__header {
   padding: 10px 16px 6px;
   border-bottom: none;
