@@ -31,7 +31,7 @@ npm run build   # Build for production (includes esbuild preload bundling)
 ```
 src/
 ├── main.js                    # Entry: theme detection, TDesign registration
-├── App.vue                    # Root: uTools route dispatch (switch / installSkill)
+├── App.vue                    # Root: uTools route dispatch (claudeConfig / opencodeConfig / piConfig / installSkill)
 ├── constants.js               # Managed env fields list
 ├── main.css / theme.css       # Global styles & CSS variables
 ├── components/
@@ -53,7 +53,6 @@ src/
     ├── ContributionGrid.vue   # GitHub-style contribution heatmap
     ├── OpenCodeConfigView.vue # OpenCode provider CRUD + models.dev presets
     ├── OpenCodeMcpView.vue    # OpenCode MCP server management (LOCAL/REMOTE)
-    ├── OpenCodeSkillView.vue  # OpenCode skill placeholder (no native skill concept)
     ├── OpenCodePluginView.vue # OpenCode plugin management (opencode.json/plugin array)
     ├── OpenCodeUsageView.vue  # OpenCode usage stats (opencode.db SQLite + JSON storage fallback)
     ├── PiConfigView.vue       # Pi Agent provider/model CRUD + auto-fetch
@@ -110,7 +109,7 @@ All Node.js-sensitive operations (file I/O, network requests, child process exec
 
 ## Key Features
 
-1. **配置管理**: 读取/保存/切换 Claude API 配置 (8 managed env fields + variable extra fields)
+1. **配置管理**: 读取/保存/切换 Claude API 配置 (7 managed env fields + variable extra fields)
 2. **多应用支持**: Claude Code / OpenCode / Pi Agent 三路切换，各自独立的配置/MCP/Skill/Plugin/Usage 视图
 3. **MCP 管理**: MCP 服务器启用/禁用、JSON 编辑、实时工具发现画布
 4. **Skill 管理**: 全局/项目级 Skill 列表、启用/禁用、从 SkillHub/ModelScope 安装
@@ -119,8 +118,9 @@ All Node.js-sensitive operations (file I/O, network requests, child process exec
 7. **使用统计**: Token 用量、模型分布、贡献墙热力图(持久化)、MCP 使用追踪
 8. **模型后缀**: `[1m]` 后缀标记百万上下文模型，切换时自动处理
 9. **Env 额外字段**: 全局基准 + 配置特定覆盖的 env 字段合并机制
-10. **跳过登录**: `hasCompletedOnboarding` 开关，跳过 Claude Code 登录验证
-11. **Pi 供应商-模型 CRUD**: 添加/删除供应商和模型，自动从 `/models` API 拉取模型列表，切换供应商自动同步默认模型
+10. **首次打开跳过老用户**: 非首次访问时跳过引导，直接展示功能界面
+11. **清除配置按钮**: 提供一键清除已保存的配置项
+12. **Pi 供应商-模型 CRUD**: 添加/删除供应商和模型，自动从 `/models` API 拉取模型列表，切换供应商自动同步默认模型
 
 ## Managed Env Fields (constants.js)
 
@@ -158,8 +158,10 @@ These are explicitly managed during config switch — set, cleared, and not pres
 
 ## uTools Plugin Features (plugin.json)
 
-1. **switch** — Triggered by keywords "CCConfig", "Claude配置切换", "切换Claude配置"
-2. **installSkill** — Triggered by URL regex matching SkillHub / ModelScope skill URLs
+1. **claudeConfig** — Triggered by keyword "Claude Code配置"
+2. **opencodeConfig** — Triggered by keyword "OpenCode配置"
+3. **piConfig** — Triggered by keyword "Pi Agents配置"
+4. **installSkill** — Triggered by URL regex matching SkillHub / ModelScope skill URLs
 
 ## Build Notes
 
