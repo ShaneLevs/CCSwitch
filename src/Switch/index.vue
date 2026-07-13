@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, nextTick } from "vue";
+import { ref, computed, onMounted, nextTick, watch } from "vue";
 import { Button, Dropdown } from "tdesign-vue-next";
 import {
   ChartIcon,
@@ -22,6 +22,7 @@ import PiPluginView from "./PiPluginView.vue";
 import PiUsageView from "./PiUsageView.vue";
 import OpenCodeMcpView from "./OpenCodeMcpView.vue";
 import OpenCodePluginView from "./OpenCodePluginView.vue";
+import OpenCodeSkillView from "./OpenCodeSkillView.vue";
 import OpenCodeUsageView from "./OpenCodeUsageView.vue";
 import wavingDark from "../assets/waving-dark.gif";
 import wavingLight from "../assets/waving-light.gif";
@@ -49,6 +50,24 @@ const ensureAppActivated = (app) => {
 ensureAppActivated(activeApp.value);
 
 const isAppReady = (app) => activatedApps.value.has(app);
+
+// 记录每个应用下已访问过的标签页，首次访问后保持组件不销毁
+const visitedTabs = ref(new Set(['claude:config']));
+
+const markTabVisited = (app, tab) => {
+  visitedTabs.value.add(`${app}:${tab}`);
+};
+
+const isTabVisited = (app, tab) => visitedTabs.value.has(`${app}:${tab}`);
+
+// 初始化当前标签为已访问
+markTabVisited(activeApp.value, activeTab.value);
+
+// 标签页/应用切换时自动标记已访问，保持组件不销毁
+watch([activeTab, activeApp], () => {
+  markTabVisited(activeApp.value, activeTab.value);
+});
+
 const wavingKey = ref(0);
 const showWaving = ref(true);
 const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -288,6 +307,14 @@ onMounted(() => {
           </Button>
           <Button
             size="small"
+            :theme="activeTab === 'skill' ? 'primary' : 'default'"
+            :variant="activeTab === 'skill' ? 'base' : 'outline'"
+            @click="activeTab = 'skill'"
+          >
+            <template #icon><BookIcon /></template> Skill
+          </Button>
+          <Button
+            size="small"
             :theme="activeTab === 'plugin' ? 'primary' : 'default'"
             :variant="activeTab === 'plugin' ? 'base' : 'outline'"
             @click="activeTab = 'plugin'"
@@ -306,30 +333,31 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Claude Code views -->
+    <!-- Claude Code views：已访问的标签页用 v-show 保持挂载，避免重复加载 -->
     <template v-if="isAppReady('claude')">
       <ConfigView v-if="isClaude && activeTab === 'config'" />
-      <UsageView v-if="isClaude && activeTab === 'usage'" />
-      <McpView v-if="isClaude && activeTab === 'mcp'" />
-      <SkillView v-if="isClaude && activeTab === 'skill'" ref="skillViewRef" />
-      <PluginView v-if="isClaude && activeTab === 'plugin'" />
+      <UsageView v-if="isTabVisited('claude', 'usage')" v-show="isClaude && activeTab === 'usage'" />
+      <McpView v-if="isTabVisited('claude', 'mcp')" v-show="isClaude && activeTab === 'mcp'" />
+      <SkillView v-if="isTabVisited('claude', 'skill')" v-show="isClaude && activeTab === 'skill'" ref="skillViewRef" />
+      <PluginView v-if="isTabVisited('claude', 'plugin')" v-show="isClaude && activeTab === 'plugin'" />
     </template>
 
     <!-- Pi Agent views -->
     <template v-if="isAppReady('pi')">
       <PiConfigView v-if="isPi && activeTab === 'config'" />
-      <PiUsageView v-if="isPi && activeTab === 'usage'" />
-      <PiMcpView v-if="isPi && activeTab === 'mcp'" />
-      <PiSkillView v-if="isPi && activeTab === 'skill'" />
-      <PiPluginView v-if="isPi && activeTab === 'plugin'" />
+      <PiUsageView v-if="isTabVisited('pi', 'usage')" v-show="isPi && activeTab === 'usage'" />
+      <PiMcpView v-if="isTabVisited('pi', 'mcp')" v-show="isPi && activeTab === 'mcp'" />
+      <PiSkillView v-if="isTabVisited('pi', 'skill')" v-show="isPi && activeTab === 'skill'" />
+      <PiPluginView v-if="isTabVisited('pi', 'plugin')" v-show="isPi && activeTab === 'plugin'" />
     </template>
 
     <!-- OpenCode views -->
     <template v-if="isAppReady('opencode')">
       <OpenCodeConfigView v-if="isOpenCode && activeTab === 'config'" />
-      <OpenCodeMcpView v-if="isOpenCode && activeTab === 'mcp'" />
-      <OpenCodePluginView v-if="isOpenCode && activeTab === 'plugin'" />
-      <OpenCodeUsageView v-if="isOpenCode && activeTab === 'usage'" />
+      <OpenCodeMcpView v-if="isTabVisited('opencode', 'mcp')" v-show="isOpenCode && activeTab === 'mcp'" />
+      <OpenCodeSkillView v-if="isTabVisited('opencode', 'skill')" v-show="isOpenCode && activeTab === 'skill'" />
+      <OpenCodePluginView v-if="isTabVisited('opencode', 'plugin')" v-show="isOpenCode && activeTab === 'plugin'" />
+      <OpenCodeUsageView v-if="isTabVisited('opencode', 'usage')" v-show="isOpenCode && activeTab === 'usage'" />
     </template>
   </div>
 </template>

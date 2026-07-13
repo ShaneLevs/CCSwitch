@@ -318,7 +318,7 @@ const getPiSkills = () => {
         const match = content.match(/^---\n([\s\S]*?)\n---/)
         frontmatter = match ? match[1] : ''
       } catch { /* ignore */ }
-      all.push({ name: skill, package: ext.name, frontmatter, enabled: true })
+      all.push({ name: skill, package: ext.name, frontmatter })
     }
   }
   return all
@@ -338,12 +338,20 @@ const getPiMcpServers = () => {
           package: ext.name,
           command: cfg.command,
           args: cfg.args || [],
-          enabled: true,
+          config: cfg,
         })
       }
     }
   }
   return all
+}
+
+const getPiMcpTools = async (mcpConfig) => {
+  const { getMcpServerTools } = require('./mcp')
+  return getMcpServerTools({
+    command: mcpConfig.command,
+    args: mcpConfig.args || [],
+  })
 }
 
 // ==================== Usage ====================
@@ -471,7 +479,8 @@ module.exports = {
   getPiProviderList, setPiDefaultProvider, setPiDefaultModel, updatePiProvider, updatePiModel,
   addPiProvider, deletePiProvider, addPiModel, deletePiModel,
   getPiExtensions, installPiExtension, uninstallPiExtension,
-  getPiSkills, getPiMcpServers,
+  getPiSkills,
+  getPiMcpServers, getPiMcpTools,
   readPiUsage,
   fetchProviderModels,
   openPiDir, openPiExtDir, isPiInstalled, resolvePiPath,

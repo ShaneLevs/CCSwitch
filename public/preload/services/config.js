@@ -6,11 +6,21 @@ const CLAUDE_SETTINGS_PATH = path.join(window.utools.getPath('home'), '.claude',
 const CLAUDE_JSON_PATH = path.join(window.utools.getPath('home'), '.claude.json')
 const CLAUDE_SKILLS_PATH = path.join(window.utools.getPath('home'), '.claude', 'skills')
 
+let _claudeSettingsCache = null
+
 const readClaudeSettings = () => {
   try {
+    if (_claudeSettingsCache) {
+      try {
+        const currentMtime = fs.statSync(CLAUDE_SETTINGS_PATH).mtimeMs
+        if (currentMtime === _claudeSettingsCache.mtime) return _claudeSettingsCache.data
+      } catch { /* fall through to re-read */ }
+    }
     if (!fs.existsSync(CLAUDE_SETTINGS_PATH)) return null
     const content = fs.readFileSync(CLAUDE_SETTINGS_PATH, { encoding: 'utf-8' })
-    return JSON.parse(content)
+    const data = JSON.parse(content)
+    _claudeSettingsCache = { data, mtime: fs.statSync(CLAUDE_SETTINGS_PATH).mtimeMs }
+    return data
   } catch (error) {
     console.error('读取 Claude 配置失败:', error)
     return null
@@ -22,6 +32,7 @@ const writeClaudeSettings = (settings) => {
     const dir = path.dirname(CLAUDE_SETTINGS_PATH)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
     fs.writeFileSync(CLAUDE_SETTINGS_PATH, JSON.stringify(settings, null, 2), { encoding: 'utf-8' })
+    _claudeSettingsCache = { data: settings, mtime: fs.statSync(CLAUDE_SETTINGS_PATH).mtimeMs }
     return true
   } catch (error) {
     console.error('写入 Claude 配置失败:', error)
@@ -31,11 +42,22 @@ const writeClaudeSettings = (settings) => {
 
 const getClaudeSettingsPath = () => CLAUDE_SETTINGS_PATH
 
+// mtime 缓存：同一调用链内避免重复读文件；外部修改通过 mtime 变化自动触发重读
+let _claudeJsonCache = null
+
 const readClaudeJson = () => {
   try {
+    if (_claudeJsonCache) {
+      try {
+        const currentMtime = fs.statSync(CLAUDE_JSON_PATH).mtimeMs
+        if (currentMtime === _claudeJsonCache.mtime) return _claudeJsonCache.data
+      } catch { /* fall through to re-read */ }
+    }
     if (!fs.existsSync(CLAUDE_JSON_PATH)) return {}
     const content = fs.readFileSync(CLAUDE_JSON_PATH, { encoding: 'utf-8' })
-    return JSON.parse(content)
+    const data = JSON.parse(content)
+    _claudeJsonCache = { data, mtime: fs.statSync(CLAUDE_JSON_PATH).mtimeMs }
+    return data
   } catch (error) {
     console.error('读取 Claude JSON 配置失败:', error)
     return {}
@@ -45,6 +67,7 @@ const readClaudeJson = () => {
 const writeClaudeJson = (data) => {
   try {
     fs.writeFileSync(CLAUDE_JSON_PATH, JSON.stringify(data, null, 2), { encoding: 'utf-8' })
+    _claudeJsonCache = { data, mtime: fs.statSync(CLAUDE_JSON_PATH).mtimeMs }
     return true
   } catch (error) {
     console.error('写入 Claude JSON 配置失败:', error)

@@ -272,7 +272,7 @@ onMounted(refresh);
     <div class="pi-config-header">
       <span class="pi-config-tip">
         Pi Agent 供应商与模型配置 —
-        <span class="hint-link" @click="openPiDir">~/.pi/agent</span>
+        <span class="hint-link" @click="openPiDir">~/.pi/agent/models.json</span>
       </span>
       <div class="pi-config-actions">
         <Tooltip content="添加供应商" placement="top">

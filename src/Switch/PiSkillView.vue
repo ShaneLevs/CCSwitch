@@ -1,6 +1,8 @@
 <script setup>
 import { ref, onMounted } from "vue";
-import { Card, Empty, Tag, Button, Tooltip, Table } from "tdesign-vue-next";
+import {
+  Card, Empty, Tag, Button, Tooltip,
+} from "tdesign-vue-next";
 import { RefreshIcon } from "tdesign-icons-vue-next";
 import "./styles/PiSkillView.css";
 
@@ -21,6 +23,14 @@ const refresh = () => {
   setTimeout(() => { loadSkills(); loading.value = false; }, 50);
 };
 
+const openPiConfig = () => {
+  try {
+    window.utools.shellOpenPath(window.services.resolvePiPath());
+  } catch (e) {
+    window.services.openPiDir();
+  }
+};
+
 const getName = (fm) => {
   if (!fm) return '';
   const m = fm.match(/name:\s*(.+)/);
@@ -39,7 +49,10 @@ onMounted(loadSkills);
 <template>
   <div class="pi-skill-container">
     <div class="pi-skill-header">
-      <span class="pi-skill-tip">Pi Agent 扩展包提供的 Skills — 通过 <code>pi config</code> 管理启用/禁用</span>
+      <span class="pi-skill-tip">
+        Pi Agent 扩展包提供的 Skills — 通过
+        <code class="hint-link" @click="openPiConfig">pi config</code> 管理启用/禁用
+      </span>
       <Tooltip content="刷新" placement="top">
         <Button size="small" variant="outline" :loading="loading" @click="refresh">
           <template #icon><RefreshIcon /></template> 刷新
@@ -52,11 +65,12 @@ onMounted(loadSkills);
     </div>
 
     <div v-else class="pi-skill-list">
-      <Card v-for="sk in skills" :key="sk.name" :bordered="true" class="pi-skill-card">
-        <template #header>
+      <Card v-for="sk in skills" :key="sk.name + '@' + sk.package" :bordered="true" class="pi-skill-card">
+        <template #title>
           <div class="pi-skill-card-header">
             <span class="pi-skill-name">{{ sk.name }}</span>
             <Tag size="small" variant="outline">@{{ sk.package }}</Tag>
+            <Tag size="small" variant="light" theme="success">可用</Tag>
           </div>
         </template>
         <div class="pi-skill-card-body">

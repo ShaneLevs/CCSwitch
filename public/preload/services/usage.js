@@ -48,8 +48,10 @@ const calculateStats = (messageRecords, sessionMap, options = {}) => {
     if (!contributionMap.has(r.date)) contributionMap.set(r.date, { date: r.date, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
     const d = contributionMap.get(r.date)
     d.tokens += r.totalTokens; d.inputTokens += r.inputTokens; d.outputTokens += r.outputTokens
-    if (!d.models[r.model]) d.models[r.model] = { inputTokens: 0, outputTokens: 0 }
+    if (!d.models[r.model]) d.models[r.model] = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 }
     d.models[r.model].inputTokens += r.inputTokens; d.models[r.model].outputTokens += r.outputTokens
+    d.models[r.model].cacheReadTokens += r.cacheReadTokens || 0
+    if (r.cacheCreationTokens) d.models[r.model].cacheCreationTokens += r.cacheCreationTokens
   })
 
   const contributions = fillEmptyContributions(Array.from(contributionMap.values()).sort((a, b) => a.date.localeCompare(b.date)))

@@ -134,12 +134,104 @@ const addOpencodePlugin = (pluginName) => {
   return writeOpencodeConfig(config)
 }
 
+const installOpencodePlugin = (pluginName) => {
+  const { execSync } = require('node:child_process')
+  if (!fs.existsSync(OPENCODE_DIR)) fs.mkdirSync(OPENCODE_DIR, { recursive: true })
+  // 确保有 package.json，否则 npm install 会失败
+  const pkgPath = path.join(OPENCODE_DIR, 'package.json')
+  if (!fs.existsSync(pkgPath)) {
+    fs.writeFileSync(pkgPath, JSON.stringify({ private: true }, null, 2))
+  }
+  execSync(`npm install "${pluginName}"`, { cwd: OPENCODE_DIR, stdio: 'pipe', timeout: 120_000 })
+  // 安装成功后写入配置
+  const config = readOpencodeConfig()
+  if (!config.plugin) config.plugin = []
+  if (!config.plugin.includes(pluginName)) config.plugin.push(pluginName)
+  return writeOpencodeConfig(config)
+}
+
 const removeOpencodePlugin = (pluginName) => {
   const config = readOpencodeConfig()
   if (config.plugin) {
     config.plugin = config.plugin.filter(p => p !== pluginName)
   }
   return writeOpencodeConfig(config)
+}
+
+const uninstallOpencodePlugin = (pluginName) => {
+  const { execSync } = require('node:child_process')
+  // 先从配置移除
+  removeOpencodePlugin(pluginName)
+  // 卸载 npm 包
+  execSync(`npm uninstall "${pluginName}"`, { cwd: OPENCODE_DIR, stdio: 'pipe', timeout: 60_000 })
+  return true
+}
+
+// ==================== npm Registry 搜索 ====================
+
+const searchOpencodePlugins = (query = 'opencode-plugin') => {
+  const https = require('node:https')
+  return new Promise((resolve, reject) => {
+    const url = `https://registry.npmjs.org/-/v1/search?text=keywords:${encodeURIComponent(query)}&size=30`
+    https.get(url, {
+      headers: { 'user-agent': 'CCSwitch/1.0', 'accept': 'application/json' },
+      timeout: 10000,
+    }, (res) => {
+      let data = ''
+      res.on('data', chunk => data += chunk)
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data)
+          const packages = (json.objects || []).map(o => ({
+            name: o.package.name,
+            version: o.package.version,
+            description: o.package.description || '',
+            publisher: o.package.publisher?.username || '',
+            keywords: o.package.keywords || [],
+            date: o.package.date,
+          }))
+          resolve(packages)
+        } catch (e) { reject(e) }
+      })
+    }).on('error', reject).on('timeout', function() { this.destroy(); reject(new Error('timeout')) })
+  })
+}
+
+// ==================== Skills ====================
+
+const OPENCODE_SKILLS_PATH = path.join(OPENCODE_DIR, 'skills')
+
+const getOpencodeSkills = () => {
+  try {
+    if (!fs.existsSync(OPENCODE_SKILLS_PATH)) return []
+    const entries = fs.readdirSync(OPENCODE_SKILLS_PATH, { withFileTypes: true })
+    const skills = []
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const skillName = entry.name
+      const skillPath = path.join(OPENCODE_SKILLS_PATH, skillName)
+      const skillMdPath = path.join(skillPath, 'SKILL.md')
+      if (!fs.existsSync(skillMdPath)) continue
+      try {
+        const content = fs.readFileSync(skillMdPath, { encoding: 'utf-8' })
+        const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/)
+        const frontmatter = frontmatterMatch ? frontmatterMatch[1] : ''
+        const fileCount = fs.readdirSync(skillPath).length
+        skills.push({ name: skillName, frontmatter, path: skillPath, skillMdPath, fileCount })
+      } catch (e) {
+        console.error('读取 OpenCode skill 失败:', skillMdPath, e)
+      }
+    }
+    return skills
+  } catch (error) {
+    console.error('读取 OpenCode skills 目录失败:', error)
+    return []
+  }
+}
+
+const getOpencodeSkillsPath = () => {
+  if (!fs.existsSync(OPENCODE_SKILLS_PATH)) fs.mkdirSync(OPENCODE_SKILLS_PATH, { recursive: true })
+  return OPENCODE_SKILLS_PATH
 }
 
 // ==================== Models.dev Presets ====================
@@ -449,6 +541,11 @@ module.exports = {
   setOpencodePlugins,
   addOpencodePlugin,
   removeOpencodePlugin,
+  installOpencodePlugin,
+  uninstallOpencodePlugin,
+  searchOpencodePlugins,
   fetchModelsDevPresets,
   readOpencodeUsage,
+  getOpencodeSkills,
+  getOpencodeSkillsPath,
 }

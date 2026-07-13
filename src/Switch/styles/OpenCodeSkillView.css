@@ -79,6 +79,57 @@
   color: var(--td-text-color-primary);
 }
 
+/* Detail dialog (mirrors SkillView.css) */
+.detail-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.skill-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.detail-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.detail-info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.detail-info-label {
+  font-size: 13px;
+  color: var(--td-text-color-placeholder);
+  white-space: nowrap;
+  min-width: 64px;
+}
+.detail-info-value {
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+  word-break: break-all;
+}
+.detail-info-value.mono {
+  font-family: monospace;
+}
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.detail-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--td-text-color-secondary);
+}
+.detail-desc {
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+  line-height: 1.6;
+}
+
 /* Dark mode overrides */
 :root[theme-mode="dark"] .plugin-card {
   border-color: var(--td-border-level-1-color);

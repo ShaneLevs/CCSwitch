@@ -31,8 +31,9 @@ const {
   getOpencodeConfigPath, readOpencodeConfig, writeOpencodeConfig,
   getOpencodeProviders, setOpencodeProvider, setOpencodeProviders, removeOpencodeProvider,
   getOpencodeMcpServers, setOpencodeMcpServer, removeOpencodeMcpServer,
-  getOpencodePlugins, setOpencodePlugins, addOpencodePlugin, removeOpencodePlugin,
+  getOpencodePlugins, setOpencodePlugins, addOpencodePlugin, removeOpencodePlugin, installOpencodePlugin, uninstallOpencodePlugin,
   fetchModelsDevPresets,
+  getOpencodeSkills, getOpencodeSkillsPath,
 } = opencode
 
 window.services = {
@@ -80,8 +81,14 @@ window.services = {
   setOpencodePlugins,
   addOpencodePlugin,
   removeOpencodePlugin,
+  installOpencodePlugin,
+  uninstallOpencodePlugin,
   fetchModelsDevPresets,
+  searchOpencodePlugins: opencode.searchOpencodePlugins,
   readOpencodeUsage: opencode.readOpencodeUsage,
+  getOpencodeSkills,
+  getOpencodeSkillsPath,
+
 
   // ==================== Plugins ====================
 
@@ -104,9 +111,23 @@ window.services = {
 
   // ==================== Skills ====================
 
+  _skillsCache: null,
+  _mcpUsageCache: null,
+
   getSkills() {
     try {
-      if (!fs.existsSync(CLAUDE_SKILLS_PATH)) return []
+      const _disabledDirPath = path.join(CLAUDE_SKILLS_PATH, '.disabled')
+      const dirMtime = fs.existsSync(CLAUDE_SKILLS_PATH) ? fs.statSync(CLAUDE_SKILLS_PATH).mtimeMs : 0
+      const disabledMtime = fs.existsSync(_disabledDirPath) ? fs.statSync(_disabledDirPath).mtimeMs : 0
+      const signature = `${dirMtime}:${disabledMtime}`
+      if (this._skillsCache && this._skillsCache.signature === signature) {
+        return this._skillsCache.data
+      }
+
+      if (!fs.existsSync(CLAUDE_SKILLS_PATH)) {
+        this._skillsCache = { signature, data: [] }
+        return []
+      }
 
       let skillUsage = {}
       try {
@@ -165,12 +186,13 @@ window.services = {
         }
       }
 
-      // 读取项目级 skills
+      // 读取项目级 skills（缓存 projectPathMap 避免每次 toggle 扫描 JSONL）
       try {
         const homeDir = window.utools.getPath('home')
         const projectsDir = path.join(homeDir, '.claude', 'projects')
         if (fs.existsSync(projectsDir)) {
-          const projectPathMap = this._buildProjectPathMap(projectsDir)
+          if (!this._cachedProjectPathMap) this._cachedProjectPathMap = this._buildProjectPathMap(projectsDir)
+          const projectPathMap = this._cachedProjectPathMap
           for (const [, projectPath] of projectPathMap) {
             if (!projectPath || projectPath === 'unknown' || !fs.existsSync(projectPath)) continue
             if (path.resolve(projectPath) === path.resolve(homeDir)) continue
@@ -226,13 +248,15 @@ window.services = {
         console.error('读取项目 skills 失败:', e)
       }
 
-      return skills.sort((a, b) => {
+      const sorted = skills.sort((a, b) => {
         if (a.scope !== b.scope) return a.scope === 'global' ? -1 : 1
         if (a.scope === 'project' && b.scope === 'project' && a.projectPath !== b.projectPath) {
           return a.projectPath.localeCompare(b.projectPath)
         }
         return a.name.localeCompare(b.name)
       })
+      this._skillsCache = { signature, data: sorted }
+      return sorted
     } catch (error) {
       console.error('读取 skills 目录失败:', error)
       return []
@@ -247,6 +271,7 @@ window.services = {
       if (!fs.existsSync(skillPath)) return { success: false, error: 'Skill 不存在' }
       if (!fs.existsSync(disabledDir)) fs.mkdirSync(disabledDir, { recursive: true })
       fs.renameSync(skillPath, targetPath)
+      this._skillsCache = null
       return { success: true }
     } catch (error) {
       return { success: false, error: error.message }
@@ -260,6 +285,7 @@ window.services = {
       const targetPath = path.join(CLAUDE_SKILLS_PATH, skillName)
       if (!fs.existsSync(skillPath)) return { success: false, error: 'Skill 不存在' }
       fs.renameSync(skillPath, targetPath)
+      this._skillsCache = null
       return { success: true }
     } catch (error) {
       return { success: false, error: error.message }
@@ -273,6 +299,7 @@ window.services = {
         : path.join(CLAUDE_SKILLS_PATH, skillName)
       if (!fs.existsSync(skillPath)) return { success: false, error: 'Skill 不存在' }
       fs.rmSync(skillPath, { recursive: true, force: true })
+      this._skillsCache = null
       return { success: true }
     } catch (error) {
       return { success: false, error: error.message }
@@ -287,6 +314,7 @@ window.services = {
       if (!fs.existsSync(skillPath)) return { success: false, error: 'Skill 不存在' }
       if (!fs.existsSync(disabledDir)) fs.mkdirSync(disabledDir, { recursive: true })
       fs.renameSync(skillPath, targetPath)
+      this._skillsCache = null
       return { success: true }
     } catch (error) {
       return { success: false, error: error.message }
@@ -300,6 +328,7 @@ window.services = {
       const targetPath = path.join(projectPath, '.claude', 'skills', skillName)
       if (!fs.existsSync(skillPath)) return { success: false, error: 'Skill 不存在' }
       fs.renameSync(skillPath, targetPath)
+      this._skillsCache = null
       return { success: true }
     } catch (error) {
       return { success: false, error: error.message }
@@ -313,6 +342,7 @@ window.services = {
         : path.join(projectPath, '.claude', 'skills', skillName)
       if (!fs.existsSync(skillPath)) return { success: false, error: 'Skill 不存在' }
       fs.rmSync(skillPath, { recursive: true, force: true })
+      this._skillsCache = null
       return { success: true }
     } catch (error) {
       return { success: false, error: error.message }
@@ -817,23 +847,27 @@ window.services = {
       setTimeout(() => saveHeatmapHistory(contributions), 0)
 
       // 从合并后的 contributions 重新计算 summary + modelStats，确保与热力图口径一致
-      let mergedTotal = 0, mergedInput = 0, mergedOutput = 0
+      let mergedTotal = 0, mergedOutput = 0
       const mergedModelMap = new Map()
       for (const day of contributions) {
         mergedTotal += day.tokens || 0
-        mergedInput += day.inputTokens || 0
         mergedOutput += day.outputTokens || 0
         if (day.models) {
           for (const [modelName, modelData] of Object.entries(day.models)) {
             if (!mergedModelMap.has(modelName)) mergedModelMap.set(modelName, { name: modelName, tokens: 0, inputTokens: 0, outputTokens: 0 })
             const m = mergedModelMap.get(modelName)
-            const mt = (modelData.inputTokens || 0) + (modelData.outputTokens || 0)
-            m.tokens += mt
-            m.inputTokens += modelData.inputTokens || 0
-            m.outputTokens += modelData.outputTokens || 0
+            const cacheR = modelData.cacheReadTokens || 0
+            const cacheC = modelData.cacheCreationTokens || 0
+            const inp = modelData.inputTokens || 0
+            const out = modelData.outputTokens || 0
+            m.tokens += inp + out + cacheR + cacheC
+            m.inputTokens += inp + cacheR + cacheC
+            m.outputTokens += out
           }
         }
       }
+      // inputTokens = total - output = input + cacheRead + cacheCreation（匹配"包含缓存"标签）
+      const mergedInput = mergedTotal - mergedOutput
 
       const mergedSummary = {
         ...stats.summary,
@@ -862,8 +896,17 @@ window.services = {
       const projectsDir = path.join(homeDir, '.claude', 'projects')
       if (!fs.existsSync(projectsDir)) return {}
 
-      const mcpUsage = {}
       const jsonlFiles = this._findAllJsonlFiles(projectsDir)
+      let maxMtime = 0
+      for (const f of jsonlFiles) {
+        try { const m = fs.statSync(f).mtimeMs; if (m > maxMtime) maxMtime = m } catch {}
+      }
+      const signature = `${jsonlFiles.length}:${maxMtime}`
+      if (this._mcpUsageCache && this._mcpUsageCache.signature === signature) {
+        return this._mcpUsageCache.data
+      }
+
+      const mcpUsage = {}
       for (const filePath of jsonlFiles) {
         try {
           const content = fs.readFileSync(filePath, { encoding: 'utf-8' })
@@ -876,7 +919,6 @@ window.services = {
               if (!Array.isArray(content)) continue
               for (const block of content) {
                 if (block.type === 'tool_use' && block.name && block.name.startsWith('mcp__')) {
-                  // mcp__{server}__{tool} -> extract server name
                   const parts = block.name.split('__')
                   if (parts.length >= 3) {
                     const serverName = parts.slice(1, -1).join('__')
@@ -891,6 +933,7 @@ window.services = {
           }
         } catch (e) { /* skip file */ }
       }
+      this._mcpUsageCache = { signature, data: mcpUsage }
       return mcpUsage
     } catch (e) {
       console.error('读取 MCP usage 失败:', e)
@@ -923,12 +966,11 @@ window.services = {
         }
       }
 
-      let totalTokens = 0, inputTokens = 0, outputTokens = 0
+      let totalTokens = 0, outputTokens = 0
       const modelMap = new Map()
 
       for (const [, day] of entries) {
         totalTokens += day.tokens || 0
-        inputTokens += day.inputTokens || 0
         outputTokens += day.outputTokens || 0
 
         if (day.models) {
@@ -937,13 +979,18 @@ window.services = {
               modelMap.set(modelName, { name: modelName, tokens: 0, inputTokens: 0, outputTokens: 0 })
             }
             const m = modelMap.get(modelName)
-            m.tokens += (modelData.inputTokens || 0) + (modelData.outputTokens || 0)
-            m.inputTokens += modelData.inputTokens || 0
-            m.outputTokens += modelData.outputTokens || 0
+            const cacheR = modelData.cacheReadTokens || 0
+            const cacheC = modelData.cacheCreationTokens || 0
+            const inp = modelData.inputTokens || 0
+            const out = modelData.outputTokens || 0
+            m.tokens += inp + out + cacheR + cacheC
+            m.inputTokens += inp + cacheR + cacheC
+            m.outputTokens += out
           }
         }
       }
 
+      const inputTokens = totalTokens - outputTokens
       const modelStats = Array.from(modelMap.values()).sort((a, b) => b.tokens - a.tokens)
 
       // 补齐 365 天
@@ -991,11 +1038,13 @@ window.services = {
   uninstallPiExtension: pi.uninstallPiExtension,
   getPiSkills: pi.getPiSkills,
   getPiMcpServers: pi.getPiMcpServers,
+  getPiMcpTools: pi.getPiMcpTools,
   fetchProviderModels: pi.fetchProviderModels,
   readPiUsage: pi.readPiUsage,
   openPiDir: pi.openPiDir,
   openPiExtDir: pi.openPiExtDir,
   isPiInstalled: pi.isPiInstalled,
+  resolvePiPath: pi.resolvePiPath,
 }
 
 // 辅助函数：递归查找 SKILL.md
