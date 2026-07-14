@@ -1,4 +1,5 @@
 <script setup>
+
 import { ref, onMounted } from "vue";
 import {
   Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin, Table, Loading, Popconfirm, Alert as TAlert,
@@ -265,6 +266,7 @@ const refresh = () => {
 };
 
 onMounted(refresh);
+
 </script>
 
 <template>

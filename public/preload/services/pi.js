@@ -2,7 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const http = require('node:http')
 const https = require('node:https')
-const { execSync } = require('node:child_process')
+const { execSync, spawn } = require('node:child_process')
 const usage = require('./usage')
 
 const PI_DIR = () => path.join(require('os').homedir(), '.pi', 'agent')
@@ -25,8 +25,27 @@ const resolvePiPath = () => {
     try { if (fs.existsSync(p)) return p } catch { /* ignore */ }
   }
   try {
-    const which = execSync('which pi 2>nul || where pi 2>nul', { encoding: 'utf-8', timeout: 5000 }).trim().split('\n')[0]
-    if (which) return which
+    const which = execSync('where pi 2>nul', { encoding: 'utf-8', timeout: 5000 }).trim().split('\n').filter(Boolean)
+    for (const w of which) {
+      // 优先用 .cmd — 自带 node.exe 查找逻辑
+      if (w.toLowerCase().endsWith('.cmd')) return w
+    }
+    // .ps1 → 转换为 node.exe + cli.js 直调
+    for (const w of which) {
+      if (w.toLowerCase().endsWith('.ps1')) {
+        const basedir = path.dirname(w)
+        const cliPath = path.join(basedir, 'node_modules', '@earendil-works', 'pi-coding-agent', 'dist', 'cli.js')
+        if (!fs.existsSync(cliPath)) continue
+        const localNode = path.join(basedir, 'node.exe')
+        if (fs.existsSync(localNode)) return `${localNode}|${cliPath}`
+        try {
+          const pathNode = execSync('where node 2>nul', { encoding: 'utf-8', timeout: 5000 }).trim().split('\n')[0]
+          if (pathNode && fs.existsSync(pathNode)) return `${pathNode}|${cliPath}`
+        } catch { /* ignore */ }
+      }
+    }
+    // 没扩展名的 pi（shell script）→ 直接用，cmd.exe 会通过 PATHEXT 解析
+    if (which.length > 0) return which[0]
   } catch { /* ignore */ }
   return 'pi'
 }
@@ -42,18 +61,41 @@ const writeJson = (filePath, data) => {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), { encoding: 'utf-8' })
 }
 
-const runPiCmd = (args, timeout) => {
+const runPiCmd = (args, timeout) => new Promise((resolve) => {
   const piBin = resolvePiPath()
-  const fullCmd = `"${piBin}" ${args.join(' ')}`
   const env = { ...process.env }
   delete env.CLAUDECODE
-  try {
-    const stdout = execSync(fullCmd, { encoding: 'utf-8', timeout: timeout || PI_CMD_TIMEOUT.default, env })
-    return { success: true, stdout: stdout.trim(), stderr: '' }
-  } catch (error) {
-    return { success: false, stdout: (error.stdout || '').trim(), stderr: (error.stderr || error.message || '').trim() }
+  const ms = timeout || PI_CMD_TIMEOUT.default
+
+  let command, spawnArgs
+  if (piBin.includes('|')) {
+    const [nodeExe, cliPath] = piBin.split('|')
+    command = nodeExe
+    spawnArgs = [cliPath, ...args]
+  } else {
+    command = piBin
+    spawnArgs = args
   }
-}
+
+  const child = spawn(command, spawnArgs, { env, shell: true, windowsHide: true })
+  let stdout = '', stderr = ''
+  const timer = setTimeout(() => {
+    child.kill()
+    resolve({ success: false, stdout: stdout.trim(), stderr: `timeout after ${ms}ms` })
+  }, ms)
+
+  child.stdout.on('data', d => { stdout += d.toString() })
+  child.stderr.on('data', d => { stderr += d.toString() })
+  child.on('close', code => {
+    clearTimeout(timer)
+    if (code === 0) resolve({ success: true, stdout: stdout.trim(), stderr: stderr.trim() })
+    else resolve({ success: false, stdout: stdout.trim(), stderr: stderr.trim() || `exit code ${code}` })
+  })
+  child.on('error', err => {
+    clearTimeout(timer)
+    resolve({ success: false, stdout: stdout.trim(), stderr: err.message })
+  })
+})
 
 // ==================== Settings ====================
 
@@ -294,13 +336,13 @@ const getPiExtensions = () => {
   })
 }
 
-const installPiExtension = (source) => {
-  const result = runPiCmd(['install', source], PI_CMD_TIMEOUT.install)
+const installPiExtension = async (source) => {
+  const result = await runPiCmd(['install', source], PI_CMD_TIMEOUT.install)
   return { success: result.success, message: result.success ? result.stdout : result.stderr }
 }
 
-const uninstallPiExtension = (source) => {
-  const result = runPiCmd(['remove', source], PI_CMD_TIMEOUT.default)
+const uninstallPiExtension = async (source) => {
+  const result = await runPiCmd(['remove', source], PI_CMD_TIMEOUT.default)
   return { success: result.success, message: result.success ? result.stdout : result.stderr }
 }
 

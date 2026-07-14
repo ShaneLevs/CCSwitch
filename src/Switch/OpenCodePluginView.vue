@@ -1,4 +1,5 @@
 <script setup>
+
 import { ref, onMounted } from "vue";
 import {
   Card, Empty, Tag, Button, Tooltip, Dialog, Input, MessagePlugin, Space, Popconfirm, Loading,
@@ -87,6 +88,7 @@ const pickPlugin = (name) => {
 }
 
 onMounted(loadPlugins);
+
 </script>
 
 <template>

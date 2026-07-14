@@ -1,4 +1,5 @@
 <script setup>
+
 import { ref, onMounted } from "vue";
 import { Card, Empty, Button, Tag, Tooltip, Dialog, MessagePlugin } from "tdesign-vue-next";
 import { RefreshIcon, FolderOpen1Icon } from "tdesign-icons-vue-next";
@@ -88,6 +89,7 @@ const openSkillMd = (skill) => {
 };
 
 onMounted(loadSkills);
+
 </script>
 
 <template>

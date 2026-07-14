@@ -1,4 +1,5 @@
 <script setup>
+
 import { ref, onMounted } from "vue";
 import {
   Card, Empty, Tag, Button, Tooltip, Dialog, Input, MessagePlugin, Space, Popconfirm,
@@ -85,6 +86,7 @@ const addArg = () => { form.value.args.push(''); };
 const removeArg = (idx) => { form.value.args.splice(idx, 1); };
 
 onMounted(loadServers);
+
 </script>
 
 <template>
