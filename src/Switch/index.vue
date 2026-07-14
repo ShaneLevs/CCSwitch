@@ -38,6 +38,7 @@ const { activeApp, setActiveApp, isClaude, isOpenCode, isPi } = useAppContext();
 const activeTab = ref("config");
 const skillViewRef = ref(null);
 const ocSkillViewRef = ref(null);
+const piPluginViewRef = ref(null);
 // 记录哪些应用已被激活过，激活后保留组件不销毁，避免 v-show 导致热力图宽度计算为 0
 const activatedApps = ref(new Set(['claude']));
 
@@ -172,6 +173,16 @@ onMounted(() => {
     setTimeout(() => {
       if (ocSkillViewRef.value) {
         ocSkillViewRef.value.openInstallWithUrl(props.payload);
+      }
+    }, 100);
+  } else if (props.route === "installPiExtension" && props.payload) {
+    setActiveApp("pi");
+    ensureAppActivated("pi");
+    markTabVisited("pi", "plugin");
+    activeTab.value = "plugin";
+    setTimeout(() => {
+      if (piPluginViewRef.value) {
+        piPluginViewRef.value.installFromUrl(props.payload);
       }
     }, 100);
   }
@@ -365,7 +376,7 @@ onMounted(() => {
       <PiUsageView v-if="isTabVisited('pi', 'usage')" v-show="isPi && activeTab === 'usage'" />
       <PiMcpView v-if="isTabVisited('pi', 'mcp')" v-show="isPi && activeTab === 'mcp'" />
       <PiSkillView v-if="isTabVisited('pi', 'skill')" v-show="isPi && activeTab === 'skill'" />
-      <PiPluginView v-if="isTabVisited('pi', 'plugin')" v-show="isPi && activeTab === 'plugin'" />
+      <PiPluginView v-if="isTabVisited('pi', 'plugin')" v-show="isPi && activeTab === 'plugin'" ref="piPluginViewRef" />
     </template>
 
     <!-- OpenCode views -->

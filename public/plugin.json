@@ -51,6 +51,19 @@
           "maxLength": 200
         }
       ]
+    },
+    {
+      "code": "installPiExtension",
+      "explain": "安装 Pi Agent 扩展",
+      "cmds": [
+        {
+          "type": "regex",
+          "label": "安装 Pi Agent 扩展",
+          "match": "/^pi\\s+install\\s+.+/",
+          "minLength": 12,
+          "maxLength": 200
+        }
+      ]
     }
   ]
 }

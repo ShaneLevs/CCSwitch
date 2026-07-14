@@ -89,6 +89,13 @@ const formatSource = (src) => src ? src.replace(/^npm:/, '') : '';
 onMounted(() => {
   setTimeout(() => { loadPlugins(); loading.value = false; }, 50);
 });
+
+const installFromUrl = (payload) => {
+  newPluginName.value = payload || '';
+  handleAdd();
+};
+
+defineExpose({ installFromUrl });
 </script>
 
 <template>
