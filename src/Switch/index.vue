@@ -397,6 +397,10 @@ onMounted(() => {
   box-sizing: border-box;
   background: var(--td-bg-color-container);
 }
+/* 深色模式下容器背景透明，展示 PrismaticBurst WebGL 背景 */
+:root[theme-mode="dark"] .container {
+  background: transparent;
+}
 .header {
   display: flex;
   justify-content: space-between;
@@ -458,5 +462,26 @@ onMounted(() => {
 }
 :root[theme-mode="dark"] :deep(.t-switch:hover) {
   background-color: var(--td-gray-color-5);
+}
+</style>
+
+<!-- 全局样式：Dropdown 弹窗（teleport 到 body，scoped 无法覆盖） -->
+<style>
+:root[theme-mode="dark"] .t-dropdown {
+  background-color: var(--td-bg-color-container);
+  border-color: var(--td-component-border);
+}
+:root[theme-mode="dark"] .t-dropdown__item {
+  color: var(--td-text-color-primary);
+}
+:root[theme-mode="dark"] .t-dropdown__item:hover {
+  background-color: var(--td-bg-color-container-hover);
+}
+:root[theme-mode="dark"] .t-dropdown__item--theme-default.t-dropdown__item--active {
+  color: var(--td-brand-color);
+  background-color: var(--td-brand-color-light);
+}
+:root[theme-mode="dark"] .t-popup__content {
+  background: var(--td-bg-color-container);
 }
 </style>

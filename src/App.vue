@@ -1,11 +1,18 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import Switch from './Switch/index.vue'
+import PrismaticBurst from './components/PrismaticBurst.vue'
 
 const route = ref('')
 const payload = ref('')
+const isDark = ref(window.matchMedia('(prefers-color-scheme: dark)').matches)
 
+let darkQuery
 onMounted(() => {
+  darkQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  isDark.value = darkQuery.matches
+  darkQuery.addEventListener('change', (e) => { isDark.value = e.matches })
+
   window.utools.onPluginEnter((action) => {
     route.value = action.code
     payload.value = action.payload || ''
@@ -15,8 +22,25 @@ onMounted(() => {
     payload.value = ''
   })
 })
+
+onUnmounted(() => {
+  if (darkQuery) darkQuery.removeEventListener('change', () => {})
+})
 </script>
 
 <template>
+  <PrismaticBurst
+    v-if="isDark"
+    animation-type="rotate3d"
+    :intensity="1"
+    :speed="0.5"
+    :distort="0"
+    :paused="false"
+    :offset="{ x: 0, y: 0 }"
+    :hover-dampness="0.25"
+    :ray-count="0"
+    mix-blend-mode="lighten"
+    :colors="['#a7a7a7', '#656565', '#000000']"
+  />
   <Switch v-if="['claudeConfig', 'opencodeConfig', 'piConfig', 'installClaudeSkill', 'installOpencodeSkill', 'installPiExtension'].includes(route)" :route="route" :payload="payload" />
 </template>

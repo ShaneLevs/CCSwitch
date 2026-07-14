@@ -4,7 +4,7 @@ import { ref, onMounted } from "vue";
 import {
   Card, Empty, Tag, Button, Tooltip, Dialog, Input, MessagePlugin, Space, Popconfirm,
 } from "tdesign-vue-next";
-import { RefreshIcon, AddIcon, DeleteIcon, ServerIcon } from "tdesign-icons-vue-next";
+import { RefreshIcon, AddIcon, DeleteIcon } from "tdesign-icons-vue-next";
 import "./styles/OpenCodeMcpView.css";
 
 const loading = ref(false);
@@ -93,7 +93,6 @@ onMounted(loadServers);
   <div class="oc-mcp-container">
     <div class="oc-mcp-header">
       <div class="oc-mcp-header-left">
-        <ServerIcon size="18px" />
         <span class="oc-mcp-tip">OpenCode MCP 服务器配置（直接编辑 opencode.json/mcp）</span>
       </div>
       <div class="oc-mcp-actions">

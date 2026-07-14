@@ -3,7 +3,7 @@ import { ref, onMounted } from "vue";
 import {
   Card, Empty, Button, Dialog, Input, MessagePlugin, Space, Tag, Popconfirm, Tooltip,
 } from "tdesign-vue-next";
-import { AddIcon, DeleteIcon, RefreshIcon, AppIcon, LinkIcon } from "tdesign-icons-vue-next";
+import { AddIcon, DeleteIcon, RefreshIcon, LinkIcon } from "tdesign-icons-vue-next";
 import "./styles/PiPluginView.css";
 
 const loading = ref(false);
@@ -102,7 +102,6 @@ defineExpose({ installFromUrl });
   <div class="pi-plugin-container">
     <div class="pi-plugin-header">
       <div class="pi-plugin-header-left">
-        <AppIcon size="18px" />
         <span class="pi-plugin-tip">
           Pi Agent 扩展（pi install npm:package）
           <span class="pi-plugin-dir-link" @click="window.services.openPiDir()">~/.pi/agent</span>

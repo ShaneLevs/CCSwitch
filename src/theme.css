@@ -274,6 +274,11 @@
   --cc-effort-high-color: #3498db;
 }
 
+/* 深色模式全局背景（供 PrismaticBurst WebGL 背景混合） */
+:root[theme-mode="dark"] body {
+  background-color: #0a0a0f;
+}
+
 :root {
   --td-font-family: pingfang sc, microsoft yahei, arial regular;
   --td-font-family-medium: pingfang sc, microsoft yahei, arial medium;

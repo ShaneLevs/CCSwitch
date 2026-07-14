@@ -4,7 +4,7 @@ import { ref, onMounted } from "vue";
 import {
   Card, Empty, Tag, Button, Tooltip, Dialog, Input, MessagePlugin, Space, Popconfirm, Loading,
 } from "tdesign-vue-next";
-import { RefreshIcon, AddIcon, DeleteIcon, AppIcon, SearchIcon } from "tdesign-icons-vue-next";
+import { RefreshIcon, AddIcon, DeleteIcon, SearchIcon } from "tdesign-icons-vue-next";
 import "./styles/OpenCodePluginView.css";
 
 const loading = ref(false);
@@ -95,7 +95,6 @@ onMounted(loadPlugins);
   <div class="oc-plugin-container">
     <div class="oc-plugin-header">
       <div class="oc-plugin-header-left">
-        <AppIcon size="18px" />
         <span class="oc-plugin-tip">OpenCode 插件（opencode.json/plugin 数组）</span>
       </div>
       <div class="oc-plugin-actions">
