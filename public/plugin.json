@@ -27,12 +27,25 @@
       "cmds": ["Pi Agents配置"]
     },
     {
-      "code": "installSkill",
-      "explain": "从 SkillHub/魔搭社区 安装 Skill",
+      "code": "installClaudeSkill",
+      "explain": "从 SkillHub/魔搭社区 安装 Claude Code Skill",
       "cmds": [
         {
           "type": "regex",
-          "label": "安装 Skill",
+          "label": "安装 Claude Code Skill",
+          "match": "/^https:\\/\\/(www\\.)?(skillhub\\.(tencent\\.com|cn)\\/skills\\/[\\w-]+|modelscope\\.cn\\/skills\\/@[\\w-]+\\/[\\w-]+)$/",
+          "minLength": 30,
+          "maxLength": 200
+        }
+      ]
+    },
+    {
+      "code": "installOpencodeSkill",
+      "explain": "从 SkillHub/魔搭社区 安装 OpenCode Skill",
+      "cmds": [
+        {
+          "type": "regex",
+          "label": "安装 OpenCode Skill",
           "match": "/^https:\\/\\/(www\\.)?(skillhub\\.(tencent\\.com|cn)\\/skills\\/[\\w-]+|modelscope\\.cn\\/skills\\/@[\\w-]+\\/[\\w-]+)$/",
           "minLength": 30,
           "maxLength": 200

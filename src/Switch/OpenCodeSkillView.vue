@@ -123,6 +123,8 @@ const deleteSkill = (skill) => {
 
 onMounted(loadSkills);
 
+defineExpose({ openInstallWithUrl });
+
 </script>
 
 <template>

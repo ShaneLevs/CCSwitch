@@ -37,6 +37,7 @@ const { activeApp, setActiveApp, isClaude, isOpenCode, isPi } = useAppContext();
 
 const activeTab = ref("config");
 const skillViewRef = ref(null);
+const ocSkillViewRef = ref(null);
 // 记录哪些应用已被激活过，激活后保留组件不销毁，避免 v-show 导致热力图宽度计算为 0
 const activatedApps = ref(new Set(['claude']));
 
@@ -153,11 +154,24 @@ onMounted(() => {
     ensureAppActivated(appMap[props.route]);
   }
 
-  if (props.route === "installSkill" && props.payload) {
+  if (props.route === "installClaudeSkill" && props.payload) {
+    setActiveApp("claude");
+    ensureAppActivated("claude");
+    markTabVisited("claude", "skill");
     activeTab.value = "skill";
     setTimeout(() => {
       if (skillViewRef.value) {
         skillViewRef.value.openInstallWithUrl(props.payload);
+      }
+    }, 100);
+  } else if (props.route === "installOpencodeSkill" && props.payload) {
+    setActiveApp("opencode");
+    ensureAppActivated("opencode");
+    markTabVisited("opencode", "skill");
+    activeTab.value = "skill";
+    setTimeout(() => {
+      if (ocSkillViewRef.value) {
+        ocSkillViewRef.value.openInstallWithUrl(props.payload);
       }
     }, 100);
   }
@@ -358,7 +372,7 @@ onMounted(() => {
     <template v-if="isAppReady('opencode')">
       <OpenCodeConfigView v-if="isOpenCode && activeTab === 'config'" />
       <OpenCodeMcpView v-if="isTabVisited('opencode', 'mcp')" v-show="isOpenCode && activeTab === 'mcp'" />
-      <OpenCodeSkillView v-if="isTabVisited('opencode', 'skill')" v-show="isOpenCode && activeTab === 'skill'" />
+      <OpenCodeSkillView v-if="isTabVisited('opencode', 'skill')" v-show="isOpenCode && activeTab === 'skill'" ref="ocSkillViewRef" />
       <OpenCodePluginView v-if="isTabVisited('opencode', 'plugin')" v-show="isOpenCode && activeTab === 'plugin'" />
       <OpenCodeUsageView v-if="isTabVisited('opencode', 'usage')" v-show="isOpenCode && activeTab === 'usage'" />
     </template>
