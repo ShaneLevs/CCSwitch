@@ -96,7 +96,10 @@ onMounted(() => {
     <div class="pi-plugin-header">
       <div class="pi-plugin-header-left">
         <AppIcon size="18px" />
-        <span class="pi-plugin-tip">Pi Agent 扩展（pi install npm:package）</span>
+        <span class="pi-plugin-tip">
+          Pi Agent 扩展（pi install npm:package）
+          <span class="pi-plugin-dir-link" @click="window.services.openPiDir()">~/.pi/agent</span>
+        </span>
       </div>
       <div class="pi-plugin-actions">
         <Button size="small" variant="outline" @click="openAddDialog">

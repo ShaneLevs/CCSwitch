@@ -148,7 +148,10 @@ onMounted(() => {
     opencodeConfig: "opencode",
     piConfig: "pi",
   };
-  if (appMap[props.route]) setActiveApp(appMap[props.route]);
+  if (appMap[props.route]) {
+    setActiveApp(appMap[props.route]);
+    ensureAppActivated(appMap[props.route]);
+  }
 
   if (props.route === "installSkill" && props.payload) {
     activeTab.value = "skill";

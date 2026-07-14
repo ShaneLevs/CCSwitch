@@ -13,3 +13,5 @@
 .pi-plugin-value { color: var(--td-text-color-primary); word-break: break-all; }
 .pi-plugin-desc { font-size: 13px; color: var(--td-text-color-secondary); margin: 0; }
 .mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }
+.pi-plugin-dir-link { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: var(--td-brand-color); cursor: pointer; margin-left: 4px; }
+.pi-plugin-dir-link:hover { text-decoration: underline; }
