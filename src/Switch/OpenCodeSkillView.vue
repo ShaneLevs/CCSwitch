@@ -1,8 +1,8 @@
 <script setup>
 
 import { ref, onMounted } from "vue";
-import { Card, Empty, Button, Tag, Tooltip, Dialog, Input, Loading, MessagePlugin } from "tdesign-vue-next";
-import { RefreshIcon, FolderOpen1Icon, DownloadIcon } from "tdesign-icons-vue-next";
+import { Card, Empty, Button, Tag, Tooltip, Dialog, Input, Popconfirm, Space, Loading, MessagePlugin } from "tdesign-vue-next";
+import { RefreshIcon, FolderOpen1Icon, DownloadIcon, DeleteIcon } from "tdesign-icons-vue-next";
 import { useSkillInstall } from "../composables/useSkillInstall";
 import "./styles/OpenCodeSkillView.css";
 
@@ -102,31 +102,45 @@ const openSkillMd = (skill) => {
   }
 };
 
+const copySkillName = (name) => {
+  try {
+    navigator.clipboard.writeText(name);
+    MessagePlugin.success('已复制 Skill 名称');
+  } catch {
+    MessagePlugin.error('复制失败');
+  }
+};
+
+const deleteSkill = (skill) => {
+  const result = window.services.deleteOpencodeSkill(skill.name);
+  if (result.success) {
+    MessagePlugin.success(`已删除 "${skill.name}"`);
+    loadSkills();
+  } else {
+    MessagePlugin.error(result.error || "删除失败");
+  }
+};
+
 onMounted(loadSkills);
 
 </script>
 
 <template>
-  <div class="opencode-skill-container">
+  <div class="skill-container">
     <div class="section-header">
-      <span class="opencode-skill-tip">
-        展示 <span class="hint-link" @click="openDir">~/.config/opencode/skills</span> 下的 Skill
-      </span>
-      <div style="display:flex;gap:8px;">
-        <Button size="small" variant="outline" @click="openInstallDialog">
-          <template #icon><DownloadIcon /></template> 安装
+      <span class="skill-tip">展示 <span class="hint-link" @click="openDir">~/.config/opencode/skills</span> 下的 Skill</span>
+      <Space size="small">
+        <Button size="small" theme="primary" @click="openInstallDialog">
+          <template #icon><DownloadIcon /></template> 安装 Skill
         </Button>
         <Button size="small" variant="outline" :loading="loading" @click="loadSkills">
-          <template #icon><RefreshIcon /></template> 刷新
+          <template #icon><RefreshIcon /></template>
         </Button>
-      </div>
+      </Space>
     </div>
 
     <div v-if="skills.length === 0" class="empty-state">
-      <Empty>
-        <template #description>
-          <span>目录 <span class="hint-link" @click="openDir">~/.config/opencode/skills</span> 不存在或为空</span>
-        </template>
+      <Empty description="暂无 Skill 配置">
         <template #action>
           <Button size="small" theme="primary" @click="openDir">
             <template #icon><FolderOpen1Icon /></template> 创建并打开目录
@@ -135,34 +149,37 @@ onMounted(loadSkills);
       </Empty>
     </div>
 
-    <div v-else class="plugin-list">
+    <div v-else class="skill-list">
       <Card
         v-for="skill in skills"
         :key="skill.name"
         :bordered="true"
-        class="plugin-card"
+        class="skill-card"
         hover
       >
         <template #header>
-          <div class="plugin-header-wrapper">
-            <div class="plugin-header-left">
-              <Tooltip content="点击查看详情" placement="top">
-                <span class="plugin-name" @click="openDetail(skill)">{{ skill.name }}</span>
+          <div class="skill-header-wrapper">
+            <div class="skill-header-left">
+              <Tooltip content="点击复制名称" placement="top">
+                <span class="skill-name-link" @click.stop="copySkillName(skill.name)">{{ skill.name }}</span>
               </Tooltip>
             </div>
-            <div>
+            <Space size="small">
               <Tooltip content="打开 SKILL.md" placement="top">
-                <Button size="small" variant="text" @click.stop="openSkillMd(skill)">
-                  <template #icon><FolderOpen1Icon /></template>
-                </Button>
+                <Button size="small" theme="default" variant="text" @click.stop="openSkillMd(skill)"><FolderOpen1Icon /></Button>
               </Tooltip>
-            </div>
+              <Popconfirm theme="danger" content="删除后不可恢复，确认删除？" @confirm="deleteSkill(skill)">
+                <Tooltip content="删除" placement="top">
+                  <Button size="small" theme="danger" variant="text"><DeleteIcon /></Button>
+                </Tooltip>
+              </Popconfirm>
+            </Space>
           </div>
         </template>
-        <div @click="openDetail(skill)">
+        <div class="skill-description" @click="openDetail(skill)">
           {{ parseFrontmatter(skill.frontmatter).description || '暂无描述' }}
         </div>
-        <div style="margin-top: 8px;">
+        <div class="skill-stats">
           <Tag size="small" variant="light" theme="primary">{{ skill.fileCount }} 个文件</Tag>
         </div>
       </Card>

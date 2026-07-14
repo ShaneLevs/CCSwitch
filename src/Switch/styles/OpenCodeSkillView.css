@@ -1,16 +1,19 @@
-.opencode-skill-container {
-  padding: 0;
+.skill-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 0;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-  margin-top: -4px;
+  margin-bottom: 0;
+  margin-top: 0;
 }
 
-.opencode-skill-tip {
+.skill-tip {
   font-size: 12px;
   color: var(--td-text-color-placeholder);
 }
@@ -25,114 +28,133 @@
   padding: 60px 0;
 }
 
-.plugin-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.skill-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
 }
 
-.plugin-card {
+.skill-card {
   margin-bottom: 0;
+  cursor: pointer;
+  transition: box-shadow 0.2s;
 }
 
-.plugin-card .t-card__header {
-  padding: 10px 16px;
+.skill-card:hover {
+  box-shadow: var(--td-shadow-1);
+}
+
+.skill-card .t-card__header {
+  padding: 10px 16px 6px;
   border-bottom: none;
 }
 
-.plugin-header-wrapper {
+.skill-header-wrapper {
   display: flex;
   justify-content: space-between;
   align-items: center;
   width: 100%;
 }
 
-.plugin-header-left {
+.skill-header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 
-.plugin-name {
-  font-size: 15px;
+.skill-name-link {
+  color: var(--td-brand-color);
+  cursor: pointer;
+  font-size: 16px;
   font-weight: 500;
-  color: var(--td-text-color-primary);
-  word-break: break-all;
 }
 
-/* 添加弹窗样式 */
-.add-form {
+.skill-name-link:hover {
+  text-decoration: underline;
+}
+
+.skill-card .t-card__body {
+  padding: 0 16px 10px;
+}
+
+.skill-description {
+  font-size: 13px;
+  color: var(--td-text-color-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 20px;
+}
+
+.skill-stats {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 8px;
+  margin-top: 8px;
 }
 
-.add-form .form-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.add-form label {
-  font-size: 14px;
-  color: var(--td-text-color-primary);
-}
-
-/* Detail dialog (mirrors SkillView.css) */
+/* Detail dialog */
 .detail-dialog-header {
   display: flex;
   align-items: center;
   gap: 12px;
 }
+
 .skill-detail {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
+
 .detail-info-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
 }
+
 .detail-info-item {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
 .detail-info-label {
   font-size: 13px;
   color: var(--td-text-color-placeholder);
   white-space: nowrap;
   min-width: 64px;
 }
+
 .detail-info-value {
   font-size: 13px;
   color: var(--td-text-color-primary);
   word-break: break-all;
 }
+
 .detail-info-value.mono {
   font-family: monospace;
 }
+
 .detail-section {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
+
 .detail-section-title {
   font-size: 13px;
   font-weight: 600;
   color: var(--td-text-color-secondary);
 }
+
 .detail-desc {
   font-size: 13px;
   color: var(--td-text-color-primary);
   line-height: 1.6;
-}
-
-/* Dark mode overrides */
-:root[theme-mode="dark"] .plugin-card {
-  border-color: var(--td-border-level-1-color);
 }
 
 /* Install dialog styles (mirrored from SkillView.css) */

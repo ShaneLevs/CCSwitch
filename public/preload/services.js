@@ -33,7 +33,7 @@ const {
   getOpencodeMcpServers, setOpencodeMcpServer, removeOpencodeMcpServer,
   getOpencodePlugins, setOpencodePlugins, addOpencodePlugin, removeOpencodePlugin, installOpencodePlugin, uninstallOpencodePlugin,
   fetchModelsDevPresets,
-  getOpencodeSkills, getOpencodeSkillsPath,
+  getOpencodeSkills, getOpencodeSkillsPath, deleteOpencodeSkill,
 } = opencode
 
 window.services = {
@@ -88,6 +88,7 @@ window.services = {
   readOpencodeUsage: opencode.readOpencodeUsage,
   getOpencodeSkills,
   getOpencodeSkillsPath,
+  deleteOpencodeSkill,
 
 
   // ==================== Plugins ====================

@@ -229,6 +229,17 @@ const getOpencodeSkills = () => {
   }
 }
 
+const deleteOpencodeSkill = (skillName) => {
+  try {
+    const skillPath = path.join(OPENCODE_SKILLS_PATH, skillName)
+    if (!fs.existsSync(skillPath)) return { success: false, error: 'Skill 不存在' }
+    fs.rmSync(skillPath, { recursive: true, force: true })
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+}
+
 const getOpencodeSkillsPath = () => {
   if (!fs.existsSync(OPENCODE_SKILLS_PATH)) fs.mkdirSync(OPENCODE_SKILLS_PATH, { recursive: true })
   return OPENCODE_SKILLS_PATH
@@ -548,4 +559,5 @@ module.exports = {
   readOpencodeUsage,
   getOpencodeSkills,
   getOpencodeSkillsPath,
+  deleteOpencodeSkill,
 }
