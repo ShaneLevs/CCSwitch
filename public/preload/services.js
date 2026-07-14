@@ -571,6 +571,139 @@ window.services = {
     return true
   },
 
+  // ==================== OpenCode Skills Install ====================
+
+  async installOpencodeSkill(slug, version, onProgress) {
+    const https = require('node:https')
+    const { execSync } = require('node:child_process')
+    const targetBase = opencode.getOpencodeSkillsPath()
+
+    const zipUrl = `https://skillhub-1388575217.cos.accelerate.myqcloud.com/skills/${slug}/${version}.zip`
+    const tempDir = path.join(window.utools.getPath('temp'), 'ccswitch-skill-install')
+    const zipPath = path.join(tempDir, `${slug}-${version}.zip`)
+    const extractDir = path.join(tempDir, slug)
+
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true })
+    if (!fs.existsSync(extractDir)) fs.mkdirSync(extractDir, { recursive: true })
+
+    await new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(zipPath)
+      https.get(zipUrl, (res) => {
+        if (res.statusCode === 302 || res.statusCode === 301) {
+          https.get(res.headers.location, (res2) => {
+            const totalSize = parseInt(res2.headers['content-length'], 10)
+            let downloaded = 0
+            res2.on('data', chunk => { downloaded += chunk.length; if (onProgress && totalSize) onProgress(Math.round(downloaded / totalSize * 100)) })
+            res2.pipe(file)
+          }).on('error', reject)
+        } else {
+          const totalSize = parseInt(res.headers['content-length'], 10)
+          let downloaded = 0
+          res.on('data', chunk => { downloaded += chunk.length; if (onProgress && totalSize) onProgress(Math.round(downloaded / totalSize * 100)) })
+          res.pipe(file)
+        }
+      }).on('error', reject)
+      file.on('finish', () => file.close(resolve))
+    })
+
+    if (window.utools.isMacOS() || window.utools.isLinux()) {
+      execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { stdio: 'pipe' })
+    } else if (window.utools.isWindows()) {
+      execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${extractDir}' -Force"`, { stdio: 'pipe' })
+    }
+
+    const allSkillMds = _findSkillMd(extractDir)
+    if (allSkillMds.length === 0) throw new Error('压缩包中未找到 SKILL.md 文件')
+
+    allSkillMds.sort((a, b) => a.depth - b.depth)
+    const skillInfo = allSkillMds[0]
+    const skillMdContent = fs.readFileSync(skillInfo.skillMdPath, { encoding: 'utf-8' })
+    const nameMatch = skillMdContent.match(/^name:\s*(.+)$/m)
+    const skillName = nameMatch ? nameMatch[1].trim() : slug
+    const targetDir = path.join(targetBase, skillName)
+
+    fs.rmSync(zipPath, { force: true })
+    return { skillName, extractDir: skillInfo.skillDir, targetDir, exists: fs.existsSync(targetDir), source: 'skillhub' }
+  },
+
+  async installOpencodeSkillFromModelScope(skillPath, onProgress) {
+    const https = require('node:https')
+    const { execSync } = require('node:child_process')
+    const targetBase = opencode.getOpencodeSkillsPath()
+
+    const encodedPath = skillPath.replace(/@/g, '%40')
+    const zipUrl = `https://www.modelscope.cn/skills/${encodedPath}/archive/zip/master.zip`
+    const tempDir = path.join(window.utools.getPath('temp'), 'ccswitch-skill-install')
+    const safeName = skillPath.replace(/[\/@]/g, '-')
+    const zipPath = path.join(tempDir, `${safeName}.zip`)
+    const extractDir = path.join(tempDir, safeName)
+
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true })
+
+    await new Promise((resolve, reject) => {
+      const doDownload = (url, redirectCount = 0) => {
+        if (redirectCount > 10) return reject(new Error('重定向次数过多'))
+        https.get(url, { headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36', 'accept': '*/*' } }, (res) => {
+          if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
+            if (!res.headers.location) return reject(new Error('重定向缺少 location'))
+            res.resume()
+            doDownload(res.headers.location, redirectCount + 1)
+            return
+          }
+          if (res.statusCode !== 200) return reject(new Error(`下载失败: HTTP ${res.statusCode}`))
+
+          const totalSize = parseInt(res.headers['content-length'], 10) || 0
+          let downloaded = 0
+          const file = fs.createWriteStream(zipPath)
+          res.on('data', chunk => { downloaded += chunk.length; if (onProgress && totalSize > 0) onProgress(Math.round(downloaded / totalSize * 100)) })
+          res.pipe(file)
+          file.on('finish', () => file.close(resolve))
+          file.on('error', (err) => { fs.unlinkSync(zipPath); reject(err) })
+        }).on('error', reject)
+      }
+      doDownload(zipUrl)
+    })
+
+    if (!fs.existsSync(zipPath)) throw new Error('下载文件不存在')
+    if (fs.statSync(zipPath).size < 1000) throw new Error('下载文件过小，可能下载失败')
+
+    if (window.utools.isMacOS() || window.utools.isLinux()) {
+      execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { stdio: 'pipe' })
+    } else if (window.utools.isWindows()) {
+      execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${extractDir}' -Force"`, { stdio: 'pipe' })
+    }
+
+    const allSkillMds = _findSkillMd(extractDir)
+    if (allSkillMds.length === 0) throw new Error('压缩包中未找到 SKILL.md 文件')
+
+    allSkillMds.sort((a, b) => a.depth - b.depth)
+    const skillInfo = allSkillMds[0]
+    const skillMdContent = fs.readFileSync(skillInfo.skillMdPath, { encoding: 'utf-8' })
+    const nameMatch = skillMdContent.match(/^name:\s*(.+)$/m)
+    const skillName = nameMatch ? nameMatch[1].trim() : skillPath.split('/').pop()
+    const targetDir = path.join(targetBase, skillName)
+
+    fs.unlinkSync(zipPath)
+    return { skillName, extractDir: skillInfo.skillDir, targetDir, exists: fs.existsSync(targetDir), source: 'modelscope' }
+  },
+
+  completeOpencodeSkillInstall(skillName, extractDir) {
+    const targetBase = opencode.getOpencodeSkillsPath()
+    const targetDir = path.join(targetBase, skillName)
+    if (!fs.existsSync(targetBase)) fs.mkdirSync(targetBase, { recursive: true })
+    if (fs.existsSync(targetDir)) fs.rmSync(targetDir, { recursive: true })
+    fs.renameSync(extractDir, targetDir)
+    const tempDir = path.join(window.utools.getPath('temp'), 'ccswitch-skill-install')
+    if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true })
+    return true
+  },
+
+  cancelOpencodeSkillInstall() {
+    const tempDir = path.join(window.utools.getPath('temp'), 'ccswitch-skill-install')
+    if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true })
+    return true
+  },
+
   // ==================== Usage ====================
 
   _emptyResult() {

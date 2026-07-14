@@ -150,6 +150,7 @@ onMounted(loadPlugins);
       v-model:visible="addDialog"
       header="安装插件"
       width="520px"
+      dialogClassName="oc-install-dialog"
       :confirm-btn="{ content: installing ? '安装中...' : '安装', theme: 'primary', loading: installing }"
       :on-confirm="handleAdd"
     >

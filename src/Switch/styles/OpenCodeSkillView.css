@@ -134,3 +134,18 @@
 :root[theme-mode="dark"] .plugin-card {
   border-color: var(--td-border-level-1-color);
 }
+
+/* Install dialog styles (mirrored from SkillView.css) */
+.install-form { display: flex; flex-direction: column; gap: 12px; }
+.install-form .form-item { display: flex; flex-direction: column; gap: 6px; }
+.install-form label { font-size: 13px; font-weight: 500; color: var(--td-text-color-primary); }
+.install-hint { font-size: 12px; color: var(--td-text-color-placeholder); line-height: 1.6; }
+.install-info-card { border: 1px solid var(--td-border-level-1-color); border-radius: var(--td-radius-default); padding: 12px; background: var(--td-bg-color-container); }
+.install-info-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.install-info-name { font-size: 15px; font-weight: 600; color: var(--td-text-color-primary); }
+.install-info-version { font-size: 12px; color: var(--td-text-color-placeholder); margin-left: auto; }
+.install-info-source { margin-left: 8px; }
+.install-info-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--td-text-color-secondary); margin-bottom: 8px; flex-wrap: wrap; }
+.install-info-summary { font-size: 13px; color: var(--td-text-color-primary); line-height: 1.6; }
+.install-progress { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--td-brand-color); }
+.overwrite-hint { font-size: 14px; color: var(--td-text-color-primary); }

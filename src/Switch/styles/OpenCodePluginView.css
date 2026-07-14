@@ -14,9 +14,10 @@
 .mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }
 
 /* Search list */
-.oc-search-list { display: flex; flex-direction: column; gap: 4px; max-height: 280px; overflow-y: auto; border: 1px solid var(--td-border-level-1-color); border-radius: var(--td-radius-default); padding: 4px; }
+.oc-search-list { display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; border: 1px solid var(--td-border-level-1-color); border-radius: var(--td-radius-default); padding: 4px; }
 .oc-search-item { padding: 8px 10px; border-radius: var(--td-radius-default); cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
 .oc-search-item:hover { background: var(--td-bg-color-container-hover); }
 .oc-search-item-name { font-size: 13px; font-weight: 600; color: var(--td-text-color-primary); display: flex; align-items: center; }
 .oc-search-item-desc { font-size: 12px; color: var(--td-text-color-placeholder); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.t-dialog__ctx:has(.oc-install-dialog) .t-dialog__position.t-dialog--top { padding-top: 10vh; }
 
