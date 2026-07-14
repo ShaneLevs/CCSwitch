@@ -92,7 +92,7 @@ onMounted(() => {
 
 const installFromUrl = (payload) => {
   newPluginName.value = payload || '';
-  handleAdd();
+  addDialog.value = true;
 };
 
 defineExpose({ installFromUrl });
