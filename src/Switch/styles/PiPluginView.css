@@ -1,20 +1,17 @@
 .pi-plugin-container { display: flex; flex-direction: column; gap: 12px; padding-top: 0; }
 .pi-plugin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0; }
+.pi-plugin-header-left { display: flex; align-items: center; gap: 8px; }
 .pi-plugin-tip { font-size: 12px; color: var(--td-text-color-secondary); }
 .pi-plugin-actions { display: flex; gap: 8px; }
 .pi-plugin-empty { margin-top: 40px; }
 .pi-plugin-list { display: flex; flex-direction: column; gap: 8px; }
-.pi-plugin-card { }
-.pi-plugin-card-header { display: flex; justify-content: space-between; align-items: center; }
-.pi-plugin-card-left { display: flex; align-items: center; gap: 6px; }
+.pi-plugin-card-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pi-plugin-name { font-weight: 600; font-size: 14px; color: var(--td-text-color-primary); }
-.pi-plugin-version { font-size: 12px; color: var(--td-text-color-placeholder); }
-.pi-plugin-card-body { }
-.pi-plugin-desc { font-size: 13px; color: var(--td-text-color-secondary); margin: 0 0 4px; }
-.pi-plugin-source { font-size: 12px; color: var(--td-text-color-placeholder); }
-.pi-install-form { display: flex; flex-direction: column; gap: 8px; }
-.pi-install-form label { font-size: 13px; color: var(--td-text-color-secondary); }
-.pi-install-hint { font-size: 12px; color: var(--td-text-color-placeholder); line-height: 1.6; }
-.pi-install-hint code { background: var(--td-bg-color-component); padding: 1px 4px; border-radius: 2px; }
-.hint-link { cursor: pointer; text-decoration: underline; color: var(--td-brand-color); }
-.hint-link:hover { opacity: 0.8; }
+.pi-plugin-card-body { display: flex; flex-direction: column; gap: 6px; }
+.pi-plugin-info-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.pi-plugin-label { color: var(--td-text-color-placeholder); min-width: 80px; }
+.pi-plugin-value { color: var(--td-text-color-primary); word-break: break-all; }
+.pi-plugin-desc { font-size: 13px; color: var(--td-text-color-secondary); margin: 0; }
+.mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }
+.pi-plugin-dir-link { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: var(--td-brand-color); cursor: pointer; margin-left: 4px; }
+.pi-plugin-dir-link:hover { text-decoration: underline; }

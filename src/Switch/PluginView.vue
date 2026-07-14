@@ -285,12 +285,8 @@ const handleToggleEnabled = async (plugin) => {
   try {
     const result = fn(pluginId, scope);
     if (result.success) {
-      MessagePlugin.success(
-        plugin.enabled !== false
-          ? `已禁用 "${plugin.name}"`
-          : `已启用 "${plugin.name}"`,
-      );
-      loadInstalledPlugins();
+      MessagePlugin.success(plugin.enabled !== false ? `已禁用 "${plugin.name}"` : `已启用 "${plugin.name}"`);
+      plugin.enabled = plugin.enabled === false;
     } else {
       MessagePlugin.error(result.message || "操作失败");
     }
@@ -380,7 +376,7 @@ const handleRefresh = async () => {
 };
 
 onMounted(() => {
-  refreshAll();
+  setTimeout(() => refreshAll(), 50);
 });
 </script>
 

@@ -1,4 +1,5 @@
 <script setup>
+
 import { ref, onMounted, computed } from "vue";
 import {
   Button,
@@ -526,6 +527,7 @@ const getNpmShortLabel = (npm) => {
 onMounted(() => {
   loadProviders();
 });
+
 </script>
 
 <template>

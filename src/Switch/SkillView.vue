@@ -96,7 +96,7 @@ const toggleSkill = (skill, enabled) => {
   }
   if (result.success) {
     MessagePlugin.success(enabled ? `已启用 "${skill.name}"` : `已禁用 "${skill.name}"`);
-    loadSkills();
+    skill.disabled = !enabled;
   } else {
     MessagePlugin.error(result.error || (enabled ? "启用失败" : "禁用失败"));
   }
@@ -151,7 +151,7 @@ const openProjectDir = (projectPath) => {
   window.services.openProjectSkillsDir(projectPath);
 };
 
-onMounted(() => loadSkills());
+onMounted(() => setTimeout(() => loadSkills(), 50));
 </script>
 
 <template>

@@ -1,6 +1,9 @@
 <script setup>
+
 import { ref, onMounted } from "vue";
-import { Card, Empty, Tag, Button, Tooltip } from "tdesign-vue-next";
+import {
+  Card, Empty, Tag, Button, Tooltip,
+} from "tdesign-vue-next";
 import { RefreshIcon } from "tdesign-icons-vue-next";
 import "./styles/PiMcpView.css";
 
@@ -21,13 +24,25 @@ const refresh = () => {
   setTimeout(() => { loadServers(); loading.value = false; }, 50);
 };
 
+const openPiConfig = () => {
+  try {
+    window.utools.shellOpenPath(window.services.resolvePiPath());
+  } catch (e) {
+    window.services.openPiDir();
+  }
+};
+
 onMounted(loadServers);
+
 </script>
 
 <template>
   <div class="pi-mcp-container">
     <div class="pi-mcp-header">
-      <span class="pi-mcp-tip">Pi Agent 扩展包提供的 MCP 服务器</span>
+      <span class="pi-mcp-tip">
+        Pi Agent 扩展包提供的 MCP 服务器 — 通过
+        <code class="hint-link" @click="openPiConfig">pi config</code> 管理
+      </span>
       <Tooltip content="刷新" placement="top">
         <Button size="small" variant="outline" :loading="loading" @click="refresh">
           <template #icon><RefreshIcon /></template> 刷新
@@ -40,13 +55,19 @@ onMounted(loadServers);
     </div>
 
     <div v-else class="pi-mcp-list">
-      <Card v-for="srv in servers" :key="srv.serverName" :bordered="true" class="pi-mcp-card">
-        <template #header>
+      <Card
+        v-for="srv in servers"
+        :key="srv.serverName + '@' + srv.package"
+        :bordered="true"
+        class="pi-mcp-card"
+      >
+        <template #title>
           <div class="pi-mcp-card-header">
             <span class="pi-mcp-srv-name">{{ srv.serverName }}</span>
-            <Tag size="small" variant="light" theme="success">已启用</Tag>
+            <Tag size="small" variant="light" theme="success">可用</Tag>
           </div>
         </template>
+
         <div class="pi-mcp-card-body">
           <div class="pi-mcp-info-row">
             <span class="pi-mcp-label">来源扩展</span>

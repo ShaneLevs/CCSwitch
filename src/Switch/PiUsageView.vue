@@ -42,12 +42,11 @@ const filteredData = computed(() => {
   const [from, to] = dateRange.value;
   const filteredContributions = raw.contributions.filter(c => c.date >= from && c.date <= to);
 
-  let totalTokens = 0, inputTokens = 0, outputTokens = 0;
+  let totalTokens = 0, outputTokens = 0;
   const modelMap = new Map();
 
   for (const day of filteredContributions) {
     totalTokens += day.tokens || 0;
-    inputTokens += day.inputTokens || 0;
     outputTokens += day.outputTokens || 0;
     if (day.models) {
       for (const [modelName, modelData] of Object.entries(day.models)) {
@@ -55,12 +54,17 @@ const filteredData = computed(() => {
           modelMap.set(modelName, { name: modelName, tokens: 0, inputTokens: 0, outputTokens: 0 });
         }
         const m = modelMap.get(modelName);
-        m.tokens += (modelData.inputTokens || 0) + (modelData.outputTokens || 0);
-        m.inputTokens += modelData.inputTokens || 0;
-        m.outputTokens += modelData.outputTokens || 0;
+        const cacheR = modelData.cacheReadTokens || 0;
+        const cacheC = modelData.cacheCreationTokens || 0;
+        const inp = modelData.inputTokens || 0;
+        const out = modelData.outputTokens || 0;
+        m.tokens += inp + out + cacheR + cacheC;
+        m.inputTokens += inp + cacheR + cacheC;
+        m.outputTokens += out;
       }
     }
   }
+  const inputTokens = totalTokens - outputTokens;
 
   return {
     summary: { totalTokens, inputTokens, outputTokens, totalCost: raw.summary.totalCost },

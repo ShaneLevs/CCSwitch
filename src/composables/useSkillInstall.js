@@ -1,7 +1,17 @@
 import { ref, watch } from "vue";
 import { MessagePlugin } from "tdesign-vue-next";
 
-export function useSkillInstall(loadSkills) {
+const DEFAULT_CONFIG = {
+  getSkillsPath: 'getSkillsPath',
+  installSkill: 'installSkill',
+  installSkillFromModelScope: 'installSkillFromModelScope',
+  completeSkillInstall: 'completeSkillInstall',
+  cancelSkillInstall: 'cancelSkillInstall',
+};
+
+export function useSkillInstall(loadSkills, config = {}) {
+  const cfg = { ...DEFAULT_CONFIG, ...config };
+
   const showInstallDialog = ref(false);
   const installUrl = ref("");
   const isFetchingInfo = ref(false);
@@ -98,7 +108,7 @@ export function useSkillInstall(loadSkills) {
   };
 
   const openSkillsDir = () => {
-    window.utools.shellOpenPath(window.services.getSkillsPath());
+    window.utools.shellOpenPath(window.services[cfg.getSkillsPath]());
   };
 
   const confirmInstall = async () => {
@@ -109,13 +119,13 @@ export function useSkillInstall(loadSkills) {
     try {
       let result;
       if (installInfo.value.source === 'skillhub') {
-        result = await window.services.installSkill(
+        result = await window.services[cfg.installSkill](
           installInfo.value.slug,
           installInfo.value.version,
           (progress) => { installProgress.value = progress; }
         );
       } else if (installInfo.value.source === 'modelscope') {
-        result = await window.services.installSkillFromModelScope(
+        result = await window.services[cfg.installSkillFromModelScope](
           installInfo.value.slug,
           (progress) => { installProgress.value = progress; }
         );
@@ -127,14 +137,14 @@ export function useSkillInstall(loadSkills) {
         showInstallDialog.value = false;
         showOverwriteDialog.value = true;
       } else {
-        window.services.completeSkillInstall(result.skillName, result.extractDir);
+        window.services[cfg.completeSkillInstall](result.skillName, result.extractDir);
         MessagePlugin.success(`Skill "${result.skillName}" 安装成功`);
         showInstallDialog.value = false;
         loadSkills();
       }
     } catch (e) {
       MessagePlugin.error("安装失败: " + e.message);
-      window.services.cancelSkillInstall();
+      window.services[cfg.cancelSkillInstall]();
     } finally {
       isInstalling.value = false;
     }
@@ -142,7 +152,7 @@ export function useSkillInstall(loadSkills) {
 
   const overwriteInstall = () => {
     if (!pendingInstall.value) return;
-    window.services.completeSkillInstall(
+    window.services[cfg.completeSkillInstall](
       pendingInstall.value.skillName,
       pendingInstall.value.extractDir
     );
@@ -154,7 +164,7 @@ export function useSkillInstall(loadSkills) {
 
   const cancelInstall = () => {
     if (pendingInstall.value) {
-      window.services.cancelSkillInstall(pendingInstall.value.extractDir);
+      window.services[cfg.cancelSkillInstall](pendingInstall.value.extractDir);
     }
     pendingInstall.value = null;
     showOverwriteDialog.value = false;

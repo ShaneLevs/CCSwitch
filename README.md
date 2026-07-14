@@ -19,7 +19,7 @@
 
 ### 方式一：uTools 插件商店
 
-在 uTools 插件商店搜索 **CCConfig** 或 **Claude配置切换** 即可安装。
+在 uTools 插件商店搜索 **CCConfig** 即可安装。
 
 ### 方式二：本地开发
 
@@ -42,13 +42,13 @@ npm run build
 
 ## 使用方式
 
-在 uTools 中输入以下关键词唤起插件：
+在 uTools 中输入以下关键词唤起插件（点击运行时默认执行第一个关键词）：
 
 | 关键词 | 功能 |
 |--------|------|
-| `CCConfig` | 打开配置管理 |
-| `Claude配置切换` | 打开配置管理 |
-| `切换Claude配置` | 打开配置管理 |
+| `Claude Code配置` | 打开 Claude Code 配置管理 |
+| `OpenCode配置` | 打开 OpenCode 配置管理 |
+| `Pi Agents配置` | 打开 Pi Agent 配置管理 |
 | 粘贴 SkillHub / 魔搭链接 | 自动进入 Skill 安装 |
 
 ## 技术栈
@@ -65,7 +65,7 @@ src/
 ├── main.js                    # 入口，主题初始化
 ├── App.vue                    # 根组件
 ├── Switch/
-│   ├── index.vue              # 主界面（应用切换 + 5-tab 视图）
+│   ├── index.vue              # 主界面（应用切换 + 4/5-tab 视图，OpenCode 无 Skill tab）
 │   ├── ConfigView.vue         # Claude 配置管理
 │   ├── McpView.vue            # Claude MCP 配置
 │   ├── SkillView.vue          # Claude Skill 管理
@@ -73,7 +73,6 @@ src/
 │   ├── ContributionGrid.vue   # 贡献墙热力图
 │   ├── OpenCodeConfigView.vue # OpenCode provider CRUD
 │   ├── OpenCodeMcpView.vue    # OpenCode MCP 管理
-│   ├── OpenCodeSkillView.vue  # OpenCode skill 占位（无原生 skill 概念）
 │   ├── OpenCodePluginView.vue # OpenCode plugin 管理
 │   ├── OpenCodeUsageView.vue  # OpenCode 使用统计（opencode.db）
 │   ├── PiConfigView.vue       # Pi 供应商/模型 CRUD

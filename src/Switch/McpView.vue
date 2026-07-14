@@ -59,9 +59,13 @@ const EXAMPLE_HTTP = `{
   "env": {}
 }`;
 
-// 加载 MCP 配置（带状态）
+// 加载 MCP 服务器列表
 const loadMcpServers = () => {
   mcpServerList.value = window.services.getAllMcpServersWithStatus();
+};
+
+// 加载 MCP 使用统计（只在挂载时加载一次，拨动开关不刷新此数据）
+const loadMcpUsage = () => {
   mcpUsage.value = window.services.getMcpUsage();
 };
 
@@ -269,6 +273,7 @@ const formatSchema = (schema) => {
 
 onMounted(() => {
   loadMcpServers();
+  setTimeout(() => loadMcpUsage(), 50);
 });
 </script>
 
