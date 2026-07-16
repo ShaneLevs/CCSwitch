@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from "vue";
-import { Button, Dropdown } from "tdesign-vue-next";
+import { Button, Dropdown, Dialog, Switch } from "tdesign-vue-next";
 import {
   ChartIcon,
   DashboardIcon,
@@ -8,6 +8,7 @@ import {
   BookIcon,
   ChevronDownIcon,
   AppIcon,
+  SettingIcon,
 } from "tdesign-icons-vue-next";
 import ConfigView from "./ConfigView.vue";
 import UsageView from "./UsageView.vue";
@@ -27,6 +28,7 @@ import OpenCodeUsageView from "./OpenCodeUsageView.vue";
 import wavingDark from "../assets/waving-dark.gif";
 import wavingLight from "../assets/waving-light.gif";
 import { useAppContext } from "../composables/useAppContext";
+import { useDarkBackground } from "../composables/useDarkBackground";
 
 const props = defineProps({
   route: String,
@@ -34,6 +36,9 @@ const props = defineProps({
 });
 
 const { activeApp, setActiveApp, isClaude, isOpenCode, isPi } = useAppContext();
+
+const { darkBackgroundEnabled, setDarkBackground, darkEffect, setDarkEffect } = useDarkBackground();
+const showSettings = ref(false);
 
 const activeTab = ref("config");
 const skillViewRef = ref(null);
@@ -190,7 +195,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="container">
+  <div class="container" :class="{ 'container--solid-bg': !darkBackgroundEnabled }">
     <div class="header">
       <div class="header-left">
         <img
@@ -227,6 +232,15 @@ onMounted(() => {
         <t-typography-title level="h5">{{
           pageTitleSuffix
         }}</t-typography-title>
+        <Button
+          shape="circle"
+          variant="text"
+          theme="default"
+          class="settings-btn"
+          @click="showSettings = true"
+        >
+          <template #icon><SettingIcon /></template>
+        </Button>
       </div>
       <div class="header-right">
         <!-- Claude Code tabs -->
@@ -387,6 +401,43 @@ onMounted(() => {
       <OpenCodePluginView v-if="isTabVisited('opencode', 'plugin')" v-show="isOpenCode && activeTab === 'plugin'" />
       <OpenCodeUsageView v-if="isTabVisited('opencode', 'usage')" v-show="isOpenCode && activeTab === 'usage'" />
     </template>
+
+    <Dialog
+      v-model:visible="showSettings"
+      header="设置"
+      :footer="false"
+      width="380px"
+      placement="center"
+    >
+      <div class="settings-row">
+        <div class="settings-label">
+          <div class="settings-title">深色折射背景</div>
+          <div class="settings-desc">深色模式下的 WebGL 流光背景动画（关闭可降低 GPU 占用）</div>
+        </div>
+        <Switch
+          :model-value="darkBackgroundEnabled"
+          @change="setDarkBackground"
+        />
+      </div>
+      <div class="effect-cards" :class="{ 'effect-cards--disabled': !darkBackgroundEnabled }">
+        <div
+          class="effect-card"
+          :class="{ 'effect-card--active': darkEffect === 'prismatic' }"
+          @click="darkBackgroundEnabled && setDarkEffect('prismatic')"
+        >
+          <div class="effect-card__name">Prismatic Burst</div>
+          <div class="effect-card__desc">棱镜光谱爆裂</div>
+        </div>
+        <div
+          class="effect-card"
+          :class="{ 'effect-card--active': darkEffect === 'pixel' }"
+          @click="darkBackgroundEnabled && setDarkEffect('pixel')"
+        >
+          <div class="effect-card__name">FaultyTerminal</div>
+          <div class="effect-card__desc">故障像素终端</div>
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>
 
@@ -400,6 +451,10 @@ onMounted(() => {
 /* 深色模式下容器背景透明，展示 PrismaticBurst WebGL 背景 */
 :root[theme-mode="dark"] .container {
   background: transparent;
+}
+/* 背景开关关闭时，使用纯色底色替代 WebGL 背景 */
+:root[theme-mode="dark"] .container.container--solid-bg {
+  background-color: #303133;
 }
 .header {
   display: flex;
@@ -454,6 +509,78 @@ onMounted(() => {
 }
 .app-selector:hover {
   background-color: var(--td-bg-color-container-hover);
+}
+
+.settings-btn {
+  color: var(--td-text-color-secondary);
+}
+.settings-btn:hover {
+  color: var(--td-brand-color);
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+.settings-row + .settings-row {
+  margin-top: 8px;
+}
+.effect-cards {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.effect-card {
+  flex: 1;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--td-component-border);
+  border-radius: var(--td-radius-default);
+  background-color: var(--td-bg-color-container);
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+  user-select: none;
+}
+.effect-card:hover {
+  border-color: var(--td-brand-color);
+}
+.effect-card--active {
+  border-color: var(--td-brand-color);
+  background-color: var(--td-brand-color-light);
+  box-shadow: 0 0 0 1px var(--td-brand-color) inset;
+}
+.effect-card__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--td-text-color-primary);
+}
+.effect-card__desc {
+  font-size: 12px;
+  color: var(--td-text-color-secondary);
+  margin-top: 2px;
+}
+.effect-cards--disabled .effect-card {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.effect-cards--disabled .effect-card:hover {
+  border-color: var(--td-component-border);
+}
+.settings-label {
+  flex: 1;
+}
+.settings-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--td-text-color-primary);
+}
+.settings-desc {
+  font-size: 12px;
+  color: var(--td-text-color-secondary);
+  margin-top: 2px;
+  line-height: 1.5;
 }
 
 /* Switch dark mode fix: darken track when off so handle (white #fff) is visible */

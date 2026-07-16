@@ -2,10 +2,13 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import Switch from './Switch/index.vue'
 import PrismaticBurst from './components/PrismaticBurst.vue'
+import FaultyTerminal from './components/FaultyTerminal.vue'
+import { useDarkBackground } from './composables/useDarkBackground'
 
 const route = ref('')
 const payload = ref('')
 const isDark = ref(window.matchMedia('(prefers-color-scheme: dark)').matches)
+const { darkBackgroundEnabled, darkEffect } = useDarkBackground()
 
 let darkQuery
 onMounted(() => {
@@ -30,7 +33,7 @@ onUnmounted(() => {
 
 <template>
   <PrismaticBurst
-    v-if="isDark"
+    v-if="isDark && darkBackgroundEnabled && darkEffect === 'prismatic'"
     animation-type="rotate3d"
     :intensity="1"
     :speed="0.5"
@@ -41,6 +44,26 @@ onUnmounted(() => {
     :ray-count="0"
     mix-blend-mode="lighten"
     :colors="['#a7a7a7', '#656565', '#000000']"
+  />
+  <FaultyTerminal
+    v-if="isDark && darkBackgroundEnabled && darkEffect === 'pixel'"
+    :scale="2.4"
+    :grid-mul="[2, 1]"
+    :digit-size="3"
+    :time-scale="0.5"
+    :pause="false"
+    :scanline-intensity="0.1"
+    :glitch-amount="1"
+    :flicker-amount="1"
+    :noise-amp="1"
+    :chromatic-aberration="0"
+    :dither="0"
+    :curvature="0.1"
+    tint="#595959"
+    :mouse-react="false"
+    :mouse-strength="0.5"
+    :page-load-animation="false"
+    :brightness="1"
   />
   <Switch v-if="['claudeConfig', 'opencodeConfig', 'piConfig', 'installClaudeSkill', 'installOpencodeSkill', 'installPiExtension'].includes(route)" :route="route" :payload="payload" />
 </template>

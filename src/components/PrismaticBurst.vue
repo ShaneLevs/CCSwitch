@@ -143,7 +143,7 @@ void main(){
       hoverMat = rotY(ang.y) * rotX(ang.x);
     }
 
-    for (int i = 0; i < 44; ++i) {
+    for (int i = 0; i < 30; ++i) {
         vec3 P = marchT * dir;
         P.z -= 2.0;
         float rad = length(P);
