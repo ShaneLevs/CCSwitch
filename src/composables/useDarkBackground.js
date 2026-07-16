@@ -1,25 +1,39 @@
 import { ref } from 'vue'
 
 // 深色模式背景开关 + 效果选择（模块级单例，App.vue 渲染 / index.vue 设置按钮共享）
-const ENABLED_ID = 'ccswitch_dark_background'
-const EFFECT_ID = 'ccswitch_dark_effect'
+const DOC_ID = 'ccswitch_dark_background'
 
 const darkBackgroundEnabled = ref(true)
 // 'prismatic' | 'pixel'
 const darkEffect = ref('prismatic')
 
+function readDoc() {
+  try {
+    return window.utools?.db?.get(DOC_ID)
+  } catch (e) {
+    return null
+  }
+}
+
 let initialized = false
 function init() {
   if (initialized) return
   initialized = true
-  try {
-    const eDoc = window.utools?.db?.get(ENABLED_ID)
-    if (eDoc && typeof eDoc.enabled === 'boolean') darkBackgroundEnabled.value = eDoc.enabled
-    const fDoc = window.utools?.db?.get(EFFECT_ID)
-    if (fDoc && (fDoc.effect === 'prismatic' || fDoc.effect === 'pixel')) darkEffect.value = fDoc.effect
-  } catch (e) {
-    /* ignore read error */
+  const doc = readDoc()
+  if (doc) {
+    if (typeof doc.enabled === 'boolean') darkBackgroundEnabled.value = doc.enabled
+    if (doc.effect === 'prismatic' || doc.effect === 'pixel') darkEffect.value = doc.effect
   }
+}
+
+function saveDoc() {
+  const existing = readDoc()
+  window.utools?.db?.put({
+    _id: DOC_ID,
+    enabled: darkBackgroundEnabled.value,
+    effect: darkEffect.value,
+    ...(existing ? { _rev: existing._rev } : {}),
+  })
 }
 
 export function useDarkBackground() {
@@ -27,22 +41,12 @@ export function useDarkBackground() {
 
   const setDarkBackground = (enabled) => {
     darkBackgroundEnabled.value = enabled
-    try {
-      const existing = window.utools?.db?.get(ENABLED_ID)
-      window.utools?.db?.put({ _id: ENABLED_ID, enabled, ...(existing ? { _rev: existing._rev } : {}) })
-    } catch (e) {
-      /* ignore write error */
-    }
+    try { saveDoc() } catch (e) { /* ignore write error */ }
   }
 
   const setDarkEffect = (effect) => {
     darkEffect.value = effect
-    try {
-      const existing = window.utools?.db?.get(EFFECT_ID)
-      window.utools?.db?.put({ _id: EFFECT_ID, effect, ...(existing ? { _rev: existing._rev } : {}) })
-    } catch (e) {
-      /* ignore write error */
-    }
+    try { saveDoc() } catch (e) { /* ignore write error */ }
   }
 
   return { darkBackgroundEnabled, setDarkBackground, darkEffect, setDarkEffect }

@@ -37,7 +37,8 @@ const props = defineProps({
 
 const { activeApp, setActiveApp, isClaude, isOpenCode, isPi } = useAppContext();
 
-const { darkBackgroundEnabled, setDarkBackground, darkEffect, setDarkEffect } = useDarkBackground();
+const { darkBackgroundEnabled, setDarkBackground, darkEffect, setDarkEffect } =
+  useDarkBackground();
 const showSettings = ref(false);
 
 const activeTab = ref("config");
@@ -45,7 +46,7 @@ const skillViewRef = ref(null);
 const ocSkillViewRef = ref(null);
 const piPluginViewRef = ref(null);
 // 记录哪些应用已被激活过，激活后保留组件不销毁，避免 v-show 导致热力图宽度计算为 0
-const activatedApps = ref(new Set(['claude']));
+const activatedApps = ref(new Set(["claude"]));
 
 const ensureAppActivated = (app) => {
   if (!activatedApps.value.has(app)) {
@@ -59,7 +60,7 @@ ensureAppActivated(activeApp.value);
 const isAppReady = (app) => activatedApps.value.has(app);
 
 // 记录每个应用下已访问过的标签页，首次访问后保持组件不销毁
-const visitedTabs = ref(new Set(['claude:config']));
+const visitedTabs = ref(new Set(["claude:config"]));
 
 const markTabVisited = (app, tab) => {
   visitedTabs.value.add(`${app}:${tab}`);
@@ -195,7 +196,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="container" :class="{ 'container--solid-bg': !darkBackgroundEnabled }">
+  <div
+    class="container"
+    :class="{ 'container--solid-bg': !darkBackgroundEnabled }"
+  >
     <div class="header">
       <div class="header-left">
         <img
@@ -378,28 +382,67 @@ onMounted(() => {
     <!-- Claude Code views：已访问的标签页用 v-show 保持挂载，避免重复加载 -->
     <template v-if="isAppReady('claude')">
       <ConfigView v-if="isClaude && activeTab === 'config'" />
-      <UsageView v-if="isTabVisited('claude', 'usage')" v-show="isClaude && activeTab === 'usage'" />
-      <McpView v-if="isTabVisited('claude', 'mcp')" v-show="isClaude && activeTab === 'mcp'" />
-      <SkillView v-if="isTabVisited('claude', 'skill')" v-show="isClaude && activeTab === 'skill'" ref="skillViewRef" />
-      <PluginView v-if="isTabVisited('claude', 'plugin')" v-show="isClaude && activeTab === 'plugin'" />
+      <UsageView
+        v-if="isTabVisited('claude', 'usage')"
+        v-show="isClaude && activeTab === 'usage'"
+      />
+      <McpView
+        v-if="isTabVisited('claude', 'mcp')"
+        v-show="isClaude && activeTab === 'mcp'"
+      />
+      <SkillView
+        v-if="isTabVisited('claude', 'skill')"
+        v-show="isClaude && activeTab === 'skill'"
+        ref="skillViewRef"
+      />
+      <PluginView
+        v-if="isTabVisited('claude', 'plugin')"
+        v-show="isClaude && activeTab === 'plugin'"
+      />
     </template>
 
     <!-- Pi Agent views -->
     <template v-if="isAppReady('pi')">
       <PiConfigView v-if="isPi && activeTab === 'config'" />
-      <PiUsageView v-if="isTabVisited('pi', 'usage')" v-show="isPi && activeTab === 'usage'" />
-      <PiMcpView v-if="isTabVisited('pi', 'mcp')" v-show="isPi && activeTab === 'mcp'" />
-      <PiSkillView v-if="isTabVisited('pi', 'skill')" v-show="isPi && activeTab === 'skill'" />
-      <PiPluginView v-if="isTabVisited('pi', 'plugin')" v-show="isPi && activeTab === 'plugin'" ref="piPluginViewRef" />
+      <PiUsageView
+        v-if="isTabVisited('pi', 'usage')"
+        v-show="isPi && activeTab === 'usage'"
+      />
+      <PiMcpView
+        v-if="isTabVisited('pi', 'mcp')"
+        v-show="isPi && activeTab === 'mcp'"
+      />
+      <PiSkillView
+        v-if="isTabVisited('pi', 'skill')"
+        v-show="isPi && activeTab === 'skill'"
+      />
+      <PiPluginView
+        v-if="isTabVisited('pi', 'plugin')"
+        v-show="isPi && activeTab === 'plugin'"
+        ref="piPluginViewRef"
+      />
     </template>
 
     <!-- OpenCode views -->
     <template v-if="isAppReady('opencode')">
       <OpenCodeConfigView v-if="isOpenCode && activeTab === 'config'" />
-      <OpenCodeMcpView v-if="isTabVisited('opencode', 'mcp')" v-show="isOpenCode && activeTab === 'mcp'" />
-      <OpenCodeSkillView v-if="isTabVisited('opencode', 'skill')" v-show="isOpenCode && activeTab === 'skill'" ref="ocSkillViewRef" />
-      <OpenCodePluginView v-if="isTabVisited('opencode', 'plugin')" v-show="isOpenCode && activeTab === 'plugin'" />
-      <OpenCodeUsageView v-if="isTabVisited('opencode', 'usage')" v-show="isOpenCode && activeTab === 'usage'" />
+      <OpenCodeMcpView
+        v-if="isTabVisited('opencode', 'mcp')"
+        v-show="isOpenCode && activeTab === 'mcp'"
+      />
+      <OpenCodeSkillView
+        v-if="isTabVisited('opencode', 'skill')"
+        v-show="isOpenCode && activeTab === 'skill'"
+        ref="ocSkillViewRef"
+      />
+      <OpenCodePluginView
+        v-if="isTabVisited('opencode', 'plugin')"
+        v-show="isOpenCode && activeTab === 'plugin'"
+      />
+      <OpenCodeUsageView
+        v-if="isTabVisited('opencode', 'usage')"
+        v-show="isOpenCode && activeTab === 'usage'"
+      />
     </template>
 
     <Dialog
@@ -411,15 +454,20 @@ onMounted(() => {
     >
       <div class="settings-row">
         <div class="settings-label">
-          <div class="settings-title">深色折射背景</div>
-          <div class="settings-desc">深色模式下的 WebGL 流光背景动画（关闭可降低 GPU 占用）</div>
+          <div class="settings-title">黑暗模式背景特效</div>
+          <div class="settings-desc">
+            深色模式下的动态背景特效，开启后可能会导致电脑卡顿
+          </div>
         </div>
         <Switch
           :model-value="darkBackgroundEnabled"
           @change="setDarkBackground"
         />
       </div>
-      <div class="effect-cards" :class="{ 'effect-cards--disabled': !darkBackgroundEnabled }">
+      <div
+        class="effect-cards"
+        :class="{ 'effect-cards--disabled': !darkBackgroundEnabled }"
+      >
         <div
           class="effect-card"
           :class="{ 'effect-card--active': darkEffect === 'prismatic' }"
@@ -540,7 +588,10 @@ onMounted(() => {
   border-radius: var(--td-radius-default);
   background-color: var(--td-bg-color-container);
   cursor: pointer;
-  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s,
+    box-shadow 0.2s;
   user-select: none;
 }
 .effect-card:hover {
@@ -604,7 +655,8 @@ onMounted(() => {
 :root[theme-mode="dark"] .t-dropdown__item:hover {
   background-color: var(--td-bg-color-container-hover);
 }
-:root[theme-mode="dark"] .t-dropdown__item--theme-default.t-dropdown__item--active {
+:root[theme-mode="dark"]
+  .t-dropdown__item--theme-default.t-dropdown__item--active {
   color: var(--td-brand-color);
   background-color: var(--td-brand-color-light);
 }
