@@ -484,6 +484,22 @@ onMounted(() => {
           <div class="effect-card__name">FaultyTerminal</div>
           <div class="effect-card__desc">故障像素终端</div>
         </div>
+        <div
+          class="effect-card"
+          :class="{ 'effect-card--active': darkEffect === 'aurora' }"
+          @click="darkBackgroundEnabled && setDarkEffect('aurora')"
+        >
+          <div class="effect-card__name">Aurora</div>
+          <div class="effect-card__desc">流动极光</div>
+        </div>
+        <div
+          class="effect-card"
+          :class="{ 'effect-card--active': darkEffect === 'galaxy' }"
+          @click="darkBackgroundEnabled && setDarkEffect('galaxy')"
+        >
+          <div class="effect-card__name">Galaxy</div>
+          <div class="effect-card__desc">星河漫游</div>
+        </div>
       </div>
     </Dialog>
   </div>
@@ -577,11 +593,12 @@ onMounted(() => {
 }
 .effect-cards {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 12px;
 }
 .effect-card {
-  flex: 1;
+  flex: 1 1 calc(50% - 5px);
   box-sizing: border-box;
   padding: 10px 12px;
   border: 1px solid var(--td-component-border);

@@ -3,6 +3,8 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import Switch from './Switch/index.vue'
 import PrismaticBurst from './components/PrismaticBurst.vue'
 import FaultyTerminal from './components/FaultyTerminal.vue'
+import Aurora from './components/Aurora.vue'
+import Galaxy from './components/Galaxy.vue'
 import { useDarkBackground } from './composables/useDarkBackground'
 
 const route = ref('')
@@ -64,6 +66,17 @@ onUnmounted(() => {
     :mouse-strength="0.5"
     :page-load-animation="false"
     :brightness="1"
+  />
+  <Aurora
+    v-if="isDark && darkBackgroundEnabled && darkEffect === 'aurora'"
+    :color-stops="['#898989', '#141414', '#7e7e7e']"
+    :blend="0.5"
+    :speed="1"
+  />
+  <Galaxy
+    v-if="isDark && darkBackgroundEnabled && darkEffect === 'galaxy'"
+    :transparent="false"
+    :mouse-interaction="false"
   />
   <Switch v-if="['claudeConfig', 'opencodeConfig', 'piConfig', 'installClaudeSkill', 'installOpencodeSkill', 'installPiExtension'].includes(route)" :route="route" :payload="payload" />
 </template>

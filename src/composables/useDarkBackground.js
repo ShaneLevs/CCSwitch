@@ -4,7 +4,7 @@ import { ref } from 'vue'
 const DOC_ID = 'ccswitch_dark_background'
 
 const darkBackgroundEnabled = ref(true)
-// 'prismatic' | 'pixel'
+// 'prismatic' | 'pixel' | 'aurora' | 'galaxy'
 const darkEffect = ref('prismatic')
 
 function readDoc() {
@@ -22,7 +22,7 @@ function init() {
   const doc = readDoc()
   if (doc) {
     if (typeof doc.enabled === 'boolean') darkBackgroundEnabled.value = doc.enabled
-    if (doc.effect === 'prismatic' || doc.effect === 'pixel') darkEffect.value = doc.effect
+    if (doc.effect === 'prismatic' || doc.effect === 'pixel' || doc.effect === 'aurora' || doc.effect === 'galaxy') darkEffect.value = doc.effect
   }
 }
 
