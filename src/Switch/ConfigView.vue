@@ -552,8 +552,15 @@ onMounted(() => { loadCurrentConfig(); checkFirstOpen(); loadSavedConfigs(); loa
           </div>
           <div v-else class="config-group">
             <div class="group-conn" @mousedown="onDragMouseDown('left', idx, $event)">
-              <span class="group-key">{{ maskKey(group.key) }}</span>
-              <span class="group-url">{{ group.baseUrl }}</span>
+              <div class="group-conn-info">
+                <span class="group-key">{{ maskKey(group.key) }}</span>
+                <span class="group-url">{{ group.baseUrl }}</span>
+              </div>
+              <div class="group-conn-actions" @click.stop @mousedown.stop>
+                <Tooltip content="批量编辑 URL 和 Key" placement="top">
+                  <Button size="small" theme="default" variant="text" @click="openBatchEditDialog(group)"><EditIcon /></Button>
+                </Tooltip>
+              </div>
             </div>
             <div v-for="config in group.configs" :key="config.id + '-' + (isCurrentConfig(config) ? 'cur' : 'other')" class="config-row" @click="openPreviewDialog(config)">
               <span class="config-name">{{ config.name }}</span>
@@ -580,8 +587,15 @@ onMounted(() => { loadCurrentConfig(); checkFirstOpen(); loadSavedConfigs(); loa
           </div>
           <div v-else class="config-group">
             <div class="group-conn" @mousedown="onDragMouseDown('right', idx, $event)">
-              <span class="group-key">{{ maskKey(group.key) }}</span>
-              <span class="group-url">{{ group.baseUrl }}</span>
+              <div class="group-conn-info">
+                <span class="group-key">{{ maskKey(group.key) }}</span>
+                <span class="group-url">{{ group.baseUrl }}</span>
+              </div>
+              <div class="group-conn-actions" @click.stop @mousedown.stop>
+                <Tooltip content="批量编辑 URL 和 Key" placement="top">
+                  <Button size="small" theme="default" variant="text" @click="openBatchEditDialog(group)"><EditIcon /></Button>
+                </Tooltip>
+              </div>
             </div>
             <div v-for="config in group.configs" :key="config.id + '-' + (isCurrentConfig(config) ? 'cur' : 'other')" class="config-row" @click="openPreviewDialog(config)">
               <span class="config-name">{{ config.name }}</span>
@@ -797,6 +811,15 @@ onMounted(() => { loadCurrentConfig(); checkFirstOpen(); loadSavedConfigs(); loa
         <Button variant="outline" @click="showExtraFieldsDialog = false">取消</Button>
         <Button theme="primary" @click="saveExtraFields">保存</Button>
       </template>
+    </Dialog>
+
+    <!-- 批量编辑弹窗 -->
+    <Dialog v-model:visible="showBatchEditDialog" header="批量编辑此组" width="480px" @confirm="saveBatchEdit">
+      <div class="form">
+        <div class="form-item"><label>URL <span class="required">*</span></label><Input v-model="batchUrl" placeholder="ANTHROPIC_BASE_URL" /></div>
+        <div class="form-item"><label>TOKEN <span class="required">*</span></label><Input v-model="batchKey" type="password" placeholder="ANTHROPIC_AUTH_TOKEN" /></div>
+      </div>
+      <div class="batch-edit-hint">将更新本组共 {{ batchEditGroup?.configs.length }} 个配置的 URL 与 Key。</div>
     </Dialog>
 
     <!-- 清除配置确认弹窗 -->
