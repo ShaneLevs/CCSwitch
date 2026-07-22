@@ -14,8 +14,11 @@
 .drag-gap-parent { background: transparent; border: 1px solid var(--td-brand-color); opacity: 0.6; box-shadow: 0 0 6px var(--td-brand-color-focus); }
 :root[theme-mode="dark"] .drag-gap-parent { box-shadow: 0 0 6px var(--td-brand-color-focus); }
 .drag-gap { border-radius: var(--td-radius-medium); }
-.group-conn { display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; border-bottom: 1px solid var(--td-component-border); font-family: monospace; font-size: 12px; cursor: grab; user-select: none; }
+.group-conn { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--td-component-border); font-family: monospace; font-size: 12px; cursor: grab; user-select: none; }
 .group-conn:active { cursor: grabbing; }
+.group-conn-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.group-conn-actions { flex-shrink: 0; opacity: 0; transition: opacity 0.15s; }
+.group-conn:hover .group-conn-actions { opacity: 1; }
 .group-key { color: var(--td-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .group-url { color: var(--td-brand-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .config-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; cursor: pointer; }
@@ -23,6 +26,7 @@
 .config-row:hover .config-name { color: var(--td-brand-color); }
 .config-row + .config-row { border-top: 1px solid var(--td-component-border); }
 .config-name { font-size: 13px; font-weight: 500; color: var(--td-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.batch-edit-hint { margin-top: 12px; font-size: 12px; color: var(--td-text-color-placeholder); }
 
 /* 预览弹窗样式 */
 .preview-content { display: flex; flex-direction: column; gap: 12px; }
