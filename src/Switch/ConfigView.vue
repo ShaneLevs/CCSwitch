@@ -814,7 +814,7 @@ onMounted(() => { loadCurrentConfig(); checkFirstOpen(); loadSavedConfigs(); loa
     </Dialog>
 
     <!-- 批量编辑弹窗 -->
-    <Dialog v-model:visible="showBatchEditDialog" header="批量编辑此组" width="480px" @confirm="saveBatchEdit">
+    <Dialog v-model:visible="showBatchEditDialog" header="批量编辑此组" width="560px" @confirm="saveBatchEdit">
       <div class="form">
         <div class="form-item"><label>URL <span class="required">*</span></label><Input v-model="batchUrl" placeholder="ANTHROPIC_BASE_URL" /></div>
         <div class="form-item"><label>TOKEN <span class="required">*</span></label><Input v-model="batchKey" type="password" placeholder="ANTHROPIC_AUTH_TOKEN" /></div>
