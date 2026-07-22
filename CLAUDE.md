@@ -26,6 +26,11 @@ npm run dev     # Development mode (localhost:5173)
 npm run build   # Build for production (includes esbuild preload bundling)
 ```
 
+## Git Workflow
+
+- **所有操作直接在 `main` 主分支进行**，不要单独建 feature 分支，不要用 git worktree 隔离。新建分支、PR 流程一律跳过。
+- 提交信息按现有约定（`feat:` / `style:` / `docs:` 等前缀，中文描述）。
+
 ## Architecture
 
 ```
