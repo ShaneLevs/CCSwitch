@@ -55,6 +55,10 @@ const editingConfig = ref(null);
 const dialogTab = ref("basic");
 const showPreviewDialog = ref(false);
 const previewConfig = ref(null);
+const showBatchEditDialog = ref(false);
+const batchEditGroup = ref(null);
+const batchUrl = ref("");
+const batchKey = ref("");
 const formData = ref({
   name: "",
   key: "",
@@ -320,6 +324,48 @@ const deleteConfig = (config) => {
 };
 
 const { switchConfig, isCurrentConfig } = useConfigSwitch(currentConfig, loadCurrentConfig);
+
+const openBatchEditDialog = (group) => {
+  batchEditGroup.value = group;
+  batchUrl.value = group.baseUrl;
+  batchKey.value = group.key;
+  showBatchEditDialog.value = true;
+};
+
+const saveBatchEdit = () => {
+  const group = batchEditGroup.value;
+  if (!group) return;
+  const url = batchUrl.value.trim();
+  const key = batchKey.value.trim();
+  if (!url) return MessagePlugin.warning("请输入 URL");
+  if (!key) return MessagePlugin.warning("请输入 Key");
+
+  const now = Date.now();
+  let activeConfig = null;
+
+  group.configs.forEach(config => {
+    const existing = window.utools.db.get(config.id);
+    if (!existing) return;
+    const doc = {
+      ...existing,
+      baseUrl: url,
+      key: window.services.encryptKey(key),
+      updatedAt: now,
+    };
+    if (window.utools.db.put(doc).ok) {
+      if (isCurrentConfig(config)) activeConfig = config;
+    }
+  });
+
+  const count = group.configs.length;
+  MessagePlugin.success(`已更新 ${count} 个配置`);
+  showBatchEditDialog.value = false;
+  batchEditGroup.value = null;
+  loadSavedConfigs();
+  if (activeConfig) {
+    switchConfig({ ...activeConfig, baseUrl: url, key });
+  }
+};
 
 // 首次打开检测：新设备上自动将当前配置入库
 const checkFirstOpen = () => {
