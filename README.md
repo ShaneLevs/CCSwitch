@@ -9,8 +9,8 @@
 - **MCP 配置** — 管理各应用的 MCP Server，支持工具发现画布
 - **Skill 管理** — 从 SkillHub / 魔搭社区一键安装 Skill（OpenCode 无原生 Skill 概念，见 Plugin）
 - **Plugin / Extension 管理** — Claude Marketplace 仓库 + 插件生命周期、OpenCode plugin 数组、Pi Extension (npm/git)
-- **使用统计** — Token 用量、模型分布、GitHub 风格贡献墙热力图；Claude 支持 DB 缓存加速二次打开
-- **Pi 模型 CRUD** — 供应商/模型增删、自动从 `/models` API 拉取模型列表、切换供应商自动同步默认模型；模型行按钮固定一行
+- **使用统计** — Token 用量、模型分布、GitHub 风格贡献墙热力图；Claude 支持 DB 缓存加速二次打开（不持久化历史，清理 JSONL 后统计如实归零）
+- **Pi 模型 CRUD** — 供应商/模型增删、名称和 ID 可编辑、自动从 `/models` API 拉取模型列表、设置默认模型自动切换供应商
 - **导入导出** — 支持 JSON 文件方式或压缩加密字符串方式
 - **密钥加密** — API Key 使用 AES-256-CBC 加密存储到 uTools 数据库
 - **深色模式** — 自动跟随系统主题切换
@@ -105,7 +105,7 @@ Claude:
   ~/.claude/settings.json  ←→  uTools DB（AES-256-CBC 加密）
   ~/.claude/projects/**/*.jsonl  →  UsageView 通过 readClaudeUsage() 全量解析
                                   → signature = file_count:max_mtime 校验 → DB 缓存命中秒开
-                                  → 热力图历史持久化到 uTools DB
+                                  → 不持久化热力图历史；清理 JSONL 后统计如实归零
 
 OpenCode:
   ~/.config/opencode.json (json5)  ←→  uTools DB

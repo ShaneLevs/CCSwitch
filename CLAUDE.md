@@ -28,8 +28,9 @@ npm run build   # Build for production (includes esbuild preload bundling)
 
 ## Git Workflow
 
-- **所有操作直接在 `main` 主分支进行**，不要单独建 feature 分支，不要用 git worktree 隔离。新建分支、PR 流程一律跳过。
-- 提交信息按现有约定（`feat:` / `style:` / `docs:` 等前缀，中文描述）。
+- **Fork 工作流**：`origin` = 上游（ShaneLevs/CCSwitch），`myfork` = 个人 fork（xiaoxiao-svg/CCSwitch）
+- 开发在 `pi-opencode-ui-fixes` 分支进行，提交后推送 `myfork`，再跨 fork PR 到 `origin/main`
+- 提交信息按现有约定（`feat:` / `fix:` / `style:` / `docs:` 等前缀，中文描述）。
 
 ## Architecture
 
@@ -89,8 +90,9 @@ public/
 - **Claude MCP**: `~/.claude.json` (server definitions) + uTools DB (disabled state)
   - Tool discovery via MCP SDK (StreamableHTTP → SSE fallback for HTTP; StdioClientTransport for STDIO)
 - **Claude Skills**: `~/.claude/skills/` (global + project-level) + `.claude.json` (usage data)
-- **Usage Stats (Claude)**: `~/.claude/projects/**/*.jsonl` → parsed & aggregated；heatmap 持久化到 uTools DB
+- **Usage Stats (Claude)**: `~/.claude/projects/**/*.jsonl` → parsed & aggregated
   - **DB 缓存层**：UsageView 读 `readClaudeUsage()` 时按 `signature = file_count:max_mtimeMs` 做轻量校验；命中缓存直接返回 summary/modelStats/contributions，跳过 JSONL 解析；未命中全量解析后写缓存；"刷新" 按钮强制重算
+  - 不持久化热力图历史；用户清理 JSONL 后统计如实归零
 - **MCP Usage**: Parsed from JSONL `tool_use` messages matching `mcp__{server}__{tool}` pattern
 - **OpenCode Config**: `~/.config/opencode.json` (json5 format) ↔ uTools DB
 - **OpenCode Usage**:
@@ -101,7 +103,8 @@ public/
   - 模型名：`session.model` 列存 JSON `{"id":"...","providerID":"..."}`，需 `JSON.parse` 取 `id` 字段，否则显示 `unknown`
   - `usage.calculateStats` 汇总 session tokens_* 列（input/output/reasoning/cache_read/cache_write）
 - **Pi Agent Config**: `~/.pi/agent/settings.json` + `models.json` + `~/.pi/agent/sessions/**/*.jsonl`
-  - Provider/model CRUD via `pi.js`; `setPiDefaultProvider` auto-syncs `defaultModel` to first model of new provider
+  - Provider/model CRUD via `pi.js`；供应商名称和模型 ID 均可编辑（重命名 = 删除旧键 + 创建新键 + 同步更新默认指向）
+  - `setPiDefaultProvider` 设置默认供应商；`setPiDefaultModel` 设置默认模型；设置默认模型前会自动切换到该模型所属供应商
   - `fetchProviderModels` calls `{baseUrl}/models` (OpenAI-compatible) for auto-fetch
   - Pi schema rules: `cost` must be `{input, output, cacheRead, cacheWrite}` object; `contextWindow: 0` is invalid (omit instead)
 - **Skill Install**: SkillHub / ModelScope URL → fetch metadata → download zip → extract → find SKILL.md
@@ -125,7 +128,7 @@ All Node.js-sensitive operations (file I/O, network requests, child process exec
 9. **Env 额外字段**: 全局基准 + 配置特定覆盖的 env 字段合并机制
 10. **首次打开跳过老用户**: 非首次访问时跳过引导，直接展示功能界面
 11. **清除配置按钮**: 提供一键清除已保存的配置项
-12. **Pi 供应商-模型 CRUD**: 添加/删除供应商和模型，自动从 `/models` API 拉取模型列表，切换供应商自动同步默认模型
+12. **Pi 供应商-模型 CRUD**: 供应商/模型增删、名称和 ID 可编辑、自动从 `/models` API 拉取模型列表、设置默认模型自动切换供应商
 
 ## Managed Env Fields (constants.js)
 
