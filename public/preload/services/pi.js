@@ -168,12 +168,16 @@ const getPiProviderList = () => {
     apiKey: cfg.apiKey || '',
     baseUrl: cfg.baseUrl || '',
     api: cfg.api || '',
+    headers: cfg.headers || {},
+    authHeader: !!cfg.authHeader,
     models: (cfg.models || []).map(m => ({
       id: m.id,
       name: m.name || m.id,
       contextWindow: m.contextWindow || undefined,
       maxTokens: m.maxTokens || undefined,
       reasoning: !!m.reasoning,
+      isDefault: settings.defaultModel === m.id,
+      input: m.input || ['text'],
       cost: (m.cost && m.cost.input != null) ? m.cost : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       compat: m.compat || {},
     })),
@@ -215,6 +219,7 @@ const updatePiModel = (providerName, modelId, updates) => {
   if (updates.contextWindow !== undefined) next.contextWindow = updates.contextWindow || undefined
   if (updates.maxTokens !== undefined) next.maxTokens = updates.maxTokens || undefined
   if (updates.reasoning !== undefined) next.reasoning = !!updates.reasoning
+  if (updates.input !== undefined) next.input = updates.input
   if (updates.cost !== undefined) next.cost = updates.cost
   if (updates.compat !== undefined) next.compat = updates.compat
   prov.models[idx] = next
@@ -238,6 +243,8 @@ const addPiProvider = (providerName, cfg = {}) => {
     apiKey: cfg.apiKey || '',
     baseUrl: cfg.baseUrl || '',
     api: cfg.api || 'openai-completions',
+    headers: cfg.headers || {},
+    authHeader: !!cfg.authHeader,
     models: [],
   }
   writePiModels(models)
@@ -273,6 +280,7 @@ const addPiModel = (providerName, model) => {
     contextWindow: model.contextWindow || undefined,
     maxTokens: model.maxTokens || undefined,
     reasoning: !!model.reasoning,
+    input: model.input || ['text'],
     cost,
     compat: model.compat || {},
   })

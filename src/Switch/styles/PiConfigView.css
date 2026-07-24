@@ -93,6 +93,8 @@
   gap: 4px;
   flex-shrink: 0;
 }
+.star-default { color: var(--td-warning-color); }
+.pi-advanced-collapse { margin-top: 4px; }
 .hint-link { cursor: pointer; text-decoration: underline; color: var(--td-brand-color); }
 .hint-link:hover { opacity: 0.8; }
 .mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }
