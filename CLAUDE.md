@@ -92,7 +92,8 @@ public/
 - **Claude Skills**: `~/.claude/skills/` (global + project-level) + `.claude.json` (usage data)
 - **Usage Stats (Claude)**: `~/.claude/projects/**/*.jsonl` → parsed & aggregated
   - **DB 缓存层**：UsageView 读 `readClaudeUsage()` 时按 `signature = file_count:max_mtimeMs` 做轻量校验；命中缓存直接返回 summary/modelStats/contributions，跳过 JSONL 解析；未命中全量解析后写缓存；"刷新" 按钮强制重算
-  - 不持久化热力图历史；用户清理 JSONL 后统计如实归零
+  - **热力图历史合并**：全量解析后，将实时 contributions 与 uTools DB 中 `ccswitch_heatmap_*` 历史按日期合并（同日取 tokens 较大者，历史有而实时没有的日期保留），合并后重算 summary/modelStats 确保与热力图口径一致；`readPersistedUsage` 作为 JSONL 读取失败时的兜底（直接从历史重建统计）
+  - **已知限制**：`readClaudeUsage` 返回的 summary/modelStats 基于合并后的 contributions（含历史保留的更高 token 数），而 `messageRecords` 仅含当前 JSONL 明细，二者口径不同；UI 当前只展示 summary/modelStats/contributions，不直接消费 messageRecords，故不影响显示
 - **MCP Usage**: Parsed from JSONL `tool_use` messages matching `mcp__{server}__{tool}` pattern
 - **OpenCode Config**: `~/.config/opencode.json` (json5 format) ↔ uTools DB
 - **OpenCode Usage**:

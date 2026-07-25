@@ -114,7 +114,11 @@ const loadData = async (forceRefresh = false) => {
         recentSessions: result.recentSessions || [],
       };
     } catch {
-      // keep defaults
+      try {
+        usageData.value = window.services.readPersistedUsage();
+      } catch {
+        // keep defaults
+      }
     }
     loading.value = false;
   }, 50);

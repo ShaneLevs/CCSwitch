@@ -16,7 +16,7 @@ const {
   getNativeId, getMcpServers, upsertMcpServer, deleteMcpServer,
   exportConfigsToFile, importConfigsFromFile,
   compressConfigs, decompressConfigs,
-  saveOverriddenEnv, getOverriddenEnv,
+  saveOverriddenEnv, getOverriddenEnv, saveHeatmapHistory, getHeatmapHistory,
   saveUsageCache, getUsageCache,
 } = config
 
@@ -57,6 +57,8 @@ window.services = {
   decryptKey: decrypt,
   saveOverriddenEnv,
   getOverriddenEnv,
+  saveHeatmapHistory,
+  getHeatmapHistory,
   exportConfigsToFile,
   importConfigsFromFile,
   compressConfigs,
@@ -960,14 +962,55 @@ window.services = {
       const processedData = this._processAllUsageData(projectsDir)
       const stats = usage.calculateStats(processedData.messageRecords, processedData.sessionMap)
 
-      const result = {
-        summary: stats.summary,
-        modelStats: stats.modelStats,
-        contributions: stats.contributions,
-        messageRecords: processedData.messageRecords,
-        avgTokensPerSession: stats.avgTokensPerSession,
-        recentSessions: stats.recentSessions,
+      // 合并历史热力图数据
+      const history = getHeatmapHistory()
+      const liveMap = new Map()
+      for (const day of stats.contributions) liveMap.set(day.date, day)
+
+      const merged = []
+      for (const [date, histDay] of Object.entries(history)) {
+        if (!liveMap.has(date)) merged.push({ date, ...histDay })
       }
+      for (const day of stats.contributions) {
+        const histDay = history[day.date]
+        merged.push(histDay && histDay.tokens > day.tokens ? { date: day.date, ...histDay } : day)
+      }
+      merged.sort((a, b) => a.date.localeCompare(b.date))
+
+      const contributions = this._fillEmptyContributions(merged)
+      setTimeout(() => saveHeatmapHistory(contributions), 0)
+
+      // 从合并后的 contributions 重新计算 summary + modelStats，确保与热力图口径一致
+      let mergedTotal = 0, mergedOutput = 0
+      const mergedModelMap = new Map()
+      for (const day of contributions) {
+        mergedTotal += day.tokens || 0
+        mergedOutput += day.outputTokens || 0
+        if (day.models) {
+          for (const [modelName, modelData] of Object.entries(day.models)) {
+            if (!mergedModelMap.has(modelName)) mergedModelMap.set(modelName, { name: modelName, tokens: 0, inputTokens: 0, outputTokens: 0 })
+            const m = mergedModelMap.get(modelName)
+            const cacheR = modelData.cacheReadTokens || 0
+            const cacheC = modelData.cacheCreationTokens || 0
+            const inp = modelData.inputTokens || 0
+            const out = modelData.outputTokens || 0
+            m.tokens += inp + out + cacheR + cacheC
+            m.inputTokens += inp + cacheR + cacheC
+            m.outputTokens += out
+          }
+        }
+      }
+      const mergedInput = mergedTotal - mergedOutput
+
+      const mergedSummary = {
+        ...stats.summary,
+        totalTokens: mergedTotal,
+        inputTokens: mergedInput,
+        outputTokens: mergedOutput,
+      }
+      const mergedModelStats = Array.from(mergedModelMap.values()).sort((a, b) => b.tokens - a.tokens)
+
+      const result = { summary: mergedSummary, modelStats: mergedModelStats, contributions, messageRecords: processedData.messageRecords, avgTokensPerSession: stats.avgTokensPerSession, recentSessions: stats.recentSessions }
 
       // 写入缓存（不含 messageRecords，太大）
       saveUsageCache(signature, { summary: result.summary, modelStats: result.modelStats, contributions: result.contributions })
@@ -977,6 +1020,74 @@ window.services = {
     } catch (error) {
       console.error('读取 Claude usage 数据失败:', error)
       return this._emptyResult()
+    }
+  },
+
+  // 从持久化热力图数据读取统计（不扫描 JSONL，快速加载）
+  readPersistedUsage() {
+    try {
+      const history = getHeatmapHistory()
+      const entries = Object.entries(history)
+
+      if (entries.length === 0) {
+        return {
+          summary: { totalTokens: 0, inputTokens: 0, outputTokens: 0 },
+          modelStats: [],
+          contributions: this._fillEmptyContributions([]),
+          recentSessions: [],
+        }
+      }
+
+      let totalTokens = 0, outputTokens = 0
+      const modelMap = new Map()
+
+      for (const [, day] of entries) {
+        totalTokens += day.tokens || 0
+        outputTokens += day.outputTokens || 0
+
+        if (day.models) {
+          for (const [modelName, modelData] of Object.entries(day.models)) {
+            if (!modelMap.has(modelName)) {
+              modelMap.set(modelName, { name: modelName, tokens: 0, inputTokens: 0, outputTokens: 0 })
+            }
+            const m = modelMap.get(modelName)
+            const cacheR = modelData.cacheReadTokens || 0
+            const cacheC = modelData.cacheCreationTokens || 0
+            const inp = modelData.inputTokens || 0
+            const out = modelData.outputTokens || 0
+            m.tokens += inp + out + cacheR + cacheC
+            m.inputTokens += inp + cacheR + cacheC
+            m.outputTokens += out
+          }
+        }
+      }
+
+      const inputTokens = totalTokens - outputTokens
+      const modelStats = Array.from(modelMap.values()).sort((a, b) => b.tokens - a.tokens)
+
+      // 补齐 365 天
+      const now = new Date()
+      const totalDays = 365
+      const contributions = []
+      for (let i = totalDays - 1; i >= 0; i--) {
+        const d = new Date(now)
+        d.setDate(d.getDate() - i)
+        const dateKey = d.toISOString().split('T')[0]
+        const dayData = history[dateKey]
+        contributions.push(dayData
+          ? { date: dateKey, tokens: dayData.tokens, inputTokens: dayData.inputTokens, outputTokens: dayData.outputTokens, models: dayData.models || {} }
+          : { date: dateKey, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
+      }
+
+      return { summary: { totalTokens, inputTokens, outputTokens }, modelStats, contributions, recentSessions: [] }
+    } catch (error) {
+      console.error('读取持久化 usage 数据失败:', error)
+      return {
+        summary: { totalTokens: 0, inputTokens: 0, outputTokens: 0 },
+        modelStats: [],
+        contributions: this._fillEmptyContributions([]),
+        recentSessions: [],
+      }
     }
   },
 

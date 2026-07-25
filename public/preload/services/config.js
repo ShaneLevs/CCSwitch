@@ -153,6 +153,36 @@ const getOverriddenEnv = () => {
   }
 }
 
+// ==================== Claude 热力图历史 ====================
+const saveHeatmapHistory = (contributions) => {
+  try {
+    const nativeId = getNativeId()
+    const docId = `ccswitch_heatmap_${nativeId}`
+    const days = {}
+    for (const day of contributions) {
+      if (day.tokens > 0) {
+        days[day.date] = { tokens: day.tokens, inputTokens: day.inputTokens, outputTokens: day.outputTokens, models: day.models }
+      }
+    }
+    const doc = { _id: docId, nativeId, days, updatedAt: Date.now() }
+    const existing = window.utools.db.get(docId)
+    if (existing) doc._rev = existing._rev
+    window.utools.db.put(doc)
+  } catch (error) {
+    console.error('保存热力图历史失败:', error)
+  }
+}
+
+const getHeatmapHistory = () => {
+  try {
+    const docId = `ccswitch_heatmap_${getNativeId()}`
+    const doc = window.utools.db.get(docId)
+    return doc?.days || {}
+  } catch (error) {
+    return {}
+  }
+}
+
 // ==================== Claude 使用统计缓存 ====================
 // 缓存策略：
 //   signature = `${messageCount}:${maxMtimeMs}` — 轻量计算，只需 readdir + statSync
@@ -200,6 +230,6 @@ module.exports = {
   getNativeId, getMcpServers, upsertMcpServer, deleteMcpServer,
   exportConfigsToFile, importConfigsFromFile,
   compressConfigs, decompressConfigs,
-  saveOverriddenEnv, getOverriddenEnv,
+  saveOverriddenEnv, getOverriddenEnv, saveHeatmapHistory, getHeatmapHistory,
   saveUsageCache, getUsageCache,
 }
