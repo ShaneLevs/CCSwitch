@@ -153,6 +153,7 @@ const getOverriddenEnv = () => {
   }
 }
 
+// ==================== Claude 热力图历史 ====================
 const saveHeatmapHistory = (contributions) => {
   try {
     const nativeId = getNativeId()

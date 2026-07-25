@@ -977,7 +977,7 @@ window.services = {
       }
       merged.sort((a, b) => a.date.localeCompare(b.date))
 
-      const contributions = usage.fillEmptyContributions(merged)
+      const contributions = this._fillEmptyContributions(merged)
       setTimeout(() => saveHeatmapHistory(contributions), 0)
 
       // 从合并后的 contributions 重新计算 summary + modelStats，确保与热力图口径一致
@@ -1000,7 +1000,6 @@ window.services = {
           }
         }
       }
-      // inputTokens = total - output = input + cacheRead + cacheCreation（匹配"包含缓存"标签）
       const mergedInput = mergedTotal - mergedOutput
 
       const mergedSummary = {
@@ -1021,6 +1020,74 @@ window.services = {
     } catch (error) {
       console.error('读取 Claude usage 数据失败:', error)
       return this._emptyResult()
+    }
+  },
+
+  // 从持久化热力图数据读取统计（不扫描 JSONL，快速加载）
+  readPersistedUsage() {
+    try {
+      const history = getHeatmapHistory()
+      const entries = Object.entries(history)
+
+      if (entries.length === 0) {
+        return {
+          summary: { totalTokens: 0, inputTokens: 0, outputTokens: 0 },
+          modelStats: [],
+          contributions: this._fillEmptyContributions([]),
+          recentSessions: [],
+        }
+      }
+
+      let totalTokens = 0, outputTokens = 0
+      const modelMap = new Map()
+
+      for (const [, day] of entries) {
+        totalTokens += day.tokens || 0
+        outputTokens += day.outputTokens || 0
+
+        if (day.models) {
+          for (const [modelName, modelData] of Object.entries(day.models)) {
+            if (!modelMap.has(modelName)) {
+              modelMap.set(modelName, { name: modelName, tokens: 0, inputTokens: 0, outputTokens: 0 })
+            }
+            const m = modelMap.get(modelName)
+            const cacheR = modelData.cacheReadTokens || 0
+            const cacheC = modelData.cacheCreationTokens || 0
+            const inp = modelData.inputTokens || 0
+            const out = modelData.outputTokens || 0
+            m.tokens += inp + out + cacheR + cacheC
+            m.inputTokens += inp + cacheR + cacheC
+            m.outputTokens += out
+          }
+        }
+      }
+
+      const inputTokens = totalTokens - outputTokens
+      const modelStats = Array.from(modelMap.values()).sort((a, b) => b.tokens - a.tokens)
+
+      // 补齐 365 天
+      const now = new Date()
+      const totalDays = 365
+      const contributions = []
+      for (let i = totalDays - 1; i >= 0; i--) {
+        const d = new Date(now)
+        d.setDate(d.getDate() - i)
+        const dateKey = d.toISOString().split('T')[0]
+        const dayData = history[dateKey]
+        contributions.push(dayData
+          ? { date: dateKey, tokens: dayData.tokens, inputTokens: dayData.inputTokens, outputTokens: dayData.outputTokens, models: dayData.models || {} }
+          : { date: dateKey, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
+      }
+
+      return { summary: { totalTokens, inputTokens, outputTokens }, modelStats, contributions, recentSessions: [] }
+    } catch (error) {
+      console.error('读取持久化 usage 数据失败:', error)
+      return {
+        summary: { totalTokens: 0, inputTokens: 0, outputTokens: 0 },
+        modelStats: [],
+        contributions: this._fillEmptyContributions([]),
+        recentSessions: [],
+      }
     }
   },
 
@@ -1083,72 +1150,6 @@ window.services = {
     } catch (error) {
       console.error('复制命令失败:', error)
       return { success: false, error: error.message }
-    }
-  },
-
-  // 从持久化热力图数据读取统计（不扫描 JSONL，快速加载）
-  readPersistedUsage() {
-    try {
-      const history = getHeatmapHistory()
-      const entries = Object.entries(history)
-
-      if (entries.length === 0) {
-        return {
-          summary: { totalTokens: 0, inputTokens: 0, outputTokens: 0 },
-          modelStats: [],
-          contributions: this._emptyResult().contributions
-        }
-      }
-
-      let totalTokens = 0, outputTokens = 0
-      const modelMap = new Map()
-
-      for (const [, day] of entries) {
-        totalTokens += day.tokens || 0
-        outputTokens += day.outputTokens || 0
-
-        if (day.models) {
-          for (const [modelName, modelData] of Object.entries(day.models)) {
-            if (!modelMap.has(modelName)) {
-              modelMap.set(modelName, { name: modelName, tokens: 0, inputTokens: 0, outputTokens: 0 })
-            }
-            const m = modelMap.get(modelName)
-            const cacheR = modelData.cacheReadTokens || 0
-            const cacheC = modelData.cacheCreationTokens || 0
-            const inp = modelData.inputTokens || 0
-            const out = modelData.outputTokens || 0
-            m.tokens += inp + out + cacheR + cacheC
-            m.inputTokens += inp + cacheR + cacheC
-            m.outputTokens += out
-          }
-        }
-      }
-
-      const inputTokens = totalTokens - outputTokens
-      const modelStats = Array.from(modelMap.values()).sort((a, b) => b.tokens - a.tokens)
-
-      // 补齐 365 天
-      const now = new Date()
-      const totalDays = 365
-      const contributions = []
-      for (let i = totalDays - 1; i >= 0; i--) {
-        const d = new Date(now)
-        d.setDate(d.getDate() - i)
-        const dateKey = d.toISOString().split('T')[0]
-        const dayData = history[dateKey]
-        contributions.push(dayData
-          ? { date: dateKey, tokens: dayData.tokens, inputTokens: dayData.inputTokens, outputTokens: dayData.outputTokens, models: dayData.models || {} }
-          : { date: dateKey, tokens: 0, inputTokens: 0, outputTokens: 0, models: {} })
-      }
-
-      return { summary: { totalTokens, inputTokens, outputTokens }, modelStats, contributions }
-    } catch (error) {
-      console.error('读取持久化 usage 数据失败:', error)
-      return {
-        summary: { totalTokens: 0, inputTokens: 0, outputTokens: 0 },
-        modelStats: [],
-        contributions: usage.fillEmptyContributions([])
-      }
     }
   },
 

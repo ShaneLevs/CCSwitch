@@ -2,13 +2,47 @@
 
 import { ref, onMounted } from "vue";
 import {
-  Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin, Table, Loading, Popconfirm, Alert as TAlert,
+  Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin, Table, Loading, Popconfirm, Alert as TAlert, Select, Switch, CheckboxGroup, Checkbox, Collapse, CollapsePanel,
 } from "tdesign-vue-next";
 import {
   RefreshIcon, EditIcon, FolderOpen1Icon, StarIcon, ChevronDownIcon, ChevronRightIcon,
   AddIcon, DeleteIcon,
 } from "tdesign-icons-vue-next";
+import ApiKeyInput from "../components/ApiKeyInput.vue";
+import DynamicKvEditor from "../components/DynamicKvEditor.vue";
 import "./styles/PiConfigView.css";
+
+// Pi 官方文档支持的 API 类型
+const API_TYPE_OPTIONS = [
+  { label: "OpenAI Chat Completions", value: "openai-completions" },
+  { label: "OpenAI Responses", value: "openai-responses" },
+  { label: "Anthropic Messages", value: "anthropic-messages" },
+  { label: "Google Generative AI", value: "google-generative-ai" },
+];
+
+// 常用请求头名（自动完成提示）
+const HEADER_KEY_OPTIONS = [
+  "x-portkey-api-key",
+  "x-api-key",
+  "Authorization",
+  "x-secret",
+];
+
+// 常用 compat 字段名（自动完成提示）
+const COMPAT_KEY_OPTIONS = [
+  "supportsDeveloperRole",
+  "supportsReasoningEffort",
+  "supportsUsageInStreaming",
+  "maxTokensField",
+  "supportsStore",
+  "thinkingFormat",
+];
+
+// 输入类型选项
+const INPUT_TYPE_OPTIONS = [
+  { label: "文本 (text)", value: "text" },
+  { label: "图像 (image)", value: "image" },
+];
 
 const loading = ref(false);
 const providers = ref([]);
@@ -16,17 +50,22 @@ const expanded = ref(new Set());
 const warningMsg = ref("");
 const editDialog = ref(false);
 const editingProvider = ref(null);
-const editForm = ref({ apiKey: '', baseUrl: '' });
+const editForm = ref({ apiKey: '', baseUrl: '', api: 'openai-completions', headers: [], authHeader: true });
 const addProviderDialog = ref(false);
-const addProviderForm = ref({ name: '', apiKey: '', baseUrl: '' });
+const addProviderForm = ref({ name: '', apiKey: '', baseUrl: '', api: 'openai-completions', headers: [], authHeader: true });
 const addModelDialog = ref(false);
 const addModelProvider = ref(null);
-const addModelForm = ref({ id: '', name: '', contextWindow: 0, maxTokens: 0, reasoning: false });
+const addModelForm = ref({ id: '', name: '', contextWindow: 0, maxTokens: 0, reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, compat: [] });
 // 模型编辑
 const editModelDialog = ref(false);
+// 编辑时的新名称（供应商重命名 / 模型 ID 重命名）
+const newProviderName = ref('');
+const newModelId = ref('');
+// 模型高级配置展开状态（添加/编辑共用）
+const modelAdvancedOpen = ref(false);
 const editModelProvider = ref(null);
 const editingModelId = ref(null);
-const editModelForm = ref({ name: '', contextWindow: 0, maxTokens: 0, reasoning: false });
+const editModelForm = ref({ name: '', contextWindow: 0, maxTokens: 0, reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, compat: [] });
 
 const toggleExpand = (name) => {
   if (expanded.value.has(name)) expanded.value.delete(name);
@@ -63,13 +102,53 @@ const validateConfig = () => {
 
 const handleEdit = (provider) => {
   editingProvider.value = provider.name;
-  editForm.value = { apiKey: provider.apiKey || '', baseUrl: provider.baseUrl || '' };
+  newProviderName.value = provider.name;
+  editForm.value = {
+    apiKey: provider.apiKey || '',
+    baseUrl: provider.baseUrl || '',
+    api: provider.api || 'openai-completions',
+    headers: provider.headers ? Object.entries(provider.headers).map(([key, value]) => ({ key, value })) : [],
+    authHeader: provider.authHeader !== undefined ? provider.authHeader : true,
+  };
   editDialog.value = true;
 };
 
 const handleSaveProvider = async () => {
   try {
-    window.services.updatePiProvider(editingProvider.value, editForm.value);
+    const headersObj = {};
+    (editForm.value.headers || []).forEach(({ key, value }) => {
+      if (key && key.trim()) headersObj[key.trim()] = value;
+    });
+    const finalName = newProviderName.value.trim() || editingProvider.value;
+    // 名称有变化：删除旧供应商，创建新供应商
+    if (finalName !== editingProvider.value) {
+      const oldData = window.services.readPiModels();
+      const oldProv = oldData.providers[editingProvider.value];
+      delete oldData.providers[editingProvider.value];
+      oldData.providers[finalName] = {
+        apiKey: editForm.value.apiKey,
+        baseUrl: editForm.value.baseUrl,
+        api: editForm.value.api,
+        headers: headersObj,
+        authHeader: editForm.value.authHeader,
+        models: oldProv.models || [],
+      };
+      window.services.writePiModels(oldData);
+      // 如果默认供应商是旧的，同步更新
+      const settings = window.services.readPiSettings();
+      if (settings.defaultProvider === editingProvider.value) {
+        settings.defaultProvider = finalName;
+        window.services.writePiSettings(settings);
+      }
+    } else {
+      window.services.updatePiProvider(editingProvider.value, {
+        apiKey: editForm.value.apiKey,
+        baseUrl: editForm.value.baseUrl,
+        api: editForm.value.api,
+        headers: headersObj,
+        authHeader: editForm.value.authHeader,
+      });
+    }
     MessagePlugin.success("供应商配置已更新");
     editDialog.value = false;
     loadProviders();
@@ -99,16 +178,18 @@ const setDefaultProvider = (name) => {
 
 const setDefaultModel = (providerName, modelId) => {
   try {
+    // 设置默认模型时，自动切换到该模型所属的供应商，避免"默认模型不在供应商下"的警告
+    window.services.setPiDefaultProvider(providerName);
     window.services.setPiDefaultModel(modelId);
-    // Update local state to show the new default model
     loadProviders();
+    MessagePlugin.success(`已切换供应商并设置默认模型为 ${modelId}`);
   } catch (e) {
     MessagePlugin.error("设置默认模型失败: " + e.message);
   }
 };
 
 const openAddProviderDialog = () => {
-  addProviderForm.value = { name: '', apiKey: '', baseUrl: '' };
+  addProviderForm.value = { name: '', apiKey: '', baseUrl: '', api: 'openai-completions', headers: [], authHeader: true };
   addProviderDialog.value = true;
 };
 
@@ -116,7 +197,17 @@ const handleAddProvider = async () => {
   try {
     const name = addProviderForm.value.name.trim();
     if (!name) { MessagePlugin.warning('请输入供应商名称'); return; }
-    window.services.addPiProvider(name, { apiKey: addProviderForm.value.apiKey, baseUrl: addProviderForm.value.baseUrl });
+    const headersObj = {};
+    (addProviderForm.value.headers || []).forEach(({ key, value }) => {
+      if (key && key.trim()) headersObj[key.trim()] = value;
+    });
+    window.services.addPiProvider(name, {
+      apiKey: addProviderForm.value.apiKey,
+      baseUrl: addProviderForm.value.baseUrl,
+      api: addProviderForm.value.api,
+      headers: headersObj,
+      authHeader: addProviderForm.value.authHeader,
+    });
     MessagePlugin.success(`供应商 ${name} 已添加`);
     addProviderDialog.value = false;
     loadProviders();
@@ -137,9 +228,10 @@ const handleDeleteProvider = async (providerName) => {
 
 const openAddModelDialog = (providerName) => {
   addModelProvider.value = providerName;
-  addModelForm.value = { id: '', name: '', contextWindow: 0, maxTokens: 0, reasoning: false };
+  addModelForm.value = { id: '', name: '', contextWindow: 0, maxTokens: 0, reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, compat: [] };
   autoModels.value = [];
   autoModelsLoading.value = false;
+  modelAdvancedOpen.value = false;
   addModelDialog.value = true;
 };
 
@@ -195,23 +287,57 @@ const handleQuickAddModel = async (m) => {
 const openEditModelDialog = (provName, m) => {
   editModelProvider.value = provName;
   editingModelId.value = m.id;
+  newModelId.value = m.id;
   editModelForm.value = {
     name: m.name || '',
     contextWindow: m.contextWindow || 0,
     maxTokens: m.maxTokens || 0,
     reasoning: !!m.reasoning,
+    input: m.input || ['text'],
+    cost: (m.cost && m.cost.input != null) ? { ...m.cost } : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    compat: m.compat ? Object.entries(m.compat).map(([key, value]) => ({ key, value })) : [],
   };
+  modelAdvancedOpen.value = false;
   editModelDialog.value = true;
 };
 
 const handleSaveModel = async () => {
   try {
-    window.services.updatePiModel(editModelProvider.value, editingModelId.value, {
-      name: editModelForm.value.name.trim() || editingModelId.value,
-      contextWindow: Number(editModelForm.value.contextWindow) || 0,
-      maxTokens: Number(editModelForm.value.maxTokens) || 0,
-      reasoning: editModelForm.value.reasoning,
+    const compatObj = {};
+    (editModelForm.value.compat || []).forEach(({ key, value }) => {
+      if (key && key.trim()) compatObj[key.trim()] = value;
     });
+    const finalId = newModelId.value.trim() || editingModelId.value;
+    // ID 有变化：删除旧模型，添加新模型
+    if (finalId !== editingModelId.value) {
+      window.services.deletePiModel(editModelProvider.value, editingModelId.value);
+      window.services.addPiModel(editModelProvider.value, {
+        id: finalId,
+        name: editModelForm.value.name.trim() || finalId,
+        contextWindow: Number(editModelForm.value.contextWindow) || 0,
+        maxTokens: Number(editModelForm.value.maxTokens) || 0,
+        reasoning: editModelForm.value.reasoning,
+        input: editModelForm.value.input,
+        cost: editModelForm.value.cost,
+        compat: compatObj,
+      });
+      // 如果默认模型是旧的，同步更新
+      const settings = window.services.readPiSettings();
+      if (settings.defaultModel === editingModelId.value) {
+        settings.defaultModel = finalId;
+        window.services.writePiSettings(settings);
+      }
+    } else {
+      window.services.updatePiModel(editModelProvider.value, editingModelId.value, {
+        name: editModelForm.value.name.trim() || editingModelId.value,
+        contextWindow: Number(editModelForm.value.contextWindow) || 0,
+        maxTokens: Number(editModelForm.value.maxTokens) || 0,
+        reasoning: editModelForm.value.reasoning,
+        input: editModelForm.value.input,
+        cost: editModelForm.value.cost,
+        compat: compatObj,
+      });
+    }
     MessagePlugin.success('模型已更新');
     editModelDialog.value = false;
     loadProviders();
@@ -224,12 +350,19 @@ const handleAddModel = async () => {
   try {
     const id = addModelForm.value.id.trim();
     if (!id) { MessagePlugin.warning('请输入模型 ID'); return; }
+    const compatObj = {};
+    (addModelForm.value.compat || []).forEach(({ key, value }) => {
+      if (key && key.trim()) compatObj[key.trim()] = value;
+    });
     window.services.addPiModel(addModelProvider.value, {
       id,
       name: addModelForm.value.name.trim() || id,
       contextWindow: Number(addModelForm.value.contextWindow) || 0,
       maxTokens: Number(addModelForm.value.maxTokens) || 0,
       reasoning: addModelForm.value.reasoning,
+      input: addModelForm.value.input,
+      cost: addModelForm.value.cost,
+      compat: compatObj,
     });
     MessagePlugin.success(`模型 ${id} 已添加`);
     addModelDialog.value = false;
@@ -355,17 +488,19 @@ onMounted(refresh);
               <div class="pi-model-info">
                 <span class="pi-model-name">{{ m.name }}</span>
                 <span class="pi-model-id mono">{{ m.id }}</span>
+                <Tag v-if="m.isDefault" size="small" theme="warning" variant="light">默认</Tag>
                 <Tag v-if="m.reasoning" size="small" theme="warning" variant="light">推理</Tag>
               </div>
               <div class="pi-model-meta">
                 <span class="pi-model-stat">上下文: {{ formatNumber(m.contextWindow) }}</span>
                 <span class="pi-model-stat">最大输出: {{ formatNumber(m.maxTokens) }}</span>
+                <span v-if="m.input && m.input.includes('image')" class="pi-model-stat">图像</span>
                 <span v-if="m.cost && m.cost.input != null" class="pi-model-stat">
-                  费用: ¥{{ m.cost.input }}/1K in · ¥{{ m.cost.output }}/1K out
+                  费用: ¥{{ m.cost.input }}/1M in · ¥{{ m.cost.output }}/1M out
                 </span>
               </div>
               <div class="pi-model-actions" @click.stop>
-                <Tooltip content="设为默认模型" placement="top">
+                <Tooltip v-if="!m.isDefault" content="设为默认模型" placement="top">
                   <Button size="small" variant="text" @click="setDefaultModel(prov.name, m.id)">
                     <template #icon><StarIcon /></template>
                   </Button>
@@ -396,16 +531,33 @@ onMounted(refresh);
     >
       <div class="pi-edit-form">
         <div class="pi-form-item">
-          <label>供应商</label>
-          <div class="pi-edit-provider-name">{{ editingProvider }}</div>
-        </div>
-        <div class="pi-form-item">
-          <label>API Key</label>
-          <Input v-model="editForm.apiKey" placeholder="输入 API Key" />
+          <label>供应商名称</label>
+          <Input v-model="newProviderName" placeholder="供应商名称" />
         </div>
         <div class="pi-form-item">
           <label>Base URL</label>
           <Input v-model="editForm.baseUrl" placeholder="留空则使用默认 URL" />
+        </div>
+        <div class="pi-form-item">
+          <label>API Key</label>
+          <ApiKeyInput v-model="editForm.apiKey" placeholder="输入 API Key" />
+        </div>
+        <div class="pi-form-item">
+          <label>API 类型</label>
+          <Select v-model="editForm.api" :options="API_TYPE_OPTIONS" />
+        </div>
+        <div class="pi-form-item">
+          <label>自动添加 Authorization 头</label>
+          <Switch v-model="editForm.authHeader" />
+        </div>
+        <div class="pi-form-item">
+          <label>自定义请求头 (headers)</label>
+          <DynamicKvEditor
+            v-model="editForm.headers"
+            :key-options="HEADER_KEY_OPTIONS"
+            key-placeholder="Header 名"
+            value-placeholder="Header 值"
+          />
         </div>
       </div>
     </Dialog>
@@ -423,12 +575,29 @@ onMounted(refresh);
           <Input v-model="addProviderForm.name" placeholder="例如：openai、deepseek、zhipu" />
         </div>
         <div class="pi-form-item">
-          <label>API Key</label>
-          <Input v-model="addProviderForm.apiKey" placeholder="输入 API Key（可留空后续再填）" />
-        </div>
-        <div class="pi-form-item">
           <label>Base URL</label>
           <Input v-model="addProviderForm.baseUrl" placeholder="留空使用供应商默认 URL" />
+        </div>
+        <div class="pi-form-item">
+          <label>API Key</label>
+          <ApiKeyInput v-model="addProviderForm.apiKey" placeholder="输入 API Key（可留空后续再填）" />
+        </div>
+        <div class="pi-form-item">
+          <label>API 类型</label>
+          <Select v-model="addProviderForm.api" :options="API_TYPE_OPTIONS" />
+        </div>
+        <div class="pi-form-item">
+          <label>自动添加 Authorization 头</label>
+          <Switch v-model="addProviderForm.authHeader" />
+        </div>
+        <div class="pi-form-item">
+          <label>自定义请求头 (headers)</label>
+          <DynamicKvEditor
+            v-model="addProviderForm.headers"
+            :key-options="HEADER_KEY_OPTIONS"
+            key-placeholder="Header 名"
+            value-placeholder="Header 值"
+          />
         </div>
       </div>
     </Dialog>
@@ -483,14 +652,20 @@ onMounted(refresh);
           <label>显示名称</label>
           <Input v-model="addModelForm.name" placeholder="留空则使用模型 ID" />
         </div>
+        <div class="pi-form-item">
+          <label>输入类型</label>
+          <CheckboxGroup v-model="addModelForm.input">
+            <Checkbox v-for="opt in INPUT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</Checkbox>
+          </CheckboxGroup>
+        </div>
         <div class="pi-form-row">
           <div class="pi-form-item">
             <label>上下文窗口</label>
-            <InputNumber v-model="addModelForm.contextWindow" :min="0" placeholder="如 128000" />
+            <InputNumber v-model="addModelForm.contextWindow" :min="0" placeholder="留空默认 128000" />
           </div>
           <div class="pi-form-item">
             <label>最大输出</label>
-            <InputNumber v-model="addModelForm.maxTokens" :min="0" placeholder="如 8192" />
+            <InputNumber v-model="addModelForm.maxTokens" :min="0" placeholder="留空默认 16384" />
           </div>
         </div>
         <div class="pi-form-item">
@@ -498,6 +673,42 @@ onMounted(refresh);
             <input type="checkbox" v-model="addModelForm.reasoning" /> 推理模型
           </label>
         </div>
+        <Collapse v-model="modelAdvancedOpen" class="pi-advanced-collapse">
+          <CollapsePanel value="1" header="高级配置（费用 / 兼容性）">
+            <div class="pi-form-item">
+              <label>费用 (cost) — 每百万 Token</label>
+              <div class="pi-form-row">
+                <div class="pi-form-item">
+                  <label>输入</label>
+                  <InputNumber v-model="addModelForm.cost.input" :min="0" :step="0.1" placeholder="0" />
+                </div>
+                <div class="pi-form-item">
+                  <label>输出</label>
+                  <InputNumber v-model="addModelForm.cost.output" :min="0" :step="0.1" placeholder="0" />
+                </div>
+              </div>
+              <div class="pi-form-row">
+                <div class="pi-form-item">
+                  <label>缓存读取</label>
+                  <InputNumber v-model="addModelForm.cost.cacheRead" :min="0" :step="0.1" placeholder="0" />
+                </div>
+                <div class="pi-form-item">
+                  <label>缓存写入</label>
+                  <InputNumber v-model="addModelForm.cost.cacheWrite" :min="0" :step="0.1" placeholder="0" />
+                </div>
+              </div>
+            </div>
+            <div class="pi-form-item">
+              <label>兼容性 (compat)</label>
+              <DynamicKvEditor
+                v-model="addModelForm.compat"
+                :key-options="COMPAT_KEY_OPTIONS"
+                key-placeholder="compat 字段名"
+                value-placeholder="compat 值"
+              />
+            </div>
+          </CollapsePanel>
+        </Collapse>
       </div>
     </Dialog>
 
@@ -512,20 +723,26 @@ onMounted(refresh);
       <div class="pi-edit-form">
         <div class="pi-form-item">
           <label>模型 ID</label>
-          <div class="pi-edit-provider-name mono">{{ editingModelId }}</div>
+          <Input v-model="newModelId" placeholder="模型 ID" />
         </div>
         <div class="pi-form-item">
           <label>显示名称</label>
           <Input v-model="editModelForm.name" placeholder="显示名称" />
         </div>
+        <div class="pi-form-item">
+          <label>输入类型</label>
+          <CheckboxGroup v-model="editModelForm.input">
+            <Checkbox v-for="opt in INPUT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</Checkbox>
+          </CheckboxGroup>
+        </div>
         <div class="pi-form-row">
           <div class="pi-form-item">
             <label>上下文窗口</label>
-            <InputNumber v-model="editModelForm.contextWindow" :min="0" placeholder="如 128000" />
+            <InputNumber v-model="editModelForm.contextWindow" :min="0" placeholder="留空默认 128000" />
           </div>
           <div class="pi-form-item">
             <label>最大输出</label>
-            <InputNumber v-model="editModelForm.maxTokens" :min="0" placeholder="如 8192" />
+            <InputNumber v-model="editModelForm.maxTokens" :min="0" placeholder="留空默认 16384" />
           </div>
         </div>
         <div class="pi-form-item">
@@ -533,6 +750,42 @@ onMounted(refresh);
             <input type="checkbox" v-model="editModelForm.reasoning" /> 推理模型
           </label>
         </div>
+        <Collapse v-model="modelAdvancedOpen" class="pi-advanced-collapse">
+          <CollapsePanel value="1" header="高级配置（费用 / 兼容性）">
+            <div class="pi-form-item">
+              <label>费用 (cost) — 每百万 Token</label>
+              <div class="pi-form-row">
+                <div class="pi-form-item">
+                  <label>输入</label>
+                  <InputNumber v-model="editModelForm.cost.input" :min="0" :step="0.1" placeholder="0" />
+                </div>
+                <div class="pi-form-item">
+                  <label>输出</label>
+                  <InputNumber v-model="editModelForm.cost.output" :min="0" :step="0.1" placeholder="0" />
+                </div>
+              </div>
+              <div class="pi-form-row">
+                <div class="pi-form-item">
+                  <label>缓存读取</label>
+                  <InputNumber v-model="editModelForm.cost.cacheRead" :min="0" :step="0.1" placeholder="0" />
+                </div>
+                <div class="pi-form-item">
+                  <label>缓存写入</label>
+                  <InputNumber v-model="editModelForm.cost.cacheWrite" :min="0" :step="0.1" placeholder="0" />
+                </div>
+              </div>
+            </div>
+            <div class="pi-form-item">
+              <label>兼容性 (compat)</label>
+              <DynamicKvEditor
+                v-model="editModelForm.compat"
+                :key-options="COMPAT_KEY_OPTIONS"
+                key-placeholder="compat 字段名"
+                value-placeholder="compat 值"
+              />
+            </div>
+          </CollapsePanel>
+        </Collapse>
       </div>
     </Dialog>
   </div>

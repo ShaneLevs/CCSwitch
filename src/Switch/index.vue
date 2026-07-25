@@ -233,9 +233,7 @@ onMounted(() => {
             {{ appLabel }} <ChevronDownIcon size="16px" />
           </span>
         </Dropdown>
-        <t-typography-title level="h5">{{
-          pageTitleSuffix
-        }}</t-typography-title>
+        <span class="page-title">{{ pageTitleSuffix }}</span>
         <Button
           shape="circle"
           variant="text"
@@ -539,8 +537,11 @@ onMounted(() => {
   height: 32px;
   border-radius: var(--td-radius-default);
 }
-.header :deep(.t-typography-title) {
-  margin: 0;
+.page-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--td-text-color-primary);
+  line-height: 1;
 }
 .tab-buttons {
   display: flex;

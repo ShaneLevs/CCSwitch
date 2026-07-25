@@ -3,7 +3,17 @@ const path = require('node:path')
 const JSON5 = require('json5')
 
 const OPENCODE_DIR = path.join(window.utools.getPath('home'), '.config', 'opencode')
-const OPENCODE_CONFIG_PATH = path.join(OPENCODE_DIR, 'opencode.json')
+
+// 动态解析配置文件路径：支持 opencode.json 和 opencode.jsonc（JSON with Comments）
+// 优先 .json，不存在则检测 .jsonc；都不存在时默认返回 .json（用于写入）
+const resolveOpencodeConfigPath = () => {
+  const jsonPath = path.join(OPENCODE_DIR, 'opencode.json')
+  const jsoncPath = path.join(OPENCODE_DIR, 'opencode.jsonc')
+  if (fs.existsSync(jsonPath)) return jsonPath
+  if (fs.existsSync(jsoncPath)) return jsoncPath
+  return jsonPath
+}
+
 const OPENCODE_DATA_DIR = (() => {
   // 新版 Opencode (>= 2025) 数据目录（按优先级）：
   //   1. %LOCALAPPDATA%\opencode          （Windows 常规安装）
@@ -28,12 +38,13 @@ const OPENCODE_DATA_DIR = (() => {
 const OPENCODE_DB_PATH = path.join(OPENCODE_DATA_DIR, 'opencode.db')
 const OPENCODE_STORAGE_DIR = path.join(OPENCODE_DATA_DIR, 'storage')
 
-const getOpencodeConfigPath = () => OPENCODE_CONFIG_PATH
+const getOpencodeConfigPath = () => resolveOpencodeConfigPath()
 
 const readOpencodeConfig = () => {
   try {
-    if (!fs.existsSync(OPENCODE_CONFIG_PATH)) return { provider: {}, mcp: {}, plugin: [] }
-    const content = fs.readFileSync(OPENCODE_CONFIG_PATH, { encoding: 'utf-8' })
+    const configPath = resolveOpencodeConfigPath()
+    if (!fs.existsSync(configPath)) return { provider: {}, mcp: {}, plugin: [] }
+    const content = fs.readFileSync(configPath, { encoding: 'utf-8' })
     const parsed = JSON5.parse(content)
     if (!parsed.provider) parsed.provider = {}
     if (!parsed.mcp) parsed.mcp = {}
@@ -48,7 +59,8 @@ const readOpencodeConfig = () => {
 const writeOpencodeConfig = (config) => {
   try {
     if (!fs.existsSync(OPENCODE_DIR)) fs.mkdirSync(OPENCODE_DIR, { recursive: true })
-    fs.writeFileSync(OPENCODE_CONFIG_PATH, JSON.stringify(config, null, 2), { encoding: 'utf-8' })
+    const configPath = resolveOpencodeConfigPath()
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), { encoding: 'utf-8' })
     return true
   } catch (error) {
     console.error('写入 OpenCode 配置失败:', error)
@@ -333,6 +345,29 @@ const parseOpenCodeModel = (raw) => {
   return raw
 }
 
+// 从 part 表 data JSON 提取 token（回退逻辑：当 session 表 token 全为 0 时）
+// StepFinishPart 结构：{ type: "step-finish", cost: number, tokens: { input, output, reasoning, cache: { read, write } } }
+function computeTokensFromParts(db) {
+  const result = new Map()
+  try {
+    const rows = db.prepare("SELECT session_id, data FROM part WHERE json_extract(data, '$.type') = 'step-finish'").all()
+    for (const r of rows) {
+      try {
+        const data = JSON.parse(r.data)
+        if (!data.tokens) continue
+        const existing = result.get(r.session_id) || { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 }
+        existing.input += data.tokens.input || 0
+        existing.output += data.tokens.output || 0
+        existing.reasoning += data.tokens.reasoning || 0
+        existing.cacheRead += data.tokens.cache?.read || 0
+        existing.cacheWrite += data.tokens.cache?.write || 0
+        result.set(r.session_id, existing)
+      } catch { /* skip malformed JSON */ }
+    }
+  } catch { /* part 表可能不存在 */ }
+  return result
+}
+
 const readOpencodeUsageFromDbNative = (dbPath, DatabaseSync) => {
   const usage = require('./usage')
   const db = new DatabaseSync(dbPath, { open: true, readOnly: true })
@@ -363,7 +398,12 @@ const readOpencodeUsageFromDbNative = (dbPath, DatabaseSync) => {
       })
     }
 
-    const tokenSql = `SELECT id, model,${sInputCol} as inp,${sOutputCol} as out,${sReasonCol} as reas,${sCacheReadCol} as cread,${sCacheWriteCol} as cwrite,time_created FROM session WHERE (tokens_input > 0 OR tokens_output > 0)`
+    // 修复 WHERE 子句：动态构建条件，避免引用不存在的列导致 SQL 报错
+    const conditions = []
+    if (sInputCol) conditions.push(`${sInputCol} > 0`)
+    if (sOutputCol) conditions.push(`${sOutputCol} > 0`)
+    const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' OR ')}` : ''
+    const tokenSql = `SELECT id, model,${sInputCol} as inp,${sOutputCol} as out,${sReasonCol} as reas,${sCacheReadCol} as cread,${sCacheWriteCol} as cwrite,time_created FROM session${whereClause}`
     const rows = db.prepare(tokenSql).all()
     const messageRecords = []
     for (const r of rows) {
@@ -394,6 +434,36 @@ const readOpencodeUsageFromDbNative = (dbPath, DatabaseSync) => {
         sess.timestamp = ts
       }
     }
+
+    // 回退：如果 session 表 token 全为 0，尝试从 part 表计算
+    if (messageRecords.length === 0 && tables.includes('part')) {
+      const partTokens = computeTokensFromParts(db)
+      for (const [sessionID, tokens] of partTokens.entries()) {
+        const sess = sessionMap.get(sessionID)
+        if (!sess) continue
+        sess.inputTokens = tokens.input
+        sess.outputTokens = tokens.output
+        sess.cacheReadTokens = tokens.cacheRead
+        sess.cacheCreationTokens = tokens.cacheWrite
+        const total = tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite + tokens.reasoning
+        if (total > 0) {
+          messageRecords.push({
+            sessionId: sessionID,
+            model: sess.model,
+            project: sess.project,
+            projectPath: sess.projectPath,
+            timestamp: sess.timestamp,
+            date: (sess.timestamp || '').split('T')[0],
+            inputTokens: tokens.input,
+            outputTokens: tokens.output,
+            cacheReadTokens: tokens.cacheRead,
+            cacheCreationTokens: tokens.cacheWrite,
+            totalTokens: total,
+          })
+        }
+      }
+    }
+
     return usage.calculateStats(messageRecords, sessionMap)
   } finally {
     db.close()
@@ -419,6 +489,40 @@ const readOpencodeUsageFromDbViaChildProcess = (dbPath) => {
     const sCwrite = cols.has('tokens_cache_write') ? 'tokens_cache_write' : 'null';
     const sql = 'SELECT id, model, '+sIn+' as inp, '+sOut+' as out, '+sReas+' as reas, '+sCread+' as cread, '+sCwrite+' as cwrite, time_created, directory, title FROM session';
     const rows = db.prepare(sql).all();
+
+    // 回退：session token 全为 0 时，从 part 表计算
+    const allZero = rows.every(r => !((r.inp||0) + (r.out||0) + (r.reas||0) + (r.cread||0) + (r.cwrite||0)));
+    if (allZero) {
+      try {
+        const parts = db.prepare("SELECT session_id, data FROM part WHERE json_extract(data, '$.type') = 'step-finish'").all();
+        const partMap = {};
+        for (const p of parts) {
+          try {
+            const d = JSON.parse(p.data);
+            if (!d.tokens) continue;
+            const sid = p.session_id;
+            if (!partMap[sid]) partMap[sid] = {input:0, output:0, reasoning:0, cacheRead:0, cacheWrite:0};
+            partMap[sid].input += d.tokens.input || 0;
+            partMap[sid].output += d.tokens.output || 0;
+            partMap[sid].reasoning += d.tokens.reasoning || 0;
+            partMap[sid].cacheRead += (d.tokens.cache && d.tokens.cache.read) || 0;
+            partMap[sid].cacheWrite += (d.tokens.cache && d.tokens.cache.write) || 0;
+          } catch {}
+        }
+        // 将 part 计算结果合并到 rows
+        for (const r of rows) {
+          const pt = partMap[r.id];
+          if (pt) {
+            r.inp = pt.input;
+            r.out = pt.output;
+            r.reas = pt.reasoning;
+            r.cread = pt.cacheRead;
+            r.cwrite = pt.cacheWrite;
+          }
+        }
+      } catch {}
+    }
+
     db.close();
     process.stdout.write(JSON.stringify(rows));
   `
