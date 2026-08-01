@@ -2,7 +2,7 @@
 
 import { ref, onMounted } from "vue";
 import {
-  Card, Empty, Tag, Button, Tooltip,
+  Card, Empty, Tag, Button, Tooltip, MessagePlugin,
 } from "tdesign-vue-next";
 import { RefreshIcon } from "tdesign-icons-vue-next";
 import "./styles/PiMcpView.css";
@@ -30,6 +30,14 @@ const openPiConfig = () => {
   } catch (e) {
     window.services.openPiDir();
   }
+};
+
+// 点击复制 MCP 名称
+const copyMcpName = (name) => {
+  try {
+    window.utools.copyText(name);
+    MessagePlugin.success("名称已复制");
+  } catch { MessagePlugin.error("复制失败"); }
 };
 
 onMounted(loadServers);
@@ -63,7 +71,9 @@ onMounted(loadServers);
       >
         <template #title>
           <div class="pi-mcp-card-header">
-            <span class="pi-mcp-srv-name">{{ srv.serverName }}</span>
+            <Tooltip content="点击复制名称" placement="top">
+              <span class="pi-mcp-srv-name" @click.stop="copyMcpName(srv.serverName)">{{ srv.serverName }}</span>
+            </Tooltip>
             <Tag size="small" variant="light" theme="success">可用</Tag>
           </div>
         </template>

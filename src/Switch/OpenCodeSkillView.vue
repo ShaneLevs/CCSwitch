@@ -94,11 +94,11 @@ const openDetail = (skill) => {
   showDetailDialog.value = true;
 };
 
-const openSkillMd = (skill) => {
+const openSkillDir = (skill) => {
   try {
-    window.utools.shellOpenPath(skill.skillMdPath);
+    window.utools.shellOpenPath(skill.path);
   } catch {
-    MessagePlugin.error("无法打开 SKILL.md");
+    MessagePlugin.error("无法打开 Skill 文件夹");
   }
 };
 
@@ -167,8 +167,8 @@ defineExpose({ openInstallWithUrl });
               </Tooltip>
             </div>
             <Space size="small">
-              <Tooltip content="打开 SKILL.md" placement="top">
-                <Button size="small" theme="default" variant="text" @click.stop="openSkillMd(skill)"><FolderOpen1Icon /></Button>
+              <Tooltip content="打开 Skill 文件夹" placement="top">
+                <Button size="small" theme="default" variant="text" @click.stop="openSkillDir(skill)"><FolderOpen1Icon /></Button>
               </Tooltip>
               <Popconfirm theme="danger" content="删除后不可恢复，确认删除？" @confirm="deleteSkill(skill)">
                 <Tooltip content="删除" placement="top">
@@ -192,9 +192,11 @@ defineExpose({ openInstallWithUrl });
       <template #header>
         <div class="detail-dialog-header">
           <span>{{ selectedSkill?.name || 'Skill 详情' }}</span>
-          <Button size="small" variant="outline" @click="openSkillMd(selectedSkill)">
-            <template #icon><FolderOpen1Icon style="font-size: 14px" /></template> SKILL.md
-          </Button>
+          <Tooltip content="打开 Skill 文件夹" placement="top">
+            <Button size="small" variant="outline" @click="openSkillDir(selectedSkill)">
+              <template #icon><FolderOpen1Icon style="font-size: 14px" /></template> 文件夹
+            </Button>
+          </Tooltip>
         </div>
       </template>
       <div v-if="selectedSkill" class="skill-detail">

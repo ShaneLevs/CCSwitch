@@ -95,7 +95,7 @@ const triggerWaving = () => {
 
 const appLabel = computed(() => {
   if (isClaude.value) return "Claude Code";
-  if (isOpenCode.value) return "OpenCode";
+  if (isOpenCode.value) return "OpenCode CLI";
   return "Pi Agent";
 });
 
@@ -140,7 +140,7 @@ const switchApp = (app) => {
 
 const appDropdownOptions = [
   { content: "Claude Code", value: "claude" },
-  { content: "OpenCode", value: "opencode" },
+  { content: "OpenCode CLI", value: "opencode" },
   { content: "Pi Agent", value: "pi" },
 ];
 

@@ -34,6 +34,14 @@ const refresh = () => {
   setTimeout(() => { loadServers(); loading.value = false; }, 50);
 };
 
+// 点击复制 MCP 名称
+const copyMcpName = (name) => {
+  try {
+    window.utools.copyText(name);
+    MessagePlugin.success("名称已复制");
+  } catch { MessagePlugin.error("复制失败"); }
+};
+
 const openAddDialog = () => {
   editingServer.value = null;
   form.value = { name: '', command: '', args: [], enabled: true };
@@ -122,7 +130,9 @@ onMounted(loadServers);
         <template #header>
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <div class="oc-mcp-card-header">
-              <span class="oc-mcp-srv-name">{{ srv.name }}</span>
+              <Tooltip content="点击复制名称" placement="top">
+                <span class="oc-mcp-srv-name" @click.stop="copyMcpName(srv.name)">{{ srv.name }}</span>
+              </Tooltip>
               <Tag size="small" variant="light" :theme="srv.enabled ? 'success' : 'default'">
                 {{ srv.enabled ? '已启用' : '已禁用' }}
               </Tag>

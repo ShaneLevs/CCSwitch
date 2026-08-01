@@ -138,12 +138,12 @@ const confirmMoveToGlobal = () => {
   }
 };
 
-const openSkillMd = (skill) => {
-  const result = window.services.getSkillMdPath(skill.name, skill.scope, skill.projectPath, skill.disabled);
+const openSkillDir = (skill) => {
+  const result = window.services.getSkillDirPath(skill.name, skill.scope, skill.projectPath, skill.disabled);
   if (result.success) {
     window.utools.shellOpenPath(result.path);
   } else {
-    MessagePlugin.error(result.error || "无法打开 SKILL.md");
+    MessagePlugin.error(result.error || "无法打开 Skill 文件夹");
   }
 };
 
@@ -260,9 +260,9 @@ onMounted(() => setTimeout(() => loadSkills(), 50));
       <template #header>
         <div class="detail-dialog-header">
           <span>{{ selectedSkill?.name || 'Skill 详情' }}</span>
-          <Tooltip content="用编辑器打开 SKILL.md" placement="top">
-            <Button size="small" variant="outline" @click="openSkillMd(selectedSkill)">
-              <template #icon><FolderOpen1Icon style="font-size: 14px" /></template> SKILL.md
+          <Tooltip content="打开 Skill 文件夹" placement="top">
+            <Button size="small" variant="outline" @click="openSkillDir(selectedSkill)">
+              <template #icon><FolderOpen1Icon style="font-size: 14px" /></template> 文件夹
             </Button>
           </Tooltip>
         </div>

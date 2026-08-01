@@ -384,6 +384,25 @@ window.services = {
     }
   },
 
+  getSkillDirPath(skillName, scope, projectPath, isDisabled) {
+    try {
+      let skillDir
+      if (scope === 'project') {
+        skillDir = isDisabled
+          ? path.join(projectPath, '.claude', 'skills', '.disabled', skillName)
+          : path.join(projectPath, '.claude', 'skills', skillName)
+      } else {
+        skillDir = isDisabled
+          ? path.join(CLAUDE_SKILLS_PATH, '.disabled', skillName)
+          : path.join(CLAUDE_SKILLS_PATH, skillName)
+      }
+      if (!fs.existsSync(skillDir)) return { success: false, error: 'Skill 文件夹不存在' }
+      return { success: true, path: skillDir }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  },
+
   getSkillsPath() {
     if (!fs.existsSync(CLAUDE_SKILLS_PATH)) fs.mkdirSync(CLAUDE_SKILLS_PATH, { recursive: true })
     return CLAUDE_SKILLS_PATH

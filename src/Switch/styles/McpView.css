@@ -64,6 +64,11 @@
   font-size: 15px;
   font-weight: 500;
   color: var(--td-text-color-primary);
+  cursor: pointer;
+}
+
+.mcp-title-name:hover {
+  text-decoration: underline;
 }
 
 .mcp-card .t-card__body {

@@ -98,6 +98,14 @@ const openClaudeJsonFile = () => {
   window.utools.shellOpenPath(filePath);
 };
 
+// 点击复制 MCP 名称
+const copyMcpName = (name) => {
+  try {
+    window.utools.copyText(name);
+    MessagePlugin.success("名称已复制");
+  } catch { MessagePlugin.error("复制失败"); }
+};
+
 // 获取类型标签
 const getTypeTag = (type) => {
   if (type === "http") return "HTTP";
@@ -306,7 +314,9 @@ onMounted(() => {
       >
         <template #title>
           <div class="mcp-title-wrapper">
-            <span class="mcp-title-name">{{ server.name }}</span>
+            <Tooltip content="点击复制名称" placement="top">
+              <span class="mcp-title-name" @click.stop="copyMcpName(server.name)">{{ server.name }}</span>
+            </Tooltip>
             <Tag size="small" :theme="getTypeTagTheme(server.config.type)" variant="light">
               {{ getTypeTag(server.config.type) }}
             </Tag>
