@@ -27,6 +27,12 @@
       "cmds": ["Pi Agents配置"]
     },
     {
+      "code": "ompConfig",
+      "explain": "omp CLI 配置管理工具",
+      "icon": "omp-icon.svg",
+      "cmds": ["omp配置"]
+    },
+    {
       "code": "installClaudeSkill",
       "explain": "从 SkillHub/魔搭社区 安装 Claude Code Skill",
       "cmds": [

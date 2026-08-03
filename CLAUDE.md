@@ -66,6 +66,7 @@ src/
     ├── PiSkillView.vue        # Pi Skills (from extensions)
     ├── PiPluginView.vue       # Pi Extensions (npm/git packages)
     ├── PiUsageView.vue        # Pi usage statistics (JSONL sessions)
+    ├── OmpConfigView.vue      # omp CLI modelRoles + providers/models CRUD (js-yaml)
     └── styles/                # Per-view CSS files
 
 public/
@@ -79,6 +80,7 @@ public/
         ├── mcp.js             # MCP enable/disable + SDK tool discovery (STDIO/HTTP/SSE)
         ├── opencode.js        # OpenCode config CRUD (json5) + models.dev presets
         ├── pi.js              # Pi Agent provider/model/extension CRUD, auto-fetch via /models API
+        ├── omp.js             # omp modelRoles + models.yml providers CRUD（js-yaml 纯文件读写）
         └── usage.js           # Shared JSONL parsing (used by Claude + Pi)
 ```
 
@@ -108,6 +110,11 @@ public/
   - `setPiDefaultProvider` 设置默认供应商；`setPiDefaultModel` 设置默认模型；设置默认模型前会自动切换到该模型所属供应商
   - `fetchProviderModels` calls `{baseUrl}/models` (OpenAI-compatible) for auto-fetch
   - Pi schema rules: `cost` must be `{input, output, cacheRead, cacheWrite}` object; `contextWindow: 0` is invalid (omit instead)
+- **omp CLI Config**: `~/.omp/agent/models.yml` + `config.yml`
+  - `modelRoles`（config.yml）用 js-yaml 直接读写文件（load → 改 modelRoles → dump 写回，保留其他配置键）；值格式 `provider/model[:thinkingLevel]`，无前缀引用会显示为 provider 空，编辑时自动补全带前缀
+  - `models.yml` providers 用 js-yaml 直接读写（preload 依赖新增 `js-yaml`），结构同 Pi 的 models.json，模型额外支持 `thinking: {minLevel, maxLevel, mode}`
+  - 删除供应商/模型前检查 modelRoles 引用，被引用时拒绝删除并提示先修改角色
+  - 纯文件读写，不依赖 omp 二进制 / bun 运行时
 - **Skill Install**: SkillHub / ModelScope URL → fetch metadata → download zip → extract → find SKILL.md
 
 **Key Architecture Pattern — "Fat Preload":**
@@ -119,7 +126,7 @@ All Node.js-sensitive operations (file I/O, network requests, child process exec
 ## Key Features
 
 1. **配置管理**: 读取/保存/切换 Claude API 配置 (7 managed env fields + variable extra fields)
-2. **多应用支持**: Claude Code / OpenCode / Pi Agent 三路切换，各自独立的配置/MCP/Skill/Plugin/Usage 视图
+2. **多应用支持**: Claude Code / OpenCode / Pi Agent / omp 四路切换，各自独立的配置/MCP/Skill/Plugin/Usage 视图（omp 目前仅配置视图）
 3. **MCP 管理**: MCP 服务器启用/禁用、JSON 编辑、实时工具发现画布
 4. **Skill 管理**: 全局/项目级 Skill 列表、启用/禁用、从 SkillHub/ModelScope 安装
 5. **Plugin/Extension 管理**: Claude Marketplace 仓库 + 插件生命周期；OpenCode plugin 数组；Pi Extension (npm/git)

@@ -25,6 +25,7 @@ import OpenCodeMcpView from "./OpenCodeMcpView.vue";
 import OpenCodePluginView from "./OpenCodePluginView.vue";
 import OpenCodeSkillView from "./OpenCodeSkillView.vue";
 import OpenCodeUsageView from "./OpenCodeUsageView.vue";
+import OmpConfigView from "./OmpConfigView.vue";
 import wavingDark from "../assets/waving-dark.gif";
 import wavingLight from "../assets/waving-light.gif";
 import { useAppContext } from "../composables/useAppContext";
@@ -35,7 +36,7 @@ const props = defineProps({
   payload: String,
 });
 
-const { activeApp, setActiveApp, isClaude, isOpenCode, isPi } = useAppContext();
+const { activeApp, setActiveApp, isClaude, isOpenCode, isPi, isOmp } = useAppContext();
 
 const { darkBackgroundEnabled, setDarkBackground, darkEffect, setDarkEffect } =
   useDarkBackground();
@@ -96,7 +97,8 @@ const triggerWaving = () => {
 const appLabel = computed(() => {
   if (isClaude.value) return "Claude Code";
   if (isOpenCode.value) return "OpenCode CLI";
-  return "Pi Agent";
+  if (isPi.value) return "Pi Agent";
+  return "omp";
 });
 
 const pageTitleSuffix = computed(() => {
@@ -122,6 +124,9 @@ const pageTitleSuffix = computed(() => {
       plugin: "扩展管理",
       usage: "使用统计",
     },
+    omp: {
+      config: "配置管理",
+    },
   };
   return map[activeApp.value]?.[activeTab.value] || "配置切换";
 });
@@ -142,6 +147,7 @@ const appDropdownOptions = [
   { content: "Claude Code", value: "claude" },
   { content: "OpenCode CLI", value: "opencode" },
   { content: "Pi Agent", value: "pi" },
+  { content: "omp", value: "omp" },
 ];
 
 const handleAppSelect = (data) => {
@@ -155,6 +161,7 @@ onMounted(() => {
     claudeConfig: "claude",
     opencodeConfig: "opencode",
     piConfig: "pi",
+    ompConfig: "omp",
   };
   if (appMap[props.route]) {
     setActiveApp(appMap[props.route]);
@@ -223,6 +230,7 @@ onMounted(() => {
           alt="logo"
           class="logo"
         />
+        <img v-else-if="isOmp" src="/omp-icon.svg" alt="logo" class="logo" />
         <img v-else src="/icon-pi.png" alt="logo" class="logo" />
         <Dropdown
           :options="appDropdownOptions"
@@ -329,6 +337,17 @@ onMounted(() => {
             @click="activeTab = 'usage'"
           >
             <template #icon><ChartIcon /></template> 统计
+          </Button>
+        </div>
+        <!-- omp tabs -->
+        <div v-else-if="isOmp" class="tab-buttons">
+          <Button
+            size="small"
+            :theme="activeTab === 'config' ? 'primary' : 'default'"
+            :variant="activeTab === 'config' ? 'base' : 'outline'"
+            @click="activeTab = 'config'"
+          >
+            <template #icon><DashboardIcon /></template> 配置
           </Button>
         </div>
         <!-- OpenCode tabs -->
@@ -441,6 +460,11 @@ onMounted(() => {
         v-if="isTabVisited('opencode', 'usage')"
         v-show="isOpenCode && activeTab === 'usage'"
       />
+    </template>
+
+    <!-- omp views -->
+    <template v-if="isAppReady('omp')">
+      <OmpConfigView v-if="isOmp && activeTab === 'config'" />
     </template>
 
     <Dialog
@@ -570,7 +594,7 @@ onMounted(() => {
   border-radius: var(--td-radius-default);
   transition: background-color 0.2s;
   user-select: none;
-  min-width: 110px;
+  /* 不设固定 min-width，宽度跟随选中文本自适应（omp 短文本时不留大空隙） */
 }
 .app-selector:hover {
   background-color: var(--td-bg-color-container-hover);

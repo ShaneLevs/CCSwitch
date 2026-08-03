@@ -1,11 +1,11 @@
 # CCConfig
 
-多应用 AI 配置管理工具 — 一款 [uTools](https://u.tools/) 插件，支持 **Claude Code**、**OpenCode**、**Pi Agent** 三个 AI 工具的 API 配置切换、MCP/Skill/Plugin 管理以及使用统计分析。
+多应用 AI 配置管理工具 — 一款 [uTools](https://u.tools/) 插件，支持 **Claude Code**、**OpenCode**、**Pi Agent**、**omp** 四个 AI 工具的 API 配置切换、MCP/Skill/Plugin 管理以及使用统计分析。
 
 ## 功能特性
 
-- **三应用切换** — Claude Code / OpenCode / Pi Agent 独立配置，一键切换
-- **配置管理** — 读取、保存、切换各应用的 API 配置（Claude 的 `settings.json`、OpenCode 的 `opencode.json`、Pi 的 `models.json`）
+- **四应用切换** — Claude Code / OpenCode / Pi Agent / omp 独立配置，一键切换
+- **配置管理** — 读取、保存、切换各应用的 API 配置（Claude 的 `settings.json`、OpenCode 的 `opencode.json`、Pi 的 `models.json`、omp 的 `models.yml` + `modelRoles`）
 - **MCP 配置** — 管理各应用的 MCP Server，支持工具发现画布
 - **Skill 管理** — 从 SkillHub / 魔搭社区一键安装 Skill（OpenCode 无原生 Skill 概念，见 Plugin）
 - **Plugin / Extension 管理** — Claude Marketplace 仓库 + 插件生命周期、OpenCode plugin 数组、Pi Extension (npm/git)
@@ -49,6 +49,7 @@ npm run build
 | `Claude Code配置` | 打开 Claude Code 配置管理 |
 | `OpenCode配置` | 打开 OpenCode 配置管理 |
 | `Pi Agents配置` | 打开 Pi Agent 配置管理 |
+| `omp配置` | 打开 omp 配置管理 |
 | 粘贴 SkillHub / 魔搭链接 | 自动进入 Skill 安装 |
 
 ## 技术栈
@@ -80,6 +81,7 @@ src/
 │   ├── PiSkillView.vue        # Pi Skill（来自扩展）
 │   ├── PiPluginView.vue       # Pi Extension 管理
 │   ├── PiUsageView.vue        # Pi 使用统计
+│   ├── OmpConfigView.vue      # omp 模型角色 (modelRoles) + 供应商/模型 CRUD
 │   └── styles/                # 组件样式
 ├── composables/               # Vue Composables
 ├── constants.js               # 常量定义
@@ -93,6 +95,7 @@ public/
 │       ├── mcp.js             # MCP 管理 + SDK 工具发现（STDIO/HTTP/SSE）
 │       ├── opencode.js        # OpenCode config CRUD + SQLite/子进程双读 + 模型名解析
 │       ├── pi.js              # Pi Agent 全功能服务层（/providers /models /extensions /sessions）
+│       ├── omp.js             # omp modelRoles + models.yml providers CRUD（js-yaml 纯文件读写）
 │       └── usage.js           # 共享统计聚合（Claude + OpenCode + Pi 都用 calculateStats）
 ├── plugin.json                # uTools 插件配置
 └── logo.png / icon-opencode.png / icon-pi.png
@@ -120,6 +123,13 @@ Pi Agent:
   ~/.pi/agent/settings.json + models.json  + extensions  ←→  uTools DB
   ~/.pi/agent/sessions/**/*.jsonl  →  解析 & 聚合  →  使用统计
   特殊 schema：cost 必须含 {input, output, cacheRead, cacheWrite} 四项；contextWindow 为 0 则省略
+
+omp:
+  ~/.omp/agent/config.yml modelRoles  →  js-yaml 直接读写（load → 改 modelRoles → dump 写回）
+  ~/.omp/agent/models.yml providers    →  js-yaml 直接读写
+  模型引用格式：provider/model[:thinkingLevel]，无前缀引用编辑时自动补全带前缀
+  删除供应商/模型前检查 modelRoles 引用，被引用时拒绝删除
+  纯文件读写，不依赖 omp 二进制 / bun 运行时
 ```
 
 ## 开发

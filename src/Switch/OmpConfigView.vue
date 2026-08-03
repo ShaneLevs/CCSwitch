@@ -1,0 +1,924 @@
+<script setup>
+import { ref, computed, onMounted } from "vue";
+import {
+  Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin,
+  Select, Switch, CheckboxGroup, Checkbox, Collapse, CollapsePanel, Popconfirm, Alert as TAlert,
+  Dropdown,
+} from "tdesign-vue-next";
+import {
+  RefreshIcon, EditIcon, FolderOpen1Icon, AddIcon, DeleteIcon,
+  ChevronDownIcon, ChevronRightIcon,
+} from "tdesign-icons-vue-next";
+import ApiKeyInput from "../components/ApiKeyInput.vue";
+import DynamicKvEditor from "../components/DynamicKvEditor.vue";
+import "./styles/OmpConfigView.css";
+
+// ==================== Constants ====================
+
+// 模型角色场景（固定顺序）
+const ROLE_ORDER = ["default", "smol", "slow", "vision", "plan", "designer", "commit", "tiny", "task", "advisor"];
+const ROLE_LABELS = {
+  default: "默认",
+  smol: "快速",
+  slow: "深度",
+  vision: "视觉",
+  plan: "规划",
+  designer: "设计",
+  commit: "提交",
+  tiny: "微小",
+  task: "任务",
+  advisor: "顾问",
+};
+
+// 思考级别顺序（小 → 大）
+const LEVEL_ORDER = ["low", "medium", "high", "xhigh", "max"];
+
+// 供应商 API 类型
+const API_TYPE_OPTIONS = [
+  { label: "OpenAI Chat Completions", value: "openai-completions" },
+  { label: "OpenAI Responses", value: "openai-responses" },
+  { label: "Anthropic Messages", value: "anthropic-messages" },
+  { label: "Google Generative AI", value: "google-generative-ai" },
+];
+
+const INPUT_TYPE_OPTIONS = [
+  { label: "文本 (text)", value: "text" },
+  { label: "图像 (image)", value: "image" },
+];
+
+const HEADER_KEY_OPTIONS = ["x-portkey-api-key", "x-api-key", "Authorization", "x-secret"];
+const COMPAT_KEY_OPTIONS = [
+  "supportsDeveloperRole", "supportsReasoningEffort", "supportsUsageInStreaming",
+  "maxTokensField", "supportsStore", "thinkingFormat",
+];
+
+const THINKING_MODE_OPTIONS = [
+  { label: "effort", value: "effort" },
+  { label: "auto", value: "auto" },
+];
+
+const emptyThinking = () => ({ minLevel: "", maxLevel: "", mode: "" });
+
+// ==================== State ====================
+
+const loading = ref(false);
+const warningMsg = ref("");
+const modelRoles = ref({});
+const providers = ref([]);
+const expanded = ref(new Set());
+
+// 角色弹窗
+const roleDialog = ref(false);
+const editingRole = ref("");
+const roleForm = ref({ provider: "", modelId: "", level: "" });
+
+// 供应商弹窗
+const editDialog = ref(false);
+const editingProvider = ref(null);
+const newProviderName = ref("");
+const editForm = ref({ apiKey: "", baseUrl: "", api: "openai-completions", headers: [], authHeader: true });
+const addProviderDialog = ref(false);
+const addProviderForm = ref({ name: "", apiKey: "", baseUrl: "", api: "openai-completions", headers: [], authHeader: true });
+
+// 模型弹窗
+const addModelDialog = ref(false);
+const addModelProvider = ref(null);
+const addModelForm = ref({ id: "", name: "", contextWindow: 0, maxTokens: 0, reasoning: false, input: ["text"], thinking: emptyThinking(), cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, compat: [] });
+const editModelDialog = ref(false);
+const editModelProvider = ref(null);
+const editingModelId = ref(null);
+const newModelId = ref("");
+const editModelForm = ref({ name: "", contextWindow: 0, maxTokens: 0, reasoning: false, input: ["text"], thinking: emptyThinking(), cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, compat: [] });
+const modelAdvancedOpen = ref(false);
+
+const autoModels = ref([]);
+const autoModelsLoading = ref(false);
+
+// ==================== 数据加载 ====================
+
+const refresh = () => {
+  loading.value = true;
+  warningMsg.value = "";
+  try {
+    modelRoles.value = window.services.readOmpModelRoles() || {};
+    providers.value = window.services.getOmpProviderList();
+  } catch (e) {
+    console.error("加载 omp 配置失败:", e);
+    warningMsg.value = e.message || "加载失败";
+  } finally {
+    loading.value = false;
+  }
+};
+
+const toggleExpand = (name) => {
+  if (expanded.value.has(name)) expanded.value.delete(name);
+  else expanded.value.add(name);
+};
+
+// ==================== 模型角色 ====================
+
+const parseRef = (ref) => {
+  if (!ref) return null;
+  try { return window.services.parseOmpModelRef(ref); } catch { return null; }
+};
+
+const findModelProvider = (modelId) => {
+  for (const p of providers.value) {
+    if (p.models.some(m => m.id === modelId)) return p;
+  }
+  return null;
+};
+
+const findModelById = (providerName, modelId) => {
+  const prov = providers.value.find(p => p.name === providerName);
+  return prov?.models.find(m => m.id === modelId) || null;
+};
+
+// 只展示已配置的角色，未配置的通过「添加角色」入口配置
+const configuredRoles = computed(() => ROLE_ORDER.filter(r => modelRoles.value[r]));
+const unconfiguredRoles = computed(() => ROLE_ORDER.filter(r => !modelRoles.value[r]));
+
+// 解析角色引用为可展示信息（无前缀引用补全供应商）
+const getRoleDisplay = (role) => {
+  const ref = modelRoles.value[role];
+  if (!ref) return null;
+  const parsed = parseRef(ref);
+  if (!parsed) return null;
+  let provider = parsed.provider;
+  if (!provider) {
+    const found = findModelProvider(parsed.model);
+    if (found) provider = found.name;
+  }
+  const modelObj = provider ? findModelById(provider, parsed.model) : null;
+  return {
+    ref,
+    provider,
+    model: parsed.model,
+    modelName: modelObj?.name || parsed.model,
+    level: parsed.level,
+  };
+};
+
+const roleDisplays = computed(() => {
+  const map = {};
+  for (const role of configuredRoles.value) {
+    map[role] = getRoleDisplay(role);
+  }
+  return map;
+});
+
+const onAddRole = (data) => {
+  const role = typeof data === "object" ? data.value : data;
+  openRoleDialog(role);
+};
+
+const openRoleDialog = (role) => {
+  editingRole.value = role;
+  const ref = modelRoles.value[role];
+  const parsed = parseRef(ref);
+  let provider = parsed?.provider || "";
+  let modelId = parsed?.model || "";
+  // 无前缀引用：尝试匹配到具体供应商
+  if (parsed && !parsed.provider) {
+    const found = findModelProvider(parsed.model);
+    if (found) { provider = found.name; modelId = parsed.model; }
+  }
+  if (!provider && providers.value.length) provider = providers.value[0].name;
+  roleForm.value = { provider, modelId, level: parsed?.level || "" };
+  roleDialog.value = true;
+};
+
+const roleModelOptions = computed(() => {
+  const prov = providers.value.find(p => p.name === roleForm.value.provider);
+  return (prov?.models || []).map(m => ({ label: m.name || m.id, value: m.id }));
+});
+
+const roleLevelOptions = computed(() => {
+  const prov = providers.value.find(p => p.name === roleForm.value.provider);
+  const model = prov?.models.find(m => m.id === roleForm.value.modelId);
+  const opts = [{ label: "默认（不指定）", value: "" }];
+  if (!model?.thinking?.minLevel || !model?.thinking?.maxLevel) return opts;
+  const start = LEVEL_ORDER.indexOf(model.thinking.minLevel);
+  const end = LEVEL_ORDER.indexOf(model.thinking.maxLevel);
+  if (start === -1 || end === -1) return opts;
+  const lo = Math.min(start, end);
+  const hi = Math.max(start, end);
+  for (let i = lo; i <= hi; i++) opts.push({ label: LEVEL_ORDER[i], value: LEVEL_ORDER[i] });
+  return opts;
+});
+
+const onRoleProviderChange = () => {
+  roleForm.value.modelId = "";
+  roleForm.value.level = "";
+};
+
+const saveRole = () => {
+  try {
+    const { provider, modelId, level } = roleForm.value;
+    if (!provider || !modelId) { MessagePlugin.warning("请选择供应商和模型"); return; }
+    const ref = `${provider}/${modelId}` + (level ? `:${level}` : "");
+    const next = { ...modelRoles.value, [editingRole.value]: ref };
+    window.services.writeOmpModelRoles(next);
+    modelRoles.value = next;
+    MessagePlugin.success(`已设置 ${editingRole.value} = ${ref}`);
+    roleDialog.value = false;
+  } catch (e) {
+    MessagePlugin.error("保存失败: " + e.message);
+  }
+};
+
+// ==================== 供应商 CRUD ====================
+
+const handleEdit = (provider) => {
+  editingProvider.value = provider.name;
+  newProviderName.value = provider.name;
+  editForm.value = {
+    apiKey: provider.apiKey || "",
+    baseUrl: provider.baseUrl || "",
+    api: provider.api || "openai-completions",
+    headers: provider.headers ? Object.entries(provider.headers).map(([key, value]) => ({ key, value })) : [],
+    authHeader: provider.authHeader !== undefined ? provider.authHeader : true,
+  };
+  editDialog.value = true;
+};
+
+const buildProviderPayload = (form) => {
+  const headersObj = {};
+  (form.headers || []).forEach(({ key, value }) => {
+    if (key && key.trim()) headersObj[key.trim()] = value;
+  });
+  return {
+    apiKey: form.apiKey,
+    baseUrl: form.baseUrl,
+    api: form.api,
+    headers: headersObj,
+    authHeader: form.authHeader,
+  };
+};
+
+const handleSaveProvider = () => {
+  try {
+    const payload = buildProviderPayload(editForm.value);
+    const finalName = newProviderName.value.trim() || editingProvider.value;
+    if (finalName !== editingProvider.value) {
+      // 名称变化：删旧 + 建新（保留模型）
+      const data = window.services.readOmpModels();
+      const oldProv = data.providers[editingProvider.value];
+      delete data.providers[editingProvider.value];
+      data.providers[finalName] = { ...payload, models: oldProv.models || [] };
+      window.services.writeOmpModels(data);
+    } else {
+      window.services.updateOmpProvider(editingProvider.value, payload);
+    }
+    MessagePlugin.success("供应商配置已更新");
+    editDialog.value = false;
+    refresh();
+  } catch (e) {
+    MessagePlugin.error("保存失败: " + e.message);
+  }
+};
+
+const openAddProviderDialog = () => {
+  addProviderForm.value = { name: "", apiKey: "", baseUrl: "", api: "openai-completions", headers: [], authHeader: true };
+  addProviderDialog.value = true;
+};
+
+const handleAddProvider = () => {
+  try {
+    const name = addProviderForm.value.name.trim();
+    if (!name) { MessagePlugin.warning("请输入供应商名称"); return; }
+    window.services.addOmpProvider(name, buildProviderPayload(addProviderForm.value));
+    MessagePlugin.success(`供应商 ${name} 已添加`);
+    addProviderDialog.value = false;
+    refresh();
+  } catch (e) {
+    MessagePlugin.error("添加失败: " + e.message);
+  }
+};
+
+const handleDeleteProvider = (providerName) => {
+  try {
+    window.services.deleteOmpProvider(providerName);
+    MessagePlugin.success(`供应商 ${providerName} 已删除`);
+    refresh();
+  } catch (e) {
+    MessagePlugin.error("删除失败: " + e.message);
+  }
+};
+
+// ==================== 模型 CRUD ====================
+
+const buildModelPayload = (form, fallbackId) => {
+  const compatObj = {};
+  (form.compat || []).forEach(({ key, value }) => {
+    if (key && key.trim()) compatObj[key.trim()] = value;
+  });
+  const id = form.id?.trim() || fallbackId;
+  const thinking = {};
+  if (form.thinking?.mode) thinking.mode = form.thinking.mode;
+  if (form.thinking?.minLevel) thinking.minLevel = form.thinking.minLevel;
+  if (form.thinking?.maxLevel) thinking.maxLevel = form.thinking.maxLevel;
+  const hasThinking = thinking.mode || thinking.minLevel || thinking.maxLevel;
+  return {
+    id,
+    name: form.name.trim() || id,
+    contextWindow: Number(form.contextWindow) || 0,
+    maxTokens: Number(form.maxTokens) || 0,
+    reasoning: form.reasoning,
+    input: form.input,
+    cost: form.cost,
+    compat: compatObj,
+    thinking: hasThinking ? thinking : undefined,
+  };
+};
+
+const openAddModelDialog = (providerName) => {
+  addModelProvider.value = providerName;
+  addModelForm.value = { id: "", name: "", contextWindow: 0, maxTokens: 0, reasoning: false, input: ["text"], thinking: emptyThinking(), cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, compat: [] };
+  autoModels.value = [];
+  autoModelsLoading.value = false;
+  modelAdvancedOpen.value = false;
+  addModelDialog.value = true;
+};
+
+const handleAutoFetchModels = async () => {
+  const prov = providers.value.find(p => p.name === addModelProvider.value);
+  if (!prov || !prov.baseUrl) {
+    MessagePlugin.warning("该供应商未配置 Base URL，无法自动获取");
+    return;
+  }
+  autoModelsLoading.value = true;
+  try {
+    const list = await window.services.fetchProviderModels(prov.baseUrl, prov.apiKey);
+    autoModels.value = list;
+    if (list.length === 0) MessagePlugin.info("接口返回空列表");
+  } catch (e) {
+    MessagePlugin.error("获取失败: " + e.message);
+  } finally {
+    autoModelsLoading.value = false;
+  }
+};
+
+const applyAutoModel = (m) => {
+  addModelForm.value = {
+    ...addModelForm.value,
+    id: m.id,
+    name: m.name || m.id,
+    contextWindow: m.contextWindow || 0,
+    maxTokens: m.maxTokens || 0,
+    reasoning: !!m.reasoning,
+  };
+};
+
+const handleQuickAddModel = (m) => {
+  try {
+    window.services.addOmpModel(addModelProvider.value, {
+      id: m.id,
+      name: m.name || m.id,
+      contextWindow: m.contextWindow || 0,
+      maxTokens: m.maxTokens || 0,
+      reasoning: !!m.reasoning,
+    });
+    MessagePlugin.success(`模型 ${m.id} 已添加`);
+    refresh();
+  } catch (e) {
+    MessagePlugin.error("添加失败: " + e.message);
+  }
+};
+
+const handleAddModel = () => {
+  try {
+    const id = addModelForm.value.id.trim();
+    if (!id) { MessagePlugin.warning("请输入模型 ID"); return; }
+    const payload = buildModelPayload(addModelForm.value, id);
+    window.services.addOmpModel(addModelProvider.value, payload);
+    MessagePlugin.success(`模型 ${id} 已添加`);
+    addModelDialog.value = false;
+    refresh();
+  } catch (e) {
+    MessagePlugin.error("添加失败: " + e.message);
+  }
+};
+
+const openEditModelDialog = (provName, m) => {
+  editModelProvider.value = provName;
+  editingModelId.value = m.id;
+  newModelId.value = m.id;
+  editModelForm.value = {
+    name: m.name || "",
+    contextWindow: m.contextWindow || 0,
+    maxTokens: m.maxTokens || 0,
+    reasoning: !!m.reasoning,
+    input: m.input || ["text"],
+    thinking: m.thinking ? { minLevel: m.thinking.minLevel || "", maxLevel: m.thinking.maxLevel || "", mode: m.thinking.mode || "" } : emptyThinking(),
+    cost: (m.cost && m.cost.input != null) ? { ...m.cost } : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    compat: m.compat ? Object.entries(m.compat).map(([key, value]) => ({ key, value })) : [],
+  };
+  modelAdvancedOpen.value = false;
+  editModelDialog.value = true;
+};
+
+const handleSaveModel = () => {
+  try {
+    const finalId = newModelId.value.trim() || editingModelId.value;
+    if (finalId !== editingModelId.value) {
+      // ID 变化：删旧 + 建新
+      window.services.deleteOmpModel(editModelProvider.value, editingModelId.value);
+      window.services.addOmpModel(editModelProvider.value, buildModelPayload(editModelForm.value, finalId));
+    } else {
+      const { thinking, ...rest } = buildModelPayload(editModelForm.value, editingModelId.value);
+      window.services.updateOmpModel(editModelProvider.value, editingModelId.value, { ...rest, thinking });
+    }
+    MessagePlugin.success("模型已更新");
+    editModelDialog.value = false;
+    refresh();
+  } catch (e) {
+    MessagePlugin.error("保存失败: " + e.message);
+  }
+};
+
+const handleDeleteModel = (providerName, modelId) => {
+  try {
+    window.services.deleteOmpModel(providerName, modelId);
+    MessagePlugin.success(`模型 ${modelId} 已删除`);
+    refresh();
+  } catch (e) {
+    MessagePlugin.error("删除失败: " + e.message);
+  }
+};
+
+// ==================== 工具 ====================
+
+const formatNumber = (n) => {
+  if (!n) return "0";
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+  return String(n);
+};
+
+const openOmpDir = () => {
+  try { window.services.openOmpDir(); } catch { /* ignore */ }
+};
+
+onMounted(refresh);
+</script>
+
+<template>
+  <div class="omp-config-container">
+    <div class="omp-config-header">
+      <span class="omp-config-tip">
+        omp CLI 配置 — 模型角色走 <code class="hint-link">omp config</code>，供应商见
+        <span class="hint-link" @click="openOmpDir">~/.omp/agent/models.yml</span>
+      </span>
+      <div class="omp-config-actions">
+        <Button size="small" variant="outline" @click="openOmpDir">
+          <template #icon><FolderOpen1Icon /></template> 打开目录
+        </Button>
+        <Button size="small" variant="outline" :loading="loading" @click="refresh">
+          <template #icon><RefreshIcon /></template> 刷新
+        </Button>
+      </div>
+    </div>
+
+    <div v-if="warningMsg" class="omp-config-warning">
+      <t-alert :message="warningMsg" theme="warning" show-icon />
+    </div>
+
+    <template v-if="!loading">
+      <!-- 模型角色 -->
+      <Card :bordered="true" class="omp-roles-card">
+        <template #header>
+          <div class="omp-roles-header">
+            <Space size="12px" align="center">
+              <span class="omp-roles-title">模型角色</span>
+              <span class="omp-roles-sub">config.yml · modelRoles</span>
+              <Tag size="small" variant="outline">{{ configuredRoles.length }} 个已配置</Tag>
+            </Space>
+            <Dropdown
+              v-if="unconfiguredRoles.length"
+              :options="unconfiguredRoles.map(r => ({ content: `${ROLE_LABELS[r] || r} (${r})`, value: r }))"
+              :min-column-width="140"
+              @click="onAddRole"
+            >
+              <Button size="small" variant="outline">
+                <template #icon><AddIcon /></template> 添加角色
+              </Button>
+            </Dropdown>
+          </div>
+        </template>
+        <div v-for="role in configuredRoles" :key="role" class="omp-role-row">
+          <Space size="8px" align="center" class="omp-role-name-wrap">
+            <span class="omp-role-name">{{ ROLE_LABELS[role] || role }}</span>
+            <code class="omp-role-code">{{ role }}</code>
+          </Space>
+          <Space size="8px" align="center" class="omp-role-model">
+            <span class="omp-role-model-name">{{ roleDisplays[role]?.modelName }}</span>
+            <span class="omp-role-model-ref mono">{{ roleDisplays[role]?.provider }}/{{ roleDisplays[role]?.model }}</span>
+            <Tag v-if="roleDisplays[role]?.level" size="small" theme="warning" variant="light">{{ roleDisplays[role].level }}</Tag>
+          </Space>
+          <div class="omp-role-actions">
+            <Button size="small" variant="text" @click="openRoleDialog(role)">
+              <template #icon><EditIcon /></template> 编辑
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      <!-- 供应商与模型 -->
+      <div class="omp-providers-header">
+        <span class="omp-providers-title">供应商与模型 · models.yml</span>
+        <Button size="small" variant="outline" @click="openAddProviderDialog">
+          <template #icon><AddIcon /></template> 添加供应商
+        </Button>
+      </div>
+
+      <div v-if="providers.length === 0" class="omp-config-empty">
+        <Empty description="未检测到 omp 供应商配置，请在终端中配置或手动编辑 models.yml" />
+      </div>
+
+      <div v-else class="omp-provider-list">
+        <Card v-for="prov in providers" :key="prov.name" :bordered="true" class="omp-provider-card">
+          <template #header>
+            <div class="omp-provider-header" @click="toggleExpand(prov.name)">
+              <Space size="small" align="center">
+                <span v-if="expanded.has(prov.name)" class="omp-expand-icon"><ChevronDownIcon /></span>
+                <span v-else class="omp-expand-icon"><ChevronRightIcon /></span>
+                <span class="omp-provider-name">{{ prov.name }}</span>
+                <Tag size="small" variant="outline">{{ prov.api || 'openai-completions' }}</Tag>
+                <span class="omp-model-count">{{ prov.models.length }} 个模型</span>
+              </Space>
+              <div class="omp-provider-header-right" @click.stop>
+                <Space size="4px" align="center">
+                  <Tooltip content="编辑配置" placement="top">
+                    <Button size="small" variant="text" @click="handleEdit(prov)">
+                      <template #icon><EditIcon /></template>
+                    </Button>
+                  </Tooltip>
+                  <Popconfirm content="确定删除此供应商？其下所有模型也会被删除。" @confirm="handleDeleteProvider(prov.name)">
+                    <Button size="small" variant="text" theme="danger">
+                      <template #icon><DeleteIcon /></template>
+                    </Button>
+                  </Popconfirm>
+                </Space>
+              </div>
+            </div>
+          </template>
+
+          <template v-if="expanded.has(prov.name)">
+            <div class="omp-provider-info">
+              <Space size="8px" align="center" class="omp-info-row">
+                <span class="omp-info-label">API Key</span>
+                <span class="omp-info-value mono">{{ prov.apiKey ? prov.apiKey.slice(0, 8) + '...' + prov.apiKey.slice(-4) : '未设置' }}</span>
+              </Space>
+              <Space size="8px" align="center" class="omp-info-row">
+                <span class="omp-info-label">Base URL</span>
+                <span class="omp-info-value mono">{{ prov.baseUrl || '默认' }}</span>
+              </Space>
+            </div>
+
+            <div class="omp-models-section">
+              <div class="omp-models-title">
+                <span>模型列表</span>
+                <Button size="small" variant="text" @click="openAddModelDialog(prov.name)">
+                  <template #icon><AddIcon /></template> 添加模型
+                </Button>
+              </div>
+              <div v-for="m in prov.models" :key="m.id" class="omp-model-item">
+                <Space size="6px" align="center" class="omp-model-info">
+                  <span class="omp-model-name">{{ m.name }}</span>
+                  <span class="omp-model-id mono">{{ m.id }}</span>
+                  <Tag v-if="m.reasoning" size="small" theme="warning" variant="light">推理</Tag>
+                  <Tag v-if="m.thinking?.mode" size="small" variant="outline">think:{{ m.thinking.mode }}</Tag>
+                </Space>
+                <Space size="12px" align="center" class="omp-model-meta">
+                  <span class="omp-model-stat">上下文: {{ formatNumber(m.contextWindow) }}</span>
+                  <span class="omp-model-stat">最大输出: {{ formatNumber(m.maxTokens) }}</span>
+                  <span v-if="m.input && m.input.includes('image')" class="omp-model-stat">图像</span>
+                  <span v-if="m.cost && m.cost.input != null" class="omp-model-stat">
+                    费用: ¥{{ m.cost.input }}/1M in · ¥{{ m.cost.output }}/1M out
+                  </span>
+                </Space>
+                <div class="omp-model-actions" @click.stop>
+                  <Tooltip content="编辑模型" placement="top">
+                    <Button size="small" variant="text" @click="openEditModelDialog(prov.name, m)">
+                      <template #icon><EditIcon /></template>
+                    </Button>
+                  </Tooltip>
+                  <Popconfirm content="确定删除此模型？" @confirm="handleDeleteModel(prov.name, m.id)">
+                    <Button size="small" variant="text" theme="danger">
+                      <template #icon><DeleteIcon /></template>
+                    </Button>
+                  </Popconfirm>
+                </div>
+              </div>
+            </div>
+          </template>
+        </Card>
+      </div>
+    </template>
+
+    <!-- 角色编辑弹窗 -->
+    <Dialog v-model:visible="roleDialog" :header="`选择模型角色 — ${ROLE_LABELS[editingRole] || editingRole}`" width="480px" :confirm-btn="{ content: '保存', theme: 'primary' }" @confirm="saveRole">
+      <div class="omp-edit-form">
+        <div class="omp-form-item">
+          <label>角色</label>
+          <div class="omp-edit-role-name"><code>{{ editingRole }}</code></div>
+        </div>
+        <div class="omp-form-item">
+          <label>供应商</label>
+          <Select v-model="roleForm.provider" :options="providers.map(p => ({ label: p.name, value: p.name }))" filterable placeholder="选择供应商" @change="onRoleProviderChange" />
+        </div>
+        <div class="omp-form-item">
+          <label>模型</label>
+          <Select v-model="roleForm.modelId" :options="roleModelOptions" filterable placeholder="选择模型" />
+        </div>
+        <div class="omp-form-item">
+          <label>思考级别</label>
+          <Select v-model="roleForm.level" :options="roleLevelOptions" placeholder="默认（不指定）" />
+          <div class="omp-form-hint">级别范围由所选模型的 thinking 配置决定</div>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 供应商编辑弹窗 -->
+    <Dialog v-model:visible="editDialog" header="编辑供应商配置" width="480px" :confirm-btn="{ content: '保存', theme: 'primary' }" @confirm="handleSaveProvider">
+      <div class="omp-edit-form">
+        <div class="omp-form-item">
+          <label>供应商名称</label>
+          <Input v-model="newProviderName" placeholder="供应商名称" />
+        </div>
+        <div class="omp-form-item">
+          <label>Base URL</label>
+          <Input v-model="editForm.baseUrl" placeholder="留空则使用默认 URL" />
+        </div>
+        <div class="omp-form-item">
+          <label>API Key</label>
+          <ApiKeyInput v-model="editForm.apiKey" placeholder="输入 API Key" />
+        </div>
+        <div class="omp-form-item">
+          <label>API 类型</label>
+          <Select v-model="editForm.api" :options="API_TYPE_OPTIONS" />
+        </div>
+        <div class="omp-form-item">
+          <label>自动添加 Authorization 头</label>
+          <Switch v-model="editForm.authHeader" />
+        </div>
+        <div class="omp-form-item">
+          <label>自定义请求头 (headers)</label>
+          <DynamicKvEditor
+            v-model="editForm.headers"
+            :key-options="HEADER_KEY_OPTIONS"
+            key-placeholder="Header 名"
+            value-placeholder="Header 值"
+          />
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 供应商添加弹窗 -->
+    <Dialog v-model:visible="addProviderDialog" header="添加供应商" width="480px" :confirm-btn="{ content: '添加', theme: 'primary' }" @confirm="handleAddProvider">
+      <div class="omp-edit-form">
+        <div class="omp-form-item">
+          <label>供应商名称 <span class="omp-form-required">*</span></label>
+          <Input v-model="addProviderForm.name" placeholder="例如：openai、deepseek、zhipu" />
+        </div>
+        <div class="omp-form-item">
+          <label>Base URL</label>
+          <Input v-model="addProviderForm.baseUrl" placeholder="留空使用供应商默认 URL" />
+        </div>
+        <div class="omp-form-item">
+          <label>API Key</label>
+          <ApiKeyInput v-model="addProviderForm.apiKey" placeholder="输入 API Key（可留空后续再填）" />
+        </div>
+        <div class="omp-form-item">
+          <label>API 类型</label>
+          <Select v-model="addProviderForm.api" :options="API_TYPE_OPTIONS" />
+        </div>
+        <div class="omp-form-item">
+          <label>自动添加 Authorization 头</label>
+          <Switch v-model="addProviderForm.authHeader" />
+        </div>
+        <div class="omp-form-item">
+          <label>自定义请求头 (headers)</label>
+          <DynamicKvEditor
+            v-model="addProviderForm.headers"
+            :key-options="HEADER_KEY_OPTIONS"
+            key-placeholder="Header 名"
+            value-placeholder="Header 值"
+          />
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 添加模型弹窗 -->
+    <Dialog v-model:visible="addModelDialog" header="添加模型" width="520px" :confirm-btn="{ content: '添加', theme: 'primary' }" @confirm="handleAddModel">
+      <div class="omp-edit-form">
+        <div class="omp-form-item">
+          <label>所属供应商</label>
+          <div class="omp-edit-provider-name">{{ addModelProvider }}</div>
+        </div>
+
+        <div class="omp-form-item">
+          <div class="omp-form-row-between">
+            <label>从供应商接口自动获取</label>
+            <Button size="small" variant="outline" :loading="autoModelsLoading" @click="handleAutoFetchModels">
+              <template #icon><RefreshIcon /></template> 自动获取
+            </Button>
+          </div>
+          <div v-if="autoModels.length > 0" class="omp-auto-model-list">
+            <div v-for="m in autoModels" :key="m.id" class="omp-auto-model-item">
+              <span class="omp-auto-model-id">{{ m.name || m.id }}</span>
+              <span v-if="m.contextWindow" class="omp-auto-model-meta">ctx {{ formatNumber(m.contextWindow) }}</span>
+              <span v-if="m.maxTokens" class="omp-auto-model-meta">out {{ formatNumber(m.maxTokens) }}</span>
+              <span v-if="m.reasoning" class="omp-auto-model-tag">推理</span>
+              <span class="omp-auto-model-add">
+                <Button size="small" variant="text" @click="handleQuickAddModel(m)">直接添加</Button>
+                <Button size="small" variant="text" @click="applyAutoModel(m)">填入表单</Button>
+              </span>
+            </div>
+          </div>
+          <div v-else-if="!autoModelsLoading" class="omp-form-hint">
+            点击「自动获取」从供应商 /models 接口拉取，点击「直接添加」一键写入，或「填入表单」手动修改后再添加
+          </div>
+        </div>
+
+        <div class="omp-form-item">
+          <label>模型 ID <span class="omp-form-required">*</span></label>
+          <Input v-model="addModelForm.id" placeholder="例如：gpt-4o、deepseek-chat" />
+        </div>
+        <div class="omp-form-item">
+          <label>显示名称</label>
+          <Input v-model="addModelForm.name" placeholder="留空则使用模型 ID" />
+        </div>
+        <div class="omp-form-item">
+          <label>输入类型</label>
+          <CheckboxGroup v-model="addModelForm.input">
+            <Checkbox v-for="opt in INPUT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</Checkbox>
+          </CheckboxGroup>
+        </div>
+        <div class="omp-form-row">
+          <div class="omp-form-item">
+            <label>上下文窗口</label>
+            <InputNumber v-model="addModelForm.contextWindow" :min="0" placeholder="留空默认 128000" />
+          </div>
+          <div class="omp-form-item">
+            <label>最大输出</label>
+            <InputNumber v-model="addModelForm.maxTokens" :min="0" placeholder="留空默认 16384" />
+          </div>
+        </div>
+        <div class="omp-form-item">
+          <label>
+            <input type="checkbox" v-model="addModelForm.reasoning" /> 推理模型
+          </label>
+        </div>
+        <Collapse v-model="modelAdvancedOpen" class="omp-advanced-collapse">
+          <CollapsePanel value="1" header="高级配置（思考级别 / 费用 / 兼容性）">
+            <div class="omp-form-item">
+              <label>思考级别 (thinking)</label>
+              <div class="omp-form-row">
+                <div class="omp-form-item">
+                  <label>模式</label>
+                  <Select v-model="addModelForm.thinking.mode" :options="THINKING_MODE_OPTIONS" clearable placeholder="不设置" />
+                </div>
+              </div>
+              <div class="omp-form-row">
+                <div class="omp-form-item">
+                  <label>最小级别</label>
+                  <Select v-model="addModelForm.thinking.minLevel" :options="LEVEL_ORDER.map(v => ({ label: v, value: v }))" clearable placeholder="不限制" />
+                </div>
+                <div class="omp-form-item">
+                  <label>最大级别</label>
+                  <Select v-model="addModelForm.thinking.maxLevel" :options="LEVEL_ORDER.map(v => ({ label: v, value: v }))" clearable placeholder="不限制" />
+                </div>
+              </div>
+              <div class="omp-form-hint">角色选择模型时，思考级别只显示 minLevel ~ maxLevel 范围</div>
+            </div>
+            <div class="omp-form-item">
+              <label>费用 (cost) — 每百万 Token</label>
+              <div class="omp-form-row">
+                <div class="omp-form-item">
+                  <label>输入</label>
+                  <InputNumber v-model="addModelForm.cost.input" :min="0" :step="0.1" placeholder="0" />
+                </div>
+                <div class="omp-form-item">
+                  <label>输出</label>
+                  <InputNumber v-model="addModelForm.cost.output" :min="0" :step="0.1" placeholder="0" />
+                </div>
+              </div>
+              <div class="omp-form-row">
+                <div class="omp-form-item">
+                  <label>缓存读取</label>
+                  <InputNumber v-model="addModelForm.cost.cacheRead" :min="0" :step="0.1" placeholder="0" />
+                </div>
+                <div class="omp-form-item">
+                  <label>缓存写入</label>
+                  <InputNumber v-model="addModelForm.cost.cacheWrite" :min="0" :step="0.1" placeholder="0" />
+                </div>
+              </div>
+            </div>
+            <div class="omp-form-item">
+              <label>兼容性 (compat)</label>
+              <DynamicKvEditor
+                v-model="addModelForm.compat"
+                :key-options="COMPAT_KEY_OPTIONS"
+                key-placeholder="compat 字段名"
+                value-placeholder="compat 值"
+              />
+            </div>
+          </CollapsePanel>
+        </Collapse>
+      </div>
+    </Dialog>
+
+    <!-- 编辑模型弹窗 -->
+    <Dialog v-model:visible="editModelDialog" header="编辑模型" width="520px" :confirm-btn="{ content: '保存', theme: 'primary' }" @confirm="handleSaveModel">
+      <div class="omp-edit-form">
+        <div class="omp-form-item">
+          <label>模型 ID</label>
+          <Input v-model="newModelId" placeholder="模型 ID" />
+        </div>
+        <div class="omp-form-item">
+          <label>显示名称</label>
+          <Input v-model="editModelForm.name" placeholder="显示名称" />
+        </div>
+        <div class="omp-form-item">
+          <label>输入类型</label>
+          <CheckboxGroup v-model="editModelForm.input">
+            <Checkbox v-for="opt in INPUT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</Checkbox>
+          </CheckboxGroup>
+        </div>
+        <div class="omp-form-row">
+          <div class="omp-form-item">
+            <label>上下文窗口</label>
+            <InputNumber v-model="editModelForm.contextWindow" :min="0" placeholder="留空默认 128000" />
+          </div>
+          <div class="omp-form-item">
+            <label>最大输出</label>
+            <InputNumber v-model="editModelForm.maxTokens" :min="0" placeholder="留空默认 16384" />
+          </div>
+        </div>
+        <div class="omp-form-item">
+          <label>
+            <input type="checkbox" v-model="editModelForm.reasoning" /> 推理模型
+          </label>
+        </div>
+        <Collapse v-model="modelAdvancedOpen" class="omp-advanced-collapse">
+          <CollapsePanel value="1" header="高级配置（思考级别 / 费用 / 兼容性）">
+            <div class="omp-form-item">
+              <label>思考级别 (thinking)</label>
+              <div class="omp-form-row">
+                <div class="omp-form-item">
+                  <label>模式</label>
+                  <Select v-model="editModelForm.thinking.mode" :options="THINKING_MODE_OPTIONS" clearable placeholder="不设置" />
+                </div>
+              </div>
+              <div class="omp-form-row">
+                <div class="omp-form-item">
+                  <label>最小级别</label>
+                  <Select v-model="editModelForm.thinking.minLevel" :options="LEVEL_ORDER.map(v => ({ label: v, value: v }))" clearable placeholder="不限制" />
+                </div>
+                <div class="omp-form-item">
+                  <label>最大级别</label>
+                  <Select v-model="editModelForm.thinking.maxLevel" :options="LEVEL_ORDER.map(v => ({ label: v, value: v }))" clearable placeholder="不限制" />
+                </div>
+              </div>
+              <div class="omp-form-hint">角色选择模型时，思考级别只显示 minLevel ~ maxLevel 范围</div>
+            </div>
+            <div class="omp-form-item">
+              <label>费用 (cost) — 每百万 Token</label>
+              <div class="omp-form-row">
+                <div class="omp-form-item">
+                  <label>输入</label>
+                  <InputNumber v-model="editModelForm.cost.input" :min="0" :step="0.1" placeholder="0" />
+                </div>
+                <div class="omp-form-item">
+                  <label>输出</label>
+                  <InputNumber v-model="editModelForm.cost.output" :min="0" :step="0.1" placeholder="0" />
+                </div>
+              </div>
+              <div class="omp-form-row">
+                <div class="omp-form-item">
+                  <label>缓存读取</label>
+                  <InputNumber v-model="editModelForm.cost.cacheRead" :min="0" :step="0.1" placeholder="0" />
+                </div>
+                <div class="omp-form-item">
+                  <label>缓存写入</label>
+                  <InputNumber v-model="editModelForm.cost.cacheWrite" :min="0" :step="0.1" placeholder="0" />
+                </div>
+              </div>
+            </div>
+            <div class="omp-form-item">
+              <label>兼容性 (compat)</label>
+              <DynamicKvEditor
+                v-model="editModelForm.compat"
+                :key-options="COMPAT_KEY_OPTIONS"
+                key-placeholder="compat 字段名"
+                value-placeholder="compat 值"
+              />
+            </div>
+          </CollapsePanel>
+        </Collapse>
+      </div>
+    </Dialog>
+  </div>
+</template>

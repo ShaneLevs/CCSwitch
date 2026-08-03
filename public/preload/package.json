@@ -1,6 +1,7 @@
 {
   "type": "commonjs",
   "dependencies": {
+    "js-yaml": "^5.2.3",
     "json5": "^2.2.3"
   }
 }

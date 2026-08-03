@@ -8,6 +8,7 @@ const opencode = require('./services/opencode')
 const plugins = require('./services/plugins')
 const usage = require('./services/usage')
 const pi = require('./services/pi')
+const omp = require('./services/omp')
 
 const {
   CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_SKILLS_PATH,
@@ -1199,6 +1200,24 @@ window.services = {
   openPiExtDir: pi.openPiExtDir,
   isPiInstalled: pi.isPiInstalled,
   resolvePiPath: pi.resolvePiPath,
+
+  // ==================== omp ====================
+
+  readOmpModelRoles: omp.readOmpModelRoles,
+  writeOmpModelRoles: omp.writeOmpModelRoles,
+  parseOmpModelRef: omp.parseOmpModelRef,
+  getOmpModelRoleRefs: omp.getOmpModelRoleRefs,
+  readOmpModels: omp.readOmpModels,
+  writeOmpModels: omp.writeOmpModels,
+  getOmpProviderList: omp.getOmpProviderList,
+  addOmpProvider: omp.addOmpProvider,
+  updateOmpProvider: omp.updateOmpProvider,
+  deleteOmpProvider: omp.deleteOmpProvider,
+  addOmpModel: omp.addOmpModel,
+  updateOmpModel: omp.updateOmpModel,
+  deleteOmpModel: omp.deleteOmpModel,
+  openOmpDir: omp.openOmpDir,
+  isOmpInstalled: omp.isOmpInstalled,
 }
 
 // 辅助函数：递归查找 SKILL.md
