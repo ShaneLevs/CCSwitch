@@ -21,11 +21,30 @@ function bundlePreloadPlugin() {
       allowOverwrite: true,
       logLevel: 'info',
     })
+    // Vite 会把 public/preload 整个复制到 dist（含 node_modules），但依赖已被 esbuild
+    // bundle 进 services.js，运行时不需要；且 js-yaml 自带 .map 调试文件，uTools 打包会
+    // 拒绝，因此构建后清理复制的 node_modules
+    const nodeModulesDir = path.join(outDir, 'node_modules')
+    if (fs.existsSync(nodeModulesDir)) {
+      fs.rmSync(nodeModulesDir, { recursive: true, force: true })
+    }
   }
   return {
     name: 'bundle-preload',
     async buildStart() { await buildPreload() },
-    async closeBundle() { await buildPreload() },
+    async closeBundle() {
+      await buildPreload()
+      // 清理构建产物中的 macOS 系统文件（uTools 打包可能拒绝 .DS_Store）
+      const walk = (dir) => {
+        if (!fs.existsSync(dir)) return
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const p = path.join(dir, entry.name)
+          if (entry.isDirectory()) walk(p)
+          else if (entry.name === '.DS_Store') fs.rmSync(p, { force: true })
+        }
+      }
+      walk(path.resolve(__dirname, 'dist'))
+    },
     async configureServer(server) {
       await buildPreload()
       const watcher = server.watcher
