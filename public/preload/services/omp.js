@@ -79,6 +79,7 @@ const getOmpProviderList = () => {
     headers: cfg.headers || {},
     authHeader: !!cfg.authHeader,
     models: (cfg.models || []).map(m => ({
+      ...m, // 保留所有原始字段（compat 及自定义同级参数）
       id: m.id,
       name: m.name || m.id,
       contextWindow: m.contextWindow || undefined,
@@ -147,9 +148,14 @@ const addOmpModel = (providerName, model) => {
     reasoning: !!model.reasoning,
     input: model.input || ['text'],
     cost,
-    compat: model.compat || {},
   }
   if (model.thinking) next.thinking = model.thinking
+  if (model.compat && Object.keys(model.compat).length) next.compat = model.compat
+  // 自定义字段（其他参数里未预定义的）也一并写入
+  for (const [k, v] of Object.entries(model)) {
+    if (['id', 'name', 'contextWindow', 'maxTokens', 'reasoning', 'input', 'thinking', 'cost', 'compat'].includes(k)) continue
+    next[k] = v
+  }
   prov.models.push(next)
   writeOmpModels(models)
 }
@@ -176,7 +182,23 @@ const updateOmpModel = (providerName, modelId, updates) => {
     }
   }
   if (updates.cost !== undefined) next.cost = updates.cost
-  if (updates.compat !== undefined) next.compat = updates.compat
+  // compat：updates 里没有（用户从 YAML 删掉整个 compat 块）→ 删除；显式空对象 → 删除
+  if (updates.compat !== undefined) {
+    if (updates.compat && Object.keys(updates.compat).length) next.compat = updates.compat
+    else delete next.compat
+  } else {
+    delete next.compat
+  }
+  // 自定义字段（其他参数里未预定义的）合并：增 + 改
+  for (const [k, v] of Object.entries(updates)) {
+    if (['id', 'name', 'contextWindow', 'maxTokens', 'reasoning', 'input', 'thinking', 'cost', 'compat'].includes(k)) continue
+    next[k] = v
+  }
+  // 删除用户在 YAML 文本框里删掉的自定义字段（round-trip 应反映删除）
+  for (const k of Object.keys(next)) {
+    if (['id', 'name', 'contextWindow', 'maxTokens', 'reasoning', 'input', 'thinking', 'cost', 'compat'].includes(k)) continue
+    if (!(k in updates)) delete next[k]
+  }
   prov.models[idx] = next
   writeOmpModels(models)
 }

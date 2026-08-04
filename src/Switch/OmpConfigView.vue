@@ -1,14 +1,15 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import {
-  Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin,
+  Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, Textarea, MessagePlugin,
   Select, Switch, CheckboxGroup, Checkbox, Collapse, CollapsePanel, Popconfirm, Alert as TAlert,
-  Dropdown,
+  Dropdown, RadioGroup, RadioButton,
 } from "tdesign-vue-next";
 import {
   RefreshIcon, EditIcon, FolderOpen1Icon, AddIcon, DeleteIcon,
   ChevronDownIcon, ChevronRightIcon,
 } from "tdesign-icons-vue-next";
+import { load as yamlLoad, dump as yamlDump } from "js-yaml";
 import ApiKeyInput from "../components/ApiKeyInput.vue";
 import DynamicKvEditor from "../components/DynamicKvEditor.vue";
 import "./styles/OmpConfigView.css";
@@ -46,11 +47,28 @@ const INPUT_TYPE_OPTIONS = [
   { label: "图像 (image)", value: "image" },
 ];
 
-const HEADER_KEY_OPTIONS = ["x-portkey-api-key", "x-api-key", "Authorization", "x-secret"];
-const COMPAT_KEY_OPTIONS = [
-  "supportsDeveloperRole", "supportsReasoningEffort", "supportsUsageInStreaming",
-  "maxTokensField", "supportsStore", "thinkingFormat",
+// 上下文窗口 / 最大输出 常见值选项
+const CTX_OPTIONS = [
+  { label: "默认", value: 0 },
+  { label: "32K", value: 32000 },
+  { label: "64K", value: 64000 },
+  { label: "128K", value: 128000 },
+  { label: "200K", value: 200000 },
+  { label: "1M", value: 1000000 },
 ];
+const TOKENS_OPTIONS = [
+  { label: "默认", value: 0 },
+  { label: "4K", value: 4096 },
+  { label: "8K", value: 8192 },
+  { label: "16K", value: 16384 },
+  { label: "32K", value: 32768 },
+  { label: "64K", value: 65536 },
+  { label: "128K", value: 128000 },
+  { label: "256K", value: 256000 },
+  { label: "384K", value: 384000 },
+];
+
+const HEADER_KEY_OPTIONS = ["x-portkey-api-key", "x-api-key", "Authorization", "x-secret"];
 
 const THINKING_MODE_OPTIONS = [
   { label: "effort", value: "effort" },
@@ -58,6 +76,40 @@ const THINKING_MODE_OPTIONS = [
 ];
 
 const emptyThinking = () => ({ minLevel: "", maxLevel: "", mode: "" });
+
+// 表单已管理的模型字段（不在 YAML 文本框里展示）
+const MODEL_FORM_KEYS = ["id", "name", "contextWindow", "maxTokens", "reasoning", "input", "thinking", "cost"];
+
+// compat 等参数用 YAML 文本编辑（子级 4 空格缩进，照搬 models.yml 写法）
+const dumpYaml = (obj) => {
+  if (obj == null) return "";
+  try { return yamlDump(obj, { indent: 4 }).replace(/\n$/, ""); } catch { return ""; }
+};
+const parseYaml = (str) => {
+  const t = (str ?? "").trim();
+  if (!t) return {};
+  try {
+    const result = yamlLoad(t);
+    // 必须是普通对象（映射）；标量/数组展开成 `...other` 会产生数字键垃圾
+    if (result === null || typeof result !== "object" || Array.isArray(result)) return null;
+    return result;
+  } catch { return null; }
+};
+
+// 提取模型对象中表单未管理的字段（compat 及自定义同级参数）
+const dumpOtherFields = (model) => {
+  if (!model || typeof model !== "object") return "";
+  const rest = {};
+  for (const [k, v] of Object.entries(model)) {
+    if (MODEL_FORM_KEYS.includes(k)) continue;
+    // 跳过空值：undefined/null/''/空对象/空数组（避免显示 compat: {}）
+    if (v == null) continue;
+    if (typeof v === "object" && Object.keys(v).length === 0) continue;
+    rest[k] = v;
+  }
+  if (!Object.keys(rest).length) return "";
+  return dumpYaml(rest);
+};
 
 // ==================== State ====================
 
@@ -75,7 +127,6 @@ const roleForm = ref({ provider: "", modelId: "", level: "" });
 // 供应商弹窗
 const editDialog = ref(false);
 const editingProvider = ref(null);
-const newProviderName = ref("");
 const editForm = ref({ apiKey: "", baseUrl: "", api: "openai-completions", headers: [], authHeader: true });
 const addProviderDialog = ref(false);
 const addProviderForm = ref({ name: "", apiKey: "", baseUrl: "", api: "openai-completions", headers: [], authHeader: true });
@@ -83,12 +134,12 @@ const addProviderForm = ref({ name: "", apiKey: "", baseUrl: "", api: "openai-co
 // 模型弹窗
 const addModelDialog = ref(false);
 const addModelProvider = ref(null);
-const addModelForm = ref({ id: "", name: "", contextWindow: 0, maxTokens: 0, reasoning: false, input: ["text"], thinking: emptyThinking(), cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, compat: [] });
+const addModelForm = ref({ id: "", name: "", contextWindow: 0, maxTokens: 0, reasoning: false, input: ["text"], thinking: emptyThinking(), cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, otherYaml: "" });
 const editModelDialog = ref(false);
 const editModelProvider = ref(null);
 const editingModelId = ref(null);
 const newModelId = ref("");
-const editModelForm = ref({ name: "", contextWindow: 0, maxTokens: 0, reasoning: false, input: ["text"], thinking: emptyThinking(), cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, compat: [] });
+const editModelForm = ref({ name: "", contextWindow: 0, maxTokens: 0, reasoning: false, input: ["text"], thinking: emptyThinking(), cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, otherYaml: "" });
 const modelAdvancedOpen = ref(false);
 
 const autoModels = ref([]);
@@ -227,11 +278,22 @@ const saveRole = () => {
   }
 };
 
+const handleDeleteRole = (role) => {
+  try {
+    const next = { ...modelRoles.value };
+    delete next[role];
+    window.services.writeOmpModelRoles(next);
+    modelRoles.value = next;
+    MessagePlugin.success(`已删除角色 ${role}`);
+  } catch (e) {
+    MessagePlugin.error("删除失败: " + e.message);
+  }
+};
+
 // ==================== 供应商 CRUD ====================
 
 const handleEdit = (provider) => {
   editingProvider.value = provider.name;
-  newProviderName.value = provider.name;
   editForm.value = {
     apiKey: provider.apiKey || "",
     baseUrl: provider.baseUrl || "",
@@ -259,17 +321,8 @@ const buildProviderPayload = (form) => {
 const handleSaveProvider = () => {
   try {
     const payload = buildProviderPayload(editForm.value);
-    const finalName = newProviderName.value.trim() || editingProvider.value;
-    if (finalName !== editingProvider.value) {
-      // 名称变化：删旧 + 建新（保留模型）
-      const data = window.services.readOmpModels();
-      const oldProv = data.providers[editingProvider.value];
-      delete data.providers[editingProvider.value];
-      data.providers[finalName] = { ...payload, models: oldProv.models || [] };
-      window.services.writeOmpModels(data);
-    } else {
-      window.services.updateOmpProvider(editingProvider.value, payload);
-    }
+    // 供应商名称是 providers 的唯一 key，不允许重命名
+    window.services.updateOmpProvider(editingProvider.value, payload);
     MessagePlugin.success("供应商配置已更新");
     editDialog.value = false;
     refresh();
@@ -309,10 +362,8 @@ const handleDeleteProvider = (providerName) => {
 // ==================== 模型 CRUD ====================
 
 const buildModelPayload = (form, fallbackId) => {
-  const compatObj = {};
-  (form.compat || []).forEach(({ key, value }) => {
-    if (key && key.trim()) compatObj[key.trim()] = value;
-  });
+  const other = parseYaml(form.otherYaml);
+  if (other === null) throw new Error("其他参数 (YAML) 格式不正确");
   const id = form.id?.trim() || fallbackId;
   const thinking = {};
   if (form.thinking?.mode) thinking.mode = form.thinking.mode;
@@ -320,6 +371,7 @@ const buildModelPayload = (form, fallbackId) => {
   if (form.thinking?.maxLevel) thinking.maxLevel = form.thinking.maxLevel;
   const hasThinking = thinking.mode || thinking.minLevel || thinking.maxLevel;
   return {
+    ...other, // 其他参数（compat 及自定义同级字段），表单字段在后覆盖同名键
     id,
     name: form.name.trim() || id,
     contextWindow: Number(form.contextWindow) || 0,
@@ -327,14 +379,13 @@ const buildModelPayload = (form, fallbackId) => {
     reasoning: form.reasoning,
     input: form.input,
     cost: form.cost,
-    compat: compatObj,
     thinking: hasThinking ? thinking : undefined,
   };
 };
 
 const openAddModelDialog = (providerName) => {
   addModelProvider.value = providerName;
-  addModelForm.value = { id: "", name: "", contextWindow: 0, maxTokens: 0, reasoning: false, input: ["text"], thinking: emptyThinking(), cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, compat: [] };
+  addModelForm.value = { id: "", name: "", contextWindow: 0, maxTokens: 0, reasoning: false, input: ["text"], thinking: emptyThinking(), cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, otherYaml: "" };
   autoModels.value = [];
   autoModelsLoading.value = false;
   modelAdvancedOpen.value = false;
@@ -412,7 +463,7 @@ const openEditModelDialog = (provName, m) => {
     input: m.input || ["text"],
     thinking: m.thinking ? { minLevel: m.thinking.minLevel || "", maxLevel: m.thinking.maxLevel || "", mode: m.thinking.mode || "" } : emptyThinking(),
     cost: (m.cost && m.cost.input != null) ? { ...m.cost } : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    compat: m.compat ? Object.entries(m.compat).map(([key, value]) => ({ key, value })) : [],
+    otherYaml: dumpOtherFields(m),
   };
   modelAdvancedOpen.value = false;
   editModelDialog.value = true;
@@ -517,9 +568,16 @@ onMounted(refresh);
             <Tag v-if="roleDisplays[role]?.level" size="small" theme="warning" variant="light">{{ roleDisplays[role].level }}</Tag>
           </Space>
           <div class="omp-role-actions">
-            <Button size="small" variant="text" @click="openRoleDialog(role)">
-              <template #icon><EditIcon /></template> 编辑
-            </Button>
+            <Space size="4px" align="center">
+              <Button size="small" variant="text" @click="openRoleDialog(role)">
+                <template #icon><EditIcon /></template>
+              </Button>
+              <Popconfirm content="确定删除此角色？删除后该场景将使用系统默认模型。" @confirm="handleDeleteRole(role)">
+                <Button size="small" variant="text" theme="danger">
+                  <template #icon><DeleteIcon /></template>
+                </Button>
+              </Popconfirm>
+            </Space>
           </div>
         </div>
       </Card>
@@ -586,9 +644,6 @@ onMounted(refresh);
               <div v-for="m in prov.models" :key="m.id" class="omp-model-item">
                 <Space size="6px" align="center" class="omp-model-info">
                   <span class="omp-model-name">{{ m.name }}</span>
-                  <span class="omp-model-id mono">{{ m.id }}</span>
-                  <Tag v-if="m.reasoning" size="small" theme="warning" variant="light">推理</Tag>
-                  <Tag v-if="m.thinking?.mode" size="small" variant="outline">think:{{ m.thinking.mode }}</Tag>
                 </Space>
                 <Space size="12px" align="center" class="omp-model-meta">
                   <span class="omp-model-stat">上下文: {{ formatNumber(m.contextWindow) }}</span>
@@ -645,7 +700,7 @@ onMounted(refresh);
       <div class="omp-edit-form">
         <div class="omp-form-item">
           <label>供应商名称</label>
-          <Input v-model="newProviderName" placeholder="供应商名称" />
+          <div class="omp-edit-provider-name">{{ editingProvider }}</div>
         </div>
         <div class="omp-form-item">
           <label>Base URL</label>
@@ -752,24 +807,24 @@ onMounted(refresh);
         </div>
         <div class="omp-form-item">
           <label>输入类型</label>
-          <CheckboxGroup v-model="addModelForm.input">
-            <Checkbox v-for="opt in INPUT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</Checkbox>
-          </CheckboxGroup>
-        </div>
-        <div class="omp-form-row">
-          <div class="omp-form-item">
-            <label>上下文窗口</label>
-            <InputNumber v-model="addModelForm.contextWindow" :min="0" placeholder="留空默认 128000" />
-          </div>
-          <div class="omp-form-item">
-            <label>最大输出</label>
-            <InputNumber v-model="addModelForm.maxTokens" :min="0" placeholder="留空默认 16384" />
-          </div>
+          <Space size="16px" align="center" wrap>
+            <CheckboxGroup v-model="addModelForm.input" class="omp-checkbox-group">
+              <Checkbox v-for="opt in INPUT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</Checkbox>
+            </CheckboxGroup>
+            <Checkbox v-model="addModelForm.reasoning" class="omp-reasoning-checkbox">推理模型</Checkbox>
+          </Space>
         </div>
         <div class="omp-form-item">
-          <label>
-            <input type="checkbox" v-model="addModelForm.reasoning" /> 推理模型
-          </label>
+          <label>上下文窗口</label>
+          <RadioGroup v-model="addModelForm.contextWindow" variant="default-filled" size="small">
+            <RadioButton v-for="opt in CTX_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</RadioButton>
+          </RadioGroup>
+        </div>
+        <div class="omp-form-item">
+          <label>最大输出</label>
+          <RadioGroup v-model="addModelForm.maxTokens" variant="default-filled" size="small">
+            <RadioButton v-for="opt in TOKENS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</RadioButton>
+          </RadioGroup>
         </div>
         <Collapse v-model="modelAdvancedOpen" class="omp-advanced-collapse">
           <CollapsePanel value="1" header="高级配置（思考级别 / 费用 / 兼容性）">
@@ -817,13 +872,13 @@ onMounted(refresh);
               </div>
             </div>
             <div class="omp-form-item">
-              <label>兼容性 (compat)</label>
-              <DynamicKvEditor
-                v-model="addModelForm.compat"
-                :key-options="COMPAT_KEY_OPTIONS"
-                key-placeholder="compat 字段名"
-                value-placeholder="compat 值"
+              <label>其他参数</label>
+              <Textarea
+                v-model="addModelForm.otherYaml"
+                placeholder="compat:&#10;    supportsDeveloperRole: false&#10;    reasoningEffortMap:&#10;        high: high&#10;自定义字段: 值"
+                :autosize="{ minRows: 4, maxRows: 14 }"
               />
+              <div class="omp-form-hint">原生 YAML，除上方表单字段外的模型参数都在这里，子级 4 空格缩进</div>
             </div>
           </CollapsePanel>
         </Collapse>
@@ -843,24 +898,24 @@ onMounted(refresh);
         </div>
         <div class="omp-form-item">
           <label>输入类型</label>
-          <CheckboxGroup v-model="editModelForm.input">
-            <Checkbox v-for="opt in INPUT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</Checkbox>
-          </CheckboxGroup>
-        </div>
-        <div class="omp-form-row">
-          <div class="omp-form-item">
-            <label>上下文窗口</label>
-            <InputNumber v-model="editModelForm.contextWindow" :min="0" placeholder="留空默认 128000" />
-          </div>
-          <div class="omp-form-item">
-            <label>最大输出</label>
-            <InputNumber v-model="editModelForm.maxTokens" :min="0" placeholder="留空默认 16384" />
-          </div>
+          <Space size="16px" align="center" wrap>
+            <CheckboxGroup v-model="editModelForm.input" class="omp-checkbox-group">
+              <Checkbox v-for="opt in INPUT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</Checkbox>
+            </CheckboxGroup>
+            <Checkbox v-model="editModelForm.reasoning" class="omp-reasoning-checkbox">推理模型</Checkbox>
+          </Space>
         </div>
         <div class="omp-form-item">
-          <label>
-            <input type="checkbox" v-model="editModelForm.reasoning" /> 推理模型
-          </label>
+          <label>上下文窗口</label>
+          <RadioGroup v-model="editModelForm.contextWindow" variant="default-filled" size="small">
+            <RadioButton v-for="opt in CTX_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</RadioButton>
+          </RadioGroup>
+        </div>
+        <div class="omp-form-item">
+          <label>最大输出</label>
+          <RadioGroup v-model="editModelForm.maxTokens" variant="default-filled" size="small">
+            <RadioButton v-for="opt in TOKENS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</RadioButton>
+          </RadioGroup>
         </div>
         <Collapse v-model="modelAdvancedOpen" class="omp-advanced-collapse">
           <CollapsePanel value="1" header="高级配置（思考级别 / 费用 / 兼容性）">
@@ -908,13 +963,13 @@ onMounted(refresh);
               </div>
             </div>
             <div class="omp-form-item">
-              <label>兼容性 (compat)</label>
-              <DynamicKvEditor
-                v-model="editModelForm.compat"
-                :key-options="COMPAT_KEY_OPTIONS"
-                key-placeholder="compat 字段名"
-                value-placeholder="compat 值"
+              <label>其他参数</label>
+              <Textarea
+                v-model="editModelForm.otherYaml"
+                placeholder="compat:&#10;    supportsDeveloperRole: false&#10;    reasoningEffortMap:&#10;        high: high&#10;自定义字段: 值"
+                :autosize="{ minRows: 4, maxRows: 14 }"
               />
+              <div class="omp-form-hint">原生 YAML，除上方表单字段外的模型参数都在这里，子级 4 空格缩进</div>
             </div>
           </CollapsePanel>
         </Collapse>
