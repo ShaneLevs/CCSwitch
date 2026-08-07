@@ -26,6 +26,7 @@ import OpenCodePluginView from "./OpenCodePluginView.vue";
 import OpenCodeSkillView from "./OpenCodeSkillView.vue";
 import OpenCodeUsageView from "./OpenCodeUsageView.vue";
 import OmpConfigView from "./OmpConfigView.vue";
+import ReasonixConfigView from "./ReasonixConfigView.vue";
 import wavingDark from "../assets/waving-dark.gif";
 import wavingLight from "../assets/waving-light.gif";
 import { useAppContext } from "../composables/useAppContext";
@@ -36,7 +37,7 @@ const props = defineProps({
   payload: String,
 });
 
-const { activeApp, setActiveApp, isClaude, isOpenCode, isPi, isOmp } = useAppContext();
+const { activeApp, setActiveApp, isClaude, isOpenCode, isPi, isOmp, isReasonix } = useAppContext();
 
 const { darkBackgroundEnabled, setDarkBackground, darkEffect, setDarkEffect } =
   useDarkBackground();
@@ -98,7 +99,8 @@ const appLabel = computed(() => {
   if (isClaude.value) return "Claude Code";
   if (isOpenCode.value) return "OpenCode CLI";
   if (isPi.value) return "Pi Agent";
-  return "omp";
+  if (isOmp.value) return "omp";
+  return "Reasonix";
 });
 
 const pageTitleSuffix = computed(() => {
@@ -127,6 +129,9 @@ const pageTitleSuffix = computed(() => {
     omp: {
       config: "配置管理",
     },
+    reasonix: {
+      config: "配置管理",
+    },
   };
   return map[activeApp.value]?.[activeTab.value] || "配置切换";
 });
@@ -148,6 +153,7 @@ const appDropdownOptions = [
   { content: "OpenCode CLI", value: "opencode" },
   { content: "Pi Agent", value: "pi" },
   { content: "omp", value: "omp" },
+  { content: "Reasonix", value: "reasonix" },
 ];
 
 const handleAppSelect = (data) => {
@@ -162,6 +168,7 @@ onMounted(() => {
     opencodeConfig: "opencode",
     piConfig: "pi",
     ompConfig: "omp",
+    reasonixConfig: "reasonix",
   };
   if (appMap[props.route]) {
     setActiveApp(appMap[props.route]);
@@ -231,6 +238,7 @@ onMounted(() => {
           class="logo"
         />
         <img v-else-if="isOmp" src="/omp-icon.svg" alt="logo" class="logo" />
+        <img v-else-if="isReasonix" src="/icon-reasonix.png" alt="logo" class="logo" />
         <img v-else src="/icon-pi.png" alt="logo" class="logo" />
         <Dropdown
           :options="appDropdownOptions"
@@ -341,6 +349,17 @@ onMounted(() => {
         </div>
         <!-- omp tabs -->
         <div v-else-if="isOmp" class="tab-buttons">
+          <Button
+            size="small"
+            :theme="activeTab === 'config' ? 'primary' : 'default'"
+            :variant="activeTab === 'config' ? 'base' : 'outline'"
+            @click="activeTab = 'config'"
+          >
+            <template #icon><DashboardIcon /></template> 配置
+          </Button>
+        </div>
+        <!-- Reasonix tabs -->
+        <div v-else-if="isReasonix" class="tab-buttons">
           <Button
             size="small"
             :theme="activeTab === 'config' ? 'primary' : 'default'"
@@ -465,6 +484,11 @@ onMounted(() => {
     <!-- omp views -->
     <template v-if="isAppReady('omp')">
       <OmpConfigView v-if="isOmp && activeTab === 'config'" />
+    </template>
+
+    <!-- Reasonix views -->
+    <template v-if="isAppReady('reasonix')">
+      <ReasonixConfigView v-if="isReasonix && activeTab === 'config'" />
     </template>
 
     <Dialog

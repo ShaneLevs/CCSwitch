@@ -11,6 +11,7 @@ export function useAppContext() {
   const isOpenCode = computed(() => activeApp.value === 'opencode')
   const isPi = computed(() => activeApp.value === 'pi')
   const isOmp = computed(() => activeApp.value === 'omp')
+  const isReasonix = computed(() => activeApp.value === 'reasonix')
 
-  return { activeApp, setActiveApp, isClaude, isOpenCode, isPi, isOmp }
+  return { activeApp, setActiveApp, isClaude, isOpenCode, isPi, isOmp, isReasonix }
 }

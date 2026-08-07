@@ -33,6 +33,12 @@
       "cmds": ["omp配置"]
     },
     {
+      "code": "reasonixConfig",
+      "explain": "Reasonix 配置管理工具",
+      "icon": "icon-reasonix.png",
+      "cmds": ["Reasonix配置"]
+    },
+    {
       "code": "installClaudeSkill",
       "explain": "从 SkillHub/魔搭社区 安装 Claude Code Skill",
       "cmds": [
