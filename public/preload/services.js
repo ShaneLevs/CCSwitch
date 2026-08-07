@@ -9,6 +9,7 @@ const plugins = require('./services/plugins')
 const usage = require('./services/usage')
 const pi = require('./services/pi')
 const omp = require('./services/omp')
+const reasonix = require('./services/reasonix')
 
 const {
   CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_SKILLS_PATH,
@@ -1218,6 +1219,26 @@ window.services = {
   deleteOmpModel: omp.deleteOmpModel,
   openOmpDir: omp.openOmpDir,
   isOmpInstalled: omp.isOmpInstalled,
+
+  // ==================== Reasonix ====================
+
+  getReasonixConfigPath: reasonix.getReasonixConfigPath,
+  readReasonixConfig: reasonix.readReasonixConfig,
+  writeReasonixConfig: reasonix.writeReasonixConfig,
+  getReasonixProviderList: reasonix.getReasonixProviderList,
+  addReasonixProvider: reasonix.addReasonixProvider,
+  updateReasonixProvider: reasonix.updateReasonixProvider,
+  deleteReasonixProvider: reasonix.deleteReasonixProvider,
+  addReasonixModel: reasonix.addReasonixModel,
+  deleteReasonixModel: reasonix.deleteReasonixModel,
+  getReasonixDefaultModel: reasonix.getReasonixDefaultModel,
+  setReasonixDefaultModel: reasonix.setReasonixDefaultModel,
+  readReasonixEnv: reasonix.readReasonixEnv,
+  getReasonixApiKey: reasonix.getReasonixApiKey,
+  writeReasonixEnvKey: reasonix.writeReasonixEnvKey,
+  deleteReasonixEnvKey: reasonix.deleteReasonixEnvKey,
+  openReasonixDir: reasonix.openReasonixDir,
+  isReasonixInstalled: reasonix.isReasonixInstalled,
 }
 
 // 辅助函数：递归查找 SKILL.md
