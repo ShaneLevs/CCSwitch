@@ -131,9 +131,15 @@ const deleteReasonixModel = (providerName, modelId) => {
   if (!prov) throw new Error(`供应商 ${providerName} 不存在`)
   const list = Array.isArray(prov.models) ? prov.models : (prov.model ? [prov.model] : [])
   if (!list.includes(modelId)) return true
+  const clearedDefault = prov.default === modelId
   prov.models = list.filter(m => m !== modelId)
   if (prov.model) delete prov.model
-  if (prov.default === modelId) delete prov.default
+  if (clearedDefault) delete prov.default
+  // 清理悬挂的 default_model 引用：完整引用（provider/model）或裸供应商名（解析到其默认模型）
+  if (doc.default_model === `${providerName}/${modelId}` ||
+      (clearedDefault && doc.default_model === providerName)) {
+    doc.default_model = ''
+  }
   writeReasonixConfig(doc)
   return true
 }

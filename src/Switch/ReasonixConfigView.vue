@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import {
-  Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin,
-  Select, Popconfirm, Alert as TAlert, Dropdown,
+  Card, Empty, Button, Tag, Space, Dialog, Input, InputNumber, MessagePlugin,
+  Select, Popconfirm, Alert as TAlert,
 } from "tdesign-vue-next";
 import {
   RefreshIcon, EditIcon, FolderOpen1Icon, AddIcon, DeleteIcon,
@@ -28,7 +28,6 @@ const editForm = ref({ name: "", kind: "openai", baseUrl: "", chatUrl: "", model
 const addModelDialog = ref(false);
 const addModelProvider = ref("");
 const addModelId = ref("");
-const deleteModelTarget = ref(null);
 
 // ==================== 数据加载 ====================
 
