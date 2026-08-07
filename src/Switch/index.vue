@@ -238,7 +238,7 @@ onMounted(() => {
           class="logo"
         />
         <img v-else-if="isOmp" src="/omp-icon.svg" alt="logo" class="logo" />
-        <img v-else-if="isReasonix" src="/icon-reasonix.png" alt="logo" class="logo" />
+        <img v-else-if="isReasonix" src="/reasonix.svg" alt="logo" class="logo" />
         <img v-else src="/icon-pi.png" alt="logo" class="logo" />
         <Dropdown
           :options="appDropdownOptions"

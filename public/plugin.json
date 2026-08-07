@@ -35,7 +35,7 @@
     {
       "code": "reasonixConfig",
       "explain": "Reasonix 配置管理工具",
-      "icon": "icon-reasonix.png",
+      "icon": "reasonix.svg",
       "cmds": ["Reasonix配置"]
     },
     {
