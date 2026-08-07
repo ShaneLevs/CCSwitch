@@ -129,9 +129,10 @@ const deleteReasonixModel = (providerName, modelId) => {
   const doc = readReasonixConfig()
   const prov = (doc.providers || []).find(p => p.name === providerName)
   if (!prov) throw new Error(`供应商 ${providerName} 不存在`)
-  const list = Array.isArray(prov.models) ? prov.models : []
+  const list = Array.isArray(prov.models) ? prov.models : (prov.model ? [prov.model] : [])
   if (!list.includes(modelId)) return true
   prov.models = list.filter(m => m !== modelId)
+  if (prov.model) delete prov.model
   if (prov.default === modelId) delete prov.default
   writeReasonixConfig(doc)
   return true
@@ -184,6 +185,7 @@ const writeReasonixEnvKey = (key, value) => {
 }
 
 const deleteReasonixEnvKey = (key) => {
+  if (!key || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new Error(`密钥名 ${key} 不合法`)
   const p = REASONIX_ENV_PATH()
   if (!fs.existsSync(p)) return true
   const re = new RegExp(`^(?:export\\s+)?${key}\\s*=`)
