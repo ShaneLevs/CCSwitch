@@ -2,8 +2,8 @@
 import { ref, onMounted, computed } from "vue";
 import { Card, Empty, Dialog, Input, Button, MessagePlugin, Loading, Switch, Popconfirm, Space, Tag, Tooltip } from "tdesign-vue-next";
 import { DownloadIcon, DeleteIcon, FileExportIcon, FolderOpen1Icon } from "tdesign-icons-vue-next";
-import { useSkillInstall } from "../composables/useSkillInstall";
-import { formatLastUsed } from "../utils/time";
+import { useSkillInstall } from "../../composables/useSkillInstall";
+import { formatLastUsed } from "../../utils/time";
 import "./styles/SkillView.css";
 
 const parseFrontmatter = (yamlStr) => {

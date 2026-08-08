@@ -27,10 +27,10 @@ import {
   DeleteIcon,
   SettingIcon,
 } from "tdesign-icons-vue-next";
-import { useConfigColumns } from "../composables/useConfigColumns";
-import { useConfigImportExport } from "../composables/useConfigImportExport";
-import { useConfigSwitch } from "../composables/useConfigSwitch";
-import { useExtraFields } from "../composables/useExtraFields";
+import { useConfigColumns } from "../../composables/useConfigColumns";
+import { useConfigImportExport } from "../../composables/useConfigImportExport";
+import { useConfigSwitch } from "../../composables/useConfigSwitch";
+import { useExtraFields } from "../../composables/useExtraFields";
 import "./styles/ConfigView.css";
 
 const strip1m = (v) => (v || '').replace(/\[1m\]$/i, '');

@@ -9,10 +9,10 @@ import {
   RefreshIcon, EditIcon, FolderOpen1Icon, AddIcon, DeleteIcon,
 } from "tdesign-icons-vue-next";
 import { load as yamlLoad, dump as yamlDump } from "js-yaml";
-import ApiKeyInput from "../components/ApiKeyInput.vue";
-import DynamicKvEditor from "../components/DynamicKvEditor.vue";
-import PresetCustomInput from "../components/PresetCustomInput.vue";
-import "./styles/OmpConfigView.css";
+import ApiKeyInput from "../../components/ApiKeyInput.vue";
+import DynamicKvEditor from "../../components/DynamicKvEditor.vue";
+import PresetCustomInput from "../../components/PresetCustomInput.vue";
+import "./styles/ConfigView.css";
 
 // ==================== Constants ====================
 

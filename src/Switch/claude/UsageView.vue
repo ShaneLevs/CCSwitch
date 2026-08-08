@@ -10,7 +10,7 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
 } from "tdesign-icons-vue-next";
-import ContributionGrid from "./ContributionGrid.vue";
+import ContributionGrid from "../shared/ContributionGrid.vue";
 
 const loading = ref(false);
 const showAllModels = ref(false);

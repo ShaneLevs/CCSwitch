@@ -30,9 +30,9 @@ import {
   RefreshIcon,
   SearchIcon,
 } from "tdesign-icons-vue-next";
-import DynamicKvEditor from "../components/DynamicKvEditor.vue";
-import ApiKeyInput from "../components/ApiKeyInput.vue";
-import "./styles/OpenCodeConfigView.css";
+import DynamicKvEditor from "../../components/DynamicKvEditor.vue";
+import ApiKeyInput from "../../components/ApiKeyInput.vue";
+import "./styles/ConfigView.css";
 
 // ==================== Constants ====================
 

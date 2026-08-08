@@ -5,7 +5,7 @@ import {
   Card, Empty, Tag, Button, Tooltip, Dialog, Input, MessagePlugin, Space, Popconfirm,
 } from "tdesign-vue-next";
 import { RefreshIcon, AddIcon, DeleteIcon } from "tdesign-icons-vue-next";
-import "./styles/OpenCodeMcpView.css";
+import "./styles/McpView.css";
 
 const loading = ref(false);
 const servers = ref([]);

@@ -5,8 +5,8 @@ import {
   RefreshIcon, ArrowDownIcon, ArrowUpIcon, SumIcon,
   ChevronUpIcon, ChevronDownIcon,
 } from "tdesign-icons-vue-next";
-import ContributionGrid from "./ContributionGrid.vue";
-import "./styles/OpenCodeUsageView.css";
+import ContributionGrid from "../shared/ContributionGrid.vue";
+import "./styles/UsageView.css";
 
 const loading = ref(false);
 const showAllModels = ref(false);

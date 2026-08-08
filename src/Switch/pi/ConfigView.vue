@@ -8,10 +8,10 @@ import {
   RefreshIcon, EditIcon, FolderOpen1Icon, StarIcon,
   AddIcon, DeleteIcon,
 } from "tdesign-icons-vue-next";
-import ApiKeyInput from "../components/ApiKeyInput.vue";
-import DynamicKvEditor from "../components/DynamicKvEditor.vue";
-import PresetCustomInput from "../components/PresetCustomInput.vue";
-import "./styles/PiConfigView.css";
+import ApiKeyInput from "../../components/ApiKeyInput.vue";
+import DynamicKvEditor from "../../components/DynamicKvEditor.vue";
+import PresetCustomInput from "../../components/PresetCustomInput.vue";
+import "./styles/ConfigView.css";
 
 // Pi 官方文档支持的 API 类型
 const API_TYPE_OPTIONS = [

@@ -11,17 +11,6 @@
 .reasonix-config-empty { margin-top: 32px; }
 
 /* ===== 顶部操作行（默认模型 + 添加供应商） ===== */
-.reasonix-top-bar {
-  display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  padding: 10px 14px;
-  background: var(--td-bg-color-container);
-  border-radius: var(--td-radius-default);
-  border: 1px solid var(--td-border-level-1-color);
-}
-.reasonix-default-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
-.reasonix-top-label { font-size: 13px; font-weight: 600; color: var(--td-text-color-secondary); white-space: nowrap; flex-shrink: 0; }
-.reasonix-default-select { flex: 1; min-width: 120px; }
-
 /* ===== 供应商列表（TDesign Collapse 手风琴） ===== */
 .reasonix-provider-list { display: flex; flex-direction: column; gap: 8px; }
 .reasonix-provider-collapse { border-radius: var(--td-radius-default); overflow: hidden; }
@@ -65,6 +54,8 @@
 }
 .reasonix-model-tag:hover { border-color: var(--td-brand-color); }
 .reasonix-model-tag-name { font-size: 12px; color: var(--td-text-color-primary); }
+.reasonix-model-tag-star { cursor: pointer; color: var(--td-warning-color); display: flex; align-items: center; padding: 2px; border-radius: var(--td-radius-small); }
+.reasonix-model-tag-star:hover { color: var(--td-warning-color); background: var(--td-warning-color-1); }
 .reasonix-model-tag-del { cursor: pointer; color: var(--td-text-color-placeholder); display: flex; align-items: center; padding: 2px; border-radius: var(--td-radius-small); }
 .reasonix-model-tag-del:hover { color: var(--td-error-color); background: var(--td-error-color-1); }
 

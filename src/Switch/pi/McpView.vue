@@ -5,7 +5,7 @@ import {
   Card, Empty, Tag, Button, Tooltip, MessagePlugin,
 } from "tdesign-vue-next";
 import { RefreshIcon } from "tdesign-icons-vue-next";
-import "./styles/PiMcpView.css";
+import "./styles/McpView.css";
 
 const loading = ref(false);
 const servers = ref([]);

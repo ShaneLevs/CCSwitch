@@ -5,7 +5,7 @@ import {
   Card, Empty, Tag, Button, Tooltip, Dialog, Input, MessagePlugin, Space, Popconfirm, Loading,
 } from "tdesign-vue-next";
 import { RefreshIcon, AddIcon, DeleteIcon, SearchIcon } from "tdesign-icons-vue-next";
-import "./styles/OpenCodePluginView.css";
+import "./styles/PluginView.css";
 
 const loading = ref(false);
 const plugins = ref([]);

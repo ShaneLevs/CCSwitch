@@ -4,8 +4,8 @@ import { Card, Statistic, Empty, Button, DateRangePicker, Space, Tooltip } from 
 import {
   RefreshIcon, ArrowDownIcon, ArrowUpIcon, SumIcon,
 } from "tdesign-icons-vue-next";
-import ContributionGrid from "./ContributionGrid.vue";
-import "./styles/PiUsageView.css";
+import ContributionGrid from "../shared/ContributionGrid.vue";
+import "./styles/UsageView.css";
 
 const loading = ref(false);
 const showAllModels = ref(false);

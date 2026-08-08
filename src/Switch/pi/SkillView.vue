@@ -2,7 +2,7 @@
 import { ref, onMounted } from "vue";
 import { Card, Empty, Tag, Button, Tooltip } from "tdesign-vue-next";
 import { RefreshIcon, FolderOpen1Icon } from "tdesign-icons-vue-next";
-import "./styles/PiSkillView.css";
+import "./styles/SkillView.css";
 
 const loading = ref(false);
 const skills = ref([]);

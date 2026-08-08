@@ -3,8 +3,8 @@
 import { ref, onMounted } from "vue";
 import { Card, Empty, Button, Tag, Tooltip, Dialog, Input, Popconfirm, Space, Loading, MessagePlugin } from "tdesign-vue-next";
 import { RefreshIcon, FolderOpen1Icon, DownloadIcon, DeleteIcon } from "tdesign-icons-vue-next";
-import { useSkillInstall } from "../composables/useSkillInstall";
-import "./styles/OpenCodeSkillView.css";
+import { useSkillInstall } from "../../composables/useSkillInstall";
+import "./styles/SkillView.css";
 
 const skills = ref([]);
 const loading = ref(false);

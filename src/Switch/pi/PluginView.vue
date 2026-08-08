@@ -4,7 +4,7 @@ import {
   Card, Empty, Button, Dialog, Input, MessagePlugin, Space, Tag, Popconfirm, Tooltip,
 } from "tdesign-vue-next";
 import { AddIcon, DeleteIcon, RefreshIcon, LinkIcon } from "tdesign-icons-vue-next";
-import "./styles/PiPluginView.css";
+import "./styles/PluginView.css";
 
 const loading = ref(false);
 const plugins = ref([]);

@@ -24,7 +24,7 @@ import {
   DeleteIcon,
   ToolsIcon,
 } from "tdesign-icons-vue-next";
-import { formatLastUsed } from "../utils/time";
+import { formatLastUsed } from "../../utils/time";
 import "./styles/McpView.css";
 
 const mcpServerList = ref([]);

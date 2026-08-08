@@ -6,11 +6,11 @@ import {
   Collapse, CollapsePanel,
 } from "tdesign-vue-next";
 import {
-  RefreshIcon, EditIcon, AddIcon, DeleteIcon,
+  RefreshIcon, EditIcon, AddIcon, DeleteIcon, StarIcon,
   CopyIcon, LockOnIcon,
 } from "tdesign-icons-vue-next";
-import ApiKeyInput from "../components/ApiKeyInput.vue";
-import "./styles/ReasonixConfigView.css";
+import ApiKeyInput from "../../components/ApiKeyInput.vue";
+import "./styles/ConfigView.css";
 
 const loading = ref(false);
 const warningMsg = ref("");
@@ -159,8 +159,10 @@ const refresh = () => {
   loading.value = true;
   warningMsg.value = "";
   try {
-    providers.value = window.services.getReasonixProviderList() || [];
+    const list = window.services.getReasonixProviderList() || [];
     defaultModel.value = window.services.getReasonixDefaultModel() || "";
+    // 默认供应商排最前
+    providers.value = list.sort((a, b) => Number(isDefaultProvider(b)) - Number(isDefaultProvider(a)));
     loadEnv();
   } catch (e) {
     console.error("加载 Reasonix 配置失败:", e);
@@ -172,21 +174,31 @@ const refresh = () => {
 
 // ==================== 默认模型 ====================
 
-const defaultModelOptions = computed(() => {
-  const opts = [{ label: "（未设置）", value: "" }];
-  for (const p of providers.value) {
-    if (p.default) opts.push({ label: `${p.name}（默认 ${p.default}）`, value: p.name });
-    for (const m of p.models) opts.push({ label: `${p.name}/${m}`, value: `${p.name}/${m}` });
-  }
-  return opts;
-});
+// 判断供应商是否为全局默认（default_model 指向其某个模型，或裸供应商名）
+const isDefaultProvider = (p) => {
+  const dm = defaultModel.value;
+  if (!dm) return false;
+  if (dm === p.name) return true;
+  if (dm.startsWith(`${p.name}/`)) return true;
+  return false;
+};
 
-// 下拉变更即保存，无需额外「保存」按钮
-const handleSetDefaultModel = (val) => {
-  const v = val ?? defaultModel.value;
+// 判断模型是否为全局默认模型（provider/model 引用，或裸供应商名解析到其 default）
+const isDefaultModel = (prov, m) => {
+  const dm = defaultModel.value;
+  if (!dm) return false;
+  if (dm === `${prov.name}/${m}`) return true;
+  if (dm === prov.name && prov.default === m) return true;
+  return false;
+};
+
+// 模型上点星标 → 设为全局默认模型（provider/model）
+const setDefaultModel = (providerName, modelId) => {
   try {
-    window.services.setReasonixDefaultModel(v);
-    MessagePlugin.success(v ? `默认模型已设为 ${v}` : "默认模型已清除");
+    const ref = `${providerName}/${modelId}`;
+    window.services.setReasonixDefaultModel(ref);
+    MessagePlugin.success(`默认模型已设为 ${ref}`);
+    refresh();
   } catch (e) {
     MessagePlugin.error("保存失败: " + e.message);
   }
@@ -428,6 +440,9 @@ onMounted(refresh);
         </span>
       </div>
       <div class="reasonix-toolbar-right">
+        <Button size="small" variant="outline" theme="primary" @click="openAddProviderDialog">
+          <template #icon><AddIcon /></template> 添加供应商
+        </Button>
         <Tooltip content="刷新" placement="top">
           <Button size="small" variant="outline" :loading="loading" @click="refresh">
             <template #icon><RefreshIcon /></template> 刷新
@@ -441,24 +456,6 @@ onMounted(refresh);
     </div>
 
     <template v-if="!loading">
-      <!-- 默认模型 + 添加供应商 合并为一行 -->
-      <div class="reasonix-top-bar">
-        <div class="reasonix-default-row">
-          <span class="reasonix-top-label">默认模型</span>
-          <Select
-            v-model="defaultModel"
-            :options="defaultModelOptions"
-            :min-column-width="240"
-            filterable
-            class="reasonix-default-select"
-            @change="handleSetDefaultModel"
-          />
-        </div>
-        <Button size="small" variant="outline" theme="primary" @click="openAddProviderDialog">
-          <template #icon><AddIcon /></template> 添加供应商
-        </Button>
-      </div>
-
       <!-- 供应商列表 -->
       <div v-if="providers.length === 0" class="reasonix-config-empty">
         <Empty description="未检测到 Reasonix 供应商配置，请运行 reasonix setup 或手动编辑 config.toml" />
@@ -476,7 +473,7 @@ onMounted(refresh);
               <div class="reasonix-provider-header-left">
                 <span class="reasonix-provider-name">{{ p.name }}</span>
                 <Tag size="small" variant="outline">{{ p.kind }}</Tag>
-                <Tag v-if="p.default" size="small" theme="success" variant="light">默认 {{ p.default }}</Tag>
+                <Tag v-if="isDefaultProvider(p)" size="small" theme="warning" variant="light">默认</Tag>
                 <span class="reasonix-model-count">{{ p.models.length }} 个模型</span>
               </div>
             </template>
@@ -541,7 +538,10 @@ onMounted(refresh);
               <div class="reasonix-model-tags">
                 <span v-for="m in p.models" :key="m" class="reasonix-model-tag">
                   <span class="reasonix-model-tag-name">{{ m }}</span>
-                  <Tag v-if="p.default === m" size="small" theme="success" variant="light">默认</Tag>
+                  <Tag v-if="isDefaultModel(p, m)" size="small" theme="success" variant="light">默认</Tag>
+                  <Tooltip v-if="!isDefaultModel(p, m)" content="设为默认模型" placement="top">
+                    <span class="reasonix-model-tag-star" @click="setDefaultModel(p.name, m)"><StarIcon size="12px" /></span>
+                  </Tooltip>
                   <Popconfirm content="删除模型？" theme="danger" @confirm="handleDeleteModel(p.name, m)">
                     <span class="reasonix-model-tag-del"><DeleteIcon size="12px" /></span>
                   </Popconfirm>
