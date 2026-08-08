@@ -1,12 +1,13 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import {
-  Card, Empty, Button, Tag, Space, Dialog, Input, InputNumber, MessagePlugin,
-  Select, Popconfirm, Alert as TAlert, Tooltip,
+  Empty, Button, Tag, Space, Dialog, Input, InputNumber, MessagePlugin,
+  Select, Popconfirm, Alert as TAlert, Tooltip, Link,
+  Collapse, CollapsePanel,
 } from "tdesign-vue-next";
 import {
-  RefreshIcon, EditIcon, FolderOpen1Icon, AddIcon, DeleteIcon,
-  ChevronDownIcon, ChevronRightIcon, CopyIcon, LockOnIcon,
+  RefreshIcon, EditIcon, AddIcon, DeleteIcon,
+  CopyIcon, LockOnIcon,
 } from "tdesign-icons-vue-next";
 import ApiKeyInput from "../components/ApiKeyInput.vue";
 import "./styles/ReasonixConfigView.css";
@@ -15,15 +16,19 @@ const loading = ref(false);
 const warningMsg = ref("");
 const providers = ref([]);
 const defaultModel = ref("");
-const expanded = ref(new Set());
+const expandedList = ref([]);
 
 // ==================== 弹窗状态 ====================
 
 const addProviderDialog = ref(false);
 const addProviderForm = ref({ name: "", kind: "openai", baseUrl: "", chatUrl: "", modelsUrl: "", apiKeyEnv: "", apiKey: "", contextWindow: 0, maxOutputTokens: 0 });
+// 添加弹窗内 Key 环境变量名的提示（选择已有变量时显示是否已存 Key）
+const addApiKeyEnvHint = ref("");
 const editDialog = ref(false);
 const editingProvider = ref("");
 const editForm = ref({ name: "", kind: "openai", baseUrl: "", chatUrl: "", modelsUrl: "", apiKeyEnv: "", apiKey: "", contextWindow: 0, maxOutputTokens: 0 });
+// 编辑弹窗内 Key 环境变量名的提示（共享/已存 Key）
+const editEnvHint = ref("");
 
 const addModelDialog = ref(false);
 const addModelProvider = ref("");
@@ -58,9 +63,21 @@ const loadEnv = () => {
   }
 };
 
-// 引用该变量的供应商（删除/编辑时提示）
-const envRefProviders = (name) =>
-  providers.value.filter(p => p.apiKeyEnv === name).map(p => p.name);
+// 环境变量名 → 引用它的供应商名（删除/编辑时提示）
+// 预计算成 Map，避免模板里每行每个引用位点反复 filter
+const envRefMap = computed(() => {
+  const map = new Map();
+  for (const p of providers.value) {
+    if (!p.apiKeyEnv) continue;
+    if (!map.has(p.apiKeyEnv)) map.set(p.apiKeyEnv, []);
+    map.get(p.apiKeyEnv).push(p.name);
+  }
+  return map;
+});
+const envRefProviders = (name) => envRefMap.value.get(name) || [];
+
+// Key 环境变量下拉选项 = .env 中已存在的变量名
+const envKeyOptions = computed(() => envEntries.value.map(e => ({ label: e.name, value: e.name })));
 
 // 掩码显示：只保留前 4 + 后 4，中间用 ··· 替代
 const maskValue = (val) => {
@@ -126,10 +143,10 @@ const handleDeleteEnv = (name) => {
   }
 };
 
-// 复制值到剪贴板
-const copyEnvValue = async (val) => {
+// 复制值到剪贴板（uTools 环境用 utools.copyText，比 navigator.clipboard 可靠）
+const copyEnvValue = (val) => {
   try {
-    await navigator.clipboard.writeText(val);
+    window.utools.copyText(val);
     MessagePlugin.success("已复制到剪贴板");
   } catch {
     MessagePlugin.error("复制失败");
@@ -153,11 +170,6 @@ const refresh = () => {
   }
 };
 
-const toggleExpand = (name) => {
-  if (expanded.value.has(name)) expanded.value.delete(name);
-  else expanded.value.add(name);
-};
-
 // ==================== 默认模型 ====================
 
 const defaultModelOptions = computed(() => {
@@ -169,11 +181,12 @@ const defaultModelOptions = computed(() => {
   return opts;
 });
 
-const handleSetDefaultModel = () => {
+// 下拉变更即保存，无需额外「保存」按钮
+const handleSetDefaultModel = (val) => {
+  const v = val ?? defaultModel.value;
   try {
-    window.services.setReasonixDefaultModel(defaultModel.value);
-    MessagePlugin.success("默认模型已更新");
-    refresh();
+    window.services.setReasonixDefaultModel(v);
+    MessagePlugin.success(v ? `默认模型已设为 ${v}` : "默认模型已清除");
   } catch (e) {
     MessagePlugin.error("保存失败: " + e.message);
   }
@@ -197,7 +210,20 @@ const buildProviderPayload = (form) => ({
 
 const openAddProviderDialog = () => {
   addProviderForm.value = emptyProviderForm();
+  addApiKeyEnvHint.value = "";
   addProviderDialog.value = true;
+};
+
+// 添加弹窗：选择已有环境变量时提示是否已存 Key，避免误覆盖共享 key
+const onAddApiKeyEnvChange = (newEnv) => {
+  const env = String(newEnv || "").trim();
+  addProviderForm.value.apiKeyEnv = env;
+  if (!env) { addApiKeyEnvHint.value = ""; return; }
+  const key = window.services.getReasonixApiKey(env);
+  const refs = envRefProviders(env);
+  addApiKeyEnvHint.value = key
+    ? `该变量已存有 Key${refs.length ? `，且被 ${refs.join("、")} 引用` : ""}，保存后直接使用`
+    : "该变量暂无已存 Key，可在下方 API Key 栏填写";
 };
 
 const handleAddProvider = () => {
@@ -230,12 +256,39 @@ const handleEdit = (provider) => {
     maxOutputTokens: provider.maxOutputTokens || 0,
   };
   originalApiKey.value = editForm.value.apiKey;
+  editEnvHint.value = buildEnvHint(editingProvider.value, editForm.value.apiKeyEnv);
   editDialog.value = true;
+};
+
+// 编辑弹窗内 Key 环境变量名的提示：是否被其他供应商共享 / 是否已存有 Key
+const buildEnvHint = (providerName, env) => {
+  if (!env) return "";
+  const shared = providers.value
+    .filter(p => p.apiKeyEnv === env && p.name !== providerName)
+    .map(p => p.name);
+  const key = window.services.getReasonixApiKey(env);
+  const parts = [];
+  if (shared.length) parts.push(`该变量已被 ${shared.join("、")} 引用，这些供应商将共用此 Key`);
+  if (key) parts.push(`已存有 Key，保存后不填写则直接沿用`);
+  else parts.push(`暂无已存 Key，填写后保存将写入 .env`);
+  return parts.join("；");
+};
+
+// 编辑弹窗：Key 环境变量名变更 → 重载该变量已存的 key，避免静默指向共享/已有 key
+const onEditApiKeyEnvChange = (newEnv) => {
+  const env = String(newEnv || "").trim();
+  editForm.value.apiKeyEnv = env;
+  const key = env ? (window.services.getReasonixApiKey(env) || "") : "";
+  editForm.value.apiKey = key;
+  originalApiKey.value = key;
+  editEnvHint.value = buildEnvHint(editingProvider.value, env);
 };
 
 const handleSaveProvider = () => {
   try {
-    const { name, apiKey, ...rest } = editForm.value;
+    const { apiKey, ...rest } = editForm.value;
+    const newName = String(editForm.value.name || "").trim();
+    if (!newName) { MessagePlugin.warning("请输入供应商名称"); return; }
     // 已保存过 key 且用户清空了输入框 → 走删除确认流程
     if (originalApiKey.value && !apiKey && editForm.value.apiKeyEnv) {
       const newEnv = editForm.value.apiKeyEnv;
@@ -266,11 +319,12 @@ const handleSaveProvider = () => {
       MessagePlugin.warning("已清空 Key 但未设置环境变量名，原 Key 仍保留在 .env，可在环境变量区块手动删除");
       return;
     }
-    const payload = buildProviderPayload({ ...rest, name: editingProvider.value });
+    const payload = buildProviderPayload({ ...rest, name: newName });
     // key 未修改则不回传，避免对 .env 做无意义写入（也避免把已保存的 key 再透传一遍）
     if (apiKey && apiKey !== originalApiKey.value) payload.apiKey = apiKey;
+    const renamed = newName !== editingProvider.value;
     window.services.updateReasonixProvider(editingProvider.value, payload);
-    MessagePlugin.success("供应商配置已更新");
+    MessagePlugin.success(renamed ? `供应商配置已更新（重命名为 ${newName}）` : "供应商配置已更新");
     editDialog.value = false;
     refresh();
   } catch (e) {
@@ -292,10 +346,11 @@ const cancelDeleteKey = () => {
 
 const confirmDeleteKey = () => {
   try {
-    const { name, ...rest } = editForm.value;
+    const newName = String(editForm.value.name || "").trim();
+    if (!newName) { MessagePlugin.warning("请输入供应商名称"); return; }
     // clearApiKey 由后端统一处理：清理旧/新 env 名下已保存的 key
     window.services.updateReasonixProvider(editingProvider.value, {
-      ...buildProviderPayload({ ...rest, name: editingProvider.value }),
+      ...buildProviderPayload({ ...editForm.value, name: newName }),
       clearApiKey: true,
     });
     MessagePlugin.success("供应商配置已更新（Key 已删除）");
@@ -368,17 +423,16 @@ onMounted(refresh);
     <div class="reasonix-toolbar">
       <div class="reasonix-toolbar-left">
         <span class="reasonix-toolbar-tip">
-          <span class="hint-link" @click="openReasonixDir">~/.reasonix/</span>
+          <Link theme="primary" :underline="true" @click="openReasonixDir">~/.reasonix/</Link>
           <span class="reasonix-toolbar-sub">config.toml + .env</span>
         </span>
       </div>
       <div class="reasonix-toolbar-right">
-        <Button size="small" variant="text" theme="primary" @click="openReasonixDir">
-          <template #icon><FolderOpen1Icon /></template> 目录
-        </Button>
-        <Button size="small" variant="text" theme="primary" :loading="loading" @click="refresh">
-          <template #icon><RefreshIcon /></template> 刷新
-        </Button>
+        <Tooltip content="刷新" placement="top">
+          <Button size="small" variant="outline" :loading="loading" @click="refresh">
+            <template #icon><RefreshIcon /></template> 刷新
+          </Button>
+        </Tooltip>
       </div>
     </div>
 
@@ -397,8 +451,8 @@ onMounted(refresh);
             :min-column-width="240"
             filterable
             class="reasonix-default-select"
+            @change="handleSetDefaultModel"
           />
-          <Button size="small" theme="primary" variant="base" @click="handleSetDefaultModel">保存</Button>
         </div>
         <Button size="small" variant="outline" theme="primary" @click="openAddProviderDialog">
           <template #icon><AddIcon /></template> 添加供应商
@@ -411,39 +465,43 @@ onMounted(refresh);
       </div>
 
       <div v-else class="reasonix-provider-list">
-        <Card
-          v-for="p in providers"
-          :key="p.name"
-          :bordered="true"
-          class="reasonix-provider-card"
-          :class="{ 'reasonix-provider-card--active': expanded.has(p.name) }"
-        >
-          <!-- 供应商头部：展开箭头 + 名称 + 标签 + 操作 -->
-          <div class="reasonix-provider-header" @click="toggleExpand(p.name)">
-            <div class="reasonix-provider-header-left">
-              <span class="reasonix-expand-icon">
-                <ChevronDownIcon v-if="expanded.has(p.name)" size="16px" />
-                <ChevronRightIcon v-else size="16px" />
-              </span>
-              <span class="reasonix-provider-name">{{ p.name }}</span>
-              <Tag size="small" variant="outline">{{ p.kind }}</Tag>
-              <Tag v-if="p.default" size="small" theme="success" variant="light">默认 {{ p.default }}</Tag>
-              <span class="reasonix-model-count">{{ p.models.length }} 个模型</span>
-            </div>
-            <div class="reasonix-provider-header-right" @click.stop>
-              <Button size="small" theme="default" variant="text" @click="handleEdit(p)">
-                <template #icon><EditIcon /></template> 编辑
-              </Button>
-              <Popconfirm content="删除该供应商及其所有模型？" theme="danger" @confirm="handleDeleteProvider(p.name)">
-                <Button size="small" theme="danger" variant="text">
-                  <template #icon><DeleteIcon /></template>
+        <Collapse v-model="expandedList" class="reasonix-provider-collapse">
+          <CollapsePanel
+            v-for="p in providers"
+            :key="p.name"
+            :value="p.name"
+          >
+            <!-- 供应商头部：展开箭头由 Collapse 内置渲染，名称 + 标签 + 操作 -->
+            <template #header>
+              <div class="reasonix-provider-header-left">
+                <span class="reasonix-provider-name">{{ p.name }}</span>
+                <Tag size="small" variant="outline">{{ p.kind }}</Tag>
+                <Tag v-if="p.default" size="small" theme="success" variant="light">默认 {{ p.default }}</Tag>
+                <span class="reasonix-model-count">{{ p.models.length }} 个模型</span>
+              </div>
+            </template>
+            <template #headerRightContent>
+              <div class="reasonix-provider-header-right" @click.stop>
+                <Button size="small" theme="default" variant="text" @click="handleEdit(p)">
+                  <template #icon><EditIcon /></template> 编辑
                 </Button>
-              </Popconfirm>
-            </div>
-          </div>
+                <Tooltip content="删除供应商">
+                  <Popconfirm
+                    :content="`删除该供应商及其所有模型？${p.apiKeyEnv ? '对应 .env 变量 ' + p.apiKeyEnv + ' 将保留' : ''}`"
+                    theme="danger"
+                    @confirm="handleDeleteProvider(p.name)"
+                  >
+                    <Button size="small" theme="danger" variant="text">
+                      <template #icon><DeleteIcon /></template>
+                    </Button>
+                  </Popconfirm>
+                </Tooltip>
+              </div>
+            </template>
 
-          <!-- 展开内容：详情 + 模型 -->
-          <div v-if="expanded.has(p.name)" class="reasonix-provider-body">
+            <!-- 展开内容：详情 + 模型 -->
+            <template #content>
+              <div class="reasonix-provider-body">
             <div class="reasonix-provider-details">
               <div class="reasonix-detail-item">
                 <span class="reasonix-detail-label">Base URL</span>
@@ -491,7 +549,9 @@ onMounted(refresh);
               </div>
             </div>
           </div>
-        </Card>
+        </template>
+        </CollapsePanel>
+        </Collapse>
       </div>
 
       <!-- 环境变量 / API Key -->
@@ -567,29 +627,48 @@ onMounted(refresh);
           <div class="reasonix-form-item"><label>Chat URL（可选）</label><Input v-model="addProviderForm.chatUrl" placeholder="完整 chat/completions URL" /></div>
         </div>
         <div class="reasonix-form-item"><label>Models URL（可选）</label><Input v-model="addProviderForm.modelsUrl" placeholder="模型发现 URL" /></div>
-        <div class="reasonix-form-item"><label>Key 环境变量</label><Input v-model="addProviderForm.apiKeyEnv" placeholder="留空自动生成，如 DEEPSEEK_API_KEY" /></div>
-        <div class="reasonix-form-item"><label>API Key</label><ApiKeyInput v-model="addProviderForm.apiKey" placeholder="写入 ~/.reasonix/.env" /></div>
-        <div class="reasonix-form-row">
-          <div class="reasonix-form-item"><label>上下文窗口</label><InputNumber v-model="addProviderForm.contextWindow" :min="0" :step="1000" /></div>
-          <div class="reasonix-form-item"><label>最大输出</label><InputNumber v-model="addProviderForm.maxOutputTokens" :min="0" :step="1000" /></div>
+        <div class="reasonix-form-item">
+          <label>Key 环境变量</label>
+          <Select
+            v-model="addProviderForm.apiKeyEnv"
+            :options="envKeyOptions"
+            filterable
+            creatable
+            clearable
+            placeholder="选择已有变量或输入新名，留空自动生成"
+            @change="onAddApiKeyEnvChange"
+          />
+          <div v-if="addApiKeyEnvHint" class="reasonix-form-hint">{{ addApiKeyEnvHint }}</div>
         </div>
+        <div class="reasonix-form-item"><label>API Key</label><ApiKeyInput v-model="addProviderForm.apiKey" placeholder="写入 ~/.reasonix/.env" /></div>
+        <div class="reasonix-form-item"><label>上下文窗口</label><InputNumber v-model="addProviderForm.contextWindow" :min="0" :step="1000" /></div>
+        <div class="reasonix-form-item"><label>最大输出</label><InputNumber v-model="addProviderForm.maxOutputTokens" :min="0" :step="1000" /></div>
       </div>
     </Dialog>
 
     <!-- 编辑供应商弹窗 -->
     <Dialog v-model:visible="editDialog" header="编辑供应商配置" width="520px" :confirm-btn="{ content: '保存', theme: 'primary' }" @confirm="handleSaveProvider">
       <div class="reasonix-edit-form">
-        <div class="reasonix-form-item"><label>名称（不可改名）</label><Input :value="editForm.name" disabled /></div>
+        <div class="reasonix-form-item"><label>名称 <span class="reasonix-form-required">*</span></label><Input v-model="editForm.name" placeholder="deepseek" /></div>
         <div class="reasonix-form-item"><label>Kind</label><Select v-model="editForm.kind" :options="kindOptions" creatable /></div>
         <div class="reasonix-form-item"><label>Base URL</label><Input v-model="editForm.baseUrl" placeholder="https://api.deepseek.com" /></div>
         <div class="reasonix-form-item"><label>Chat URL（可选）</label><Input v-model="editForm.chatUrl" /></div>
         <div class="reasonix-form-item"><label>Models URL（可选）</label><Input v-model="editForm.modelsUrl" /></div>
-        <div class="reasonix-form-item"><label>Key 环境变量</label><Input v-model="editForm.apiKeyEnv" /></div>
-        <div class="reasonix-form-item"><label>API Key</label><ApiKeyInput v-model="editForm.apiKey" :placeholder="editForm.apiKeyEnv ? (originalApiKey ? '已保存，留空则删除；填写则覆盖' : '写入 ~/.reasonix/.env') : '写入 ~/.reasonix/.env'" /></div>
-        <div class="reasonix-form-row">
-          <div class="reasonix-form-item"><label>上下文窗口</label><InputNumber v-model="editForm.contextWindow" :min="0" :step="1000" /></div>
-          <div class="reasonix-form-item"><label>最大输出</label><InputNumber v-model="editForm.maxOutputTokens" :min="0" :step="1000" /></div>
+        <div class="reasonix-form-item">
+          <label>Key 环境变量</label>
+          <Select
+            v-model="editForm.apiKeyEnv"
+            :options="envKeyOptions"
+            filterable
+            creatable
+            clearable
+            @change="onEditApiKeyEnvChange"
+          />
+          <div v-if="editEnvHint" class="reasonix-form-hint">{{ editEnvHint }}</div>
         </div>
+        <div class="reasonix-form-item"><label>API Key</label><ApiKeyInput v-model="editForm.apiKey" :placeholder="editForm.apiKeyEnv ? (originalApiKey ? '已保存，留空则删除；填写则覆盖' : '写入 ~/.reasonix/.env') : '写入 ~/.reasonix/.env'" /></div>
+        <div class="reasonix-form-item"><label>上下文窗口</label><InputNumber v-model="editForm.contextWindow" :min="0" :step="1000" /></div>
+        <div class="reasonix-form-item"><label>最大输出</label><InputNumber v-model="editForm.maxOutputTokens" :min="0" :step="1000" /></div>
       </div>
     </Dialog>
 

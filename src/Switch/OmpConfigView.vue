@@ -3,15 +3,15 @@ import { ref, computed, onMounted } from "vue";
 import {
   Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, Textarea, MessagePlugin,
   Select, Switch, CheckboxGroup, Checkbox, Collapse, CollapsePanel, Popconfirm, Alert as TAlert,
-  Dropdown, RadioGroup, RadioButton,
+  Dropdown,
 } from "tdesign-vue-next";
 import {
   RefreshIcon, EditIcon, FolderOpen1Icon, AddIcon, DeleteIcon,
-  ChevronDownIcon, ChevronRightIcon,
 } from "tdesign-icons-vue-next";
 import { load as yamlLoad, dump as yamlDump } from "js-yaml";
 import ApiKeyInput from "../components/ApiKeyInput.vue";
 import DynamicKvEditor from "../components/DynamicKvEditor.vue";
+import PresetCustomInput from "../components/PresetCustomInput.vue";
 import "./styles/OmpConfigView.css";
 
 // ==================== Constants ====================
@@ -117,7 +117,7 @@ const loading = ref(false);
 const warningMsg = ref("");
 const modelRoles = ref({});
 const providers = ref([]);
-const expanded = ref(new Set());
+const expandedList = ref([]);
 
 // 角色弹窗
 const roleDialog = ref(false);
@@ -159,11 +159,6 @@ const refresh = () => {
   } finally {
     loading.value = false;
   }
-};
-
-const toggleExpand = (name) => {
-  if (expanded.value.has(name)) expanded.value.delete(name);
-  else expanded.value.add(name);
 };
 
 // ==================== 模型角色 ====================
@@ -595,34 +590,37 @@ onMounted(refresh);
       </div>
 
       <div v-else class="omp-provider-list">
-        <Card v-for="prov in providers" :key="prov.name" :bordered="true" class="omp-provider-card">
-          <template #header>
-            <div class="omp-provider-header" @click="toggleExpand(prov.name)">
-              <Space size="small" align="center">
-                <span v-if="expanded.has(prov.name)" class="omp-expand-icon"><ChevronDownIcon /></span>
-                <span v-else class="omp-expand-icon"><ChevronRightIcon /></span>
+        <Collapse v-model="expandedList" class="omp-provider-collapse">
+          <CollapsePanel
+            v-for="prov in providers"
+            :key="prov.name"
+            :value="prov.name"
+          >
+            <!-- 供应商头部：展开箭头由 Collapse 内置渲染 -->
+            <template #header>
+              <div class="omp-provider-header-left">
                 <span class="omp-provider-name">{{ prov.name }}</span>
                 <Tag size="small" variant="outline">{{ prov.api || 'openai-completions' }}</Tag>
                 <span class="omp-model-count">{{ prov.models.length }} 个模型</span>
-              </Space>
-              <div class="omp-provider-header-right" @click.stop>
-                <Space size="4px" align="center">
-                  <Tooltip content="编辑配置" placement="top">
-                    <Button size="small" variant="text" @click="handleEdit(prov)">
-                      <template #icon><EditIcon /></template>
-                    </Button>
-                  </Tooltip>
-                  <Popconfirm content="确定删除此供应商？其下所有模型也会被删除。" @confirm="handleDeleteProvider(prov.name)">
-                    <Button size="small" variant="text" theme="danger">
-                      <template #icon><DeleteIcon /></template>
-                    </Button>
-                  </Popconfirm>
-                </Space>
               </div>
-            </div>
-          </template>
+            </template>
+            <template #headerRightContent>
+              <div class="omp-provider-header-right" @click.stop>
+                <Tooltip content="编辑配置" placement="top">
+                  <Button size="small" variant="text" @click="handleEdit(prov)">
+                    <template #icon><EditIcon /></template>
+                  </Button>
+                </Tooltip>
+                <Popconfirm content="确定删除此供应商？其下所有模型也会被删除。" @confirm="handleDeleteProvider(prov.name)">
+                  <Button size="small" variant="text" theme="danger">
+                    <template #icon><DeleteIcon /></template>
+                  </Button>
+                </Popconfirm>
+              </div>
+            </template>
 
-          <template v-if="expanded.has(prov.name)">
+            <!-- 展开内容 -->
+            <template #content>
             <div class="omp-provider-info">
               <Space size="8px" align="center" class="omp-info-row">
                 <span class="omp-info-label">API Key</span>
@@ -667,8 +665,9 @@ onMounted(refresh);
                 </div>
               </div>
             </div>
-          </template>
-        </Card>
+            </template>
+          </CollapsePanel>
+        </Collapse>
       </div>
     </template>
 
@@ -816,15 +815,21 @@ onMounted(refresh);
         </div>
         <div class="omp-form-item">
           <label>上下文窗口</label>
-          <RadioGroup v-model="addModelForm.contextWindow" variant="default-filled" size="small">
-            <RadioButton v-for="opt in CTX_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</RadioButton>
-          </RadioGroup>
+          <PresetCustomInput
+            v-model="addModelForm.contextWindow"
+            :options="CTX_OPTIONS"
+            :step="1000"
+            :default-custom="128000"
+          />
         </div>
         <div class="omp-form-item">
           <label>最大输出</label>
-          <RadioGroup v-model="addModelForm.maxTokens" variant="default-filled" size="small">
-            <RadioButton v-for="opt in TOKENS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</RadioButton>
-          </RadioGroup>
+          <PresetCustomInput
+            v-model="addModelForm.maxTokens"
+            :options="TOKENS_OPTIONS"
+            :step="1000"
+            :default-custom="16384"
+          />
         </div>
         <Collapse v-model="modelAdvancedOpen" class="omp-advanced-collapse">
           <CollapsePanel value="1" header="高级配置（思考级别 / 费用 / 兼容性）">
@@ -907,15 +912,21 @@ onMounted(refresh);
         </div>
         <div class="omp-form-item">
           <label>上下文窗口</label>
-          <RadioGroup v-model="editModelForm.contextWindow" variant="default-filled" size="small">
-            <RadioButton v-for="opt in CTX_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</RadioButton>
-          </RadioGroup>
+          <PresetCustomInput
+            v-model="editModelForm.contextWindow"
+            :options="CTX_OPTIONS"
+            :step="1000"
+            :default-custom="128000"
+          />
         </div>
         <div class="omp-form-item">
           <label>最大输出</label>
-          <RadioGroup v-model="editModelForm.maxTokens" variant="default-filled" size="small">
-            <RadioButton v-for="opt in TOKENS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</RadioButton>
-          </RadioGroup>
+          <PresetCustomInput
+            v-model="editModelForm.maxTokens"
+            :options="TOKENS_OPTIONS"
+            :step="1000"
+            :default-custom="16384"
+          />
         </div>
         <Collapse v-model="modelAdvancedOpen" class="omp-advanced-collapse">
           <CollapsePanel value="1" header="高级配置（思考级别 / 费用 / 兼容性）">

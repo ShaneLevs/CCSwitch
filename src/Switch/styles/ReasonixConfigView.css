@@ -22,15 +22,16 @@
 .reasonix-top-label { font-size: 13px; font-weight: 600; color: var(--td-text-color-secondary); white-space: nowrap; flex-shrink: 0; }
 .reasonix-default-select { flex: 1; min-width: 120px; }
 
-/* ===== 供应商列表 ===== */
+/* ===== 供应商列表（TDesign Collapse 手风琴） ===== */
 .reasonix-provider-list { display: flex; flex-direction: column; gap: 8px; }
-.reasonix-provider-card { cursor: pointer; transition: border-color 0.15s; }
-.reasonix-provider-card--active { border-color: var(--td-brand-color); }
+.reasonix-provider-collapse { border-radius: var(--td-radius-default); overflow: hidden; }
+.reasonix-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__header { padding: 10px 14px; }
+.reasonix-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__header:hover { background: var(--td-bg-color-container-hover); }
+.reasonix-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__body { background: var(--td-bg-color-container); }
+.reasonix-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__content { padding: 0 14px 14px; }
 
-.reasonix-provider-header { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-.reasonix-provider-header-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.reasonix-provider-header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .reasonix-provider-header-right { display: flex; align-items: center; flex-shrink: 0; gap: 2px; }
-.reasonix-expand-icon { display: flex; align-items: center; color: var(--td-text-color-placeholder); flex-shrink: 0; }
 .reasonix-provider-name { font-weight: 600; font-size: 14px; color: var(--td-text-color-primary); }
 .reasonix-model-count { font-size: 12px; color: var(--td-text-color-placeholder); white-space: nowrap; }
 
@@ -97,8 +98,8 @@
 .reasonix-form-item label { font-size: 13px; color: var(--td-text-color-secondary); }
 .reasonix-form-row { display: flex; gap: 12px; }
 .reasonix-form-row .reasonix-form-item { flex: 1; }
+/* 上下文窗口 / 最大输出输入框固定宽度（默认 144px 偏窄，满宽又偏大） */
+.reasonix-form-item .t-input-number { width: 220px; }
 .reasonix-form-hint { font-size: 12px; color: var(--td-text-color-placeholder); }
 .reasonix-form-required { color: var(--td-error-color); }
-.hint-link { cursor: pointer; text-decoration: underline; color: var(--td-brand-color); }
-.hint-link:hover { opacity: 0.8; }
 .mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }

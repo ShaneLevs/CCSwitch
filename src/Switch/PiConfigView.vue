@@ -5,11 +5,12 @@ import {
   Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin, Table, Loading, Popconfirm, Alert as TAlert, Select, Switch, CheckboxGroup, Checkbox, Collapse, CollapsePanel,
 } from "tdesign-vue-next";
 import {
-  RefreshIcon, EditIcon, FolderOpen1Icon, StarIcon, ChevronDownIcon, ChevronRightIcon,
+  RefreshIcon, EditIcon, FolderOpen1Icon, StarIcon,
   AddIcon, DeleteIcon,
 } from "tdesign-icons-vue-next";
 import ApiKeyInput from "../components/ApiKeyInput.vue";
 import DynamicKvEditor from "../components/DynamicKvEditor.vue";
+import PresetCustomInput from "../components/PresetCustomInput.vue";
 import "./styles/PiConfigView.css";
 
 // Pi 官方文档支持的 API 类型
@@ -44,9 +45,30 @@ const INPUT_TYPE_OPTIONS = [
   { label: "图像 (image)", value: "image" },
 ];
 
+// 上下文窗口 / 最大输出 常见值选项（同 omp 约定）
+const CTX_OPTIONS = [
+  { label: "默认", value: 0 },
+  { label: "32K", value: 32000 },
+  { label: "64K", value: 64000 },
+  { label: "128K", value: 128000 },
+  { label: "200K", value: 200000 },
+  { label: "1M", value: 1000000 },
+];
+const TOKENS_OPTIONS = [
+  { label: "默认", value: 0 },
+  { label: "4K", value: 4096 },
+  { label: "8K", value: 8192 },
+  { label: "16K", value: 16384 },
+  { label: "32K", value: 32768 },
+  { label: "64K", value: 65536 },
+  { label: "128K", value: 128000 },
+  { label: "256K", value: 256000 },
+  { label: "384K", value: 384000 },
+];
+
 const loading = ref(false);
 const providers = ref([]);
-const expanded = ref(new Set());
+const expandedList = ref([]);
 const warningMsg = ref("");
 const editDialog = ref(false);
 const editingProvider = ref(null);
@@ -66,11 +88,6 @@ const modelAdvancedOpen = ref(false);
 const editModelProvider = ref(null);
 const editingModelId = ref(null);
 const editModelForm = ref({ name: '', contextWindow: 0, maxTokens: 0, reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, compat: [] });
-
-const toggleExpand = (name) => {
-  if (expanded.value.has(name)) expanded.value.delete(name);
-  else expanded.value.add(name);
-};
 
 const loadProviders = () => {
   try {
@@ -432,16 +449,21 @@ onMounted(refresh);
     </div>
 
     <div v-else class="pi-provider-list">
-      <Card v-for="prov in providers" :key="prov.name" :bordered="true" class="pi-provider-card">
-        <template #header>
-          <div class="pi-provider-header" @click="toggleExpand(prov.name)">
+      <Collapse v-model="expandedList" class="pi-provider-collapse">
+        <CollapsePanel
+          v-for="prov in providers"
+          :key="prov.name"
+          :value="prov.name"
+        >
+          <!-- 供应商头部：展开箭头由 Collapse 内置渲染 -->
+          <template #header>
             <div class="pi-provider-header-left">
-              <span v-if="expanded.has(prov.name)" class="pi-expand-icon"><ChevronDownIcon /></span>
-              <span v-else class="pi-expand-icon"><ChevronRightIcon /></span>
               <span class="pi-provider-name">{{ prov.name }}</span>
               <Tag v-if="prov.isDefault" size="small" theme="warning" variant="light">默认</Tag>
               <Tag size="small" variant="outline">{{ prov.api || 'openai-completions' }}</Tag>
             </div>
+          </template>
+          <template #headerRightContent>
             <div class="pi-provider-header-right" @click.stop>
               <span class="pi-model-count">{{ prov.models.length }} 个模型</span>
               <Space size="small">
@@ -462,10 +484,10 @@ onMounted(refresh);
                 </Popconfirm>
               </Space>
             </div>
-          </div>
-        </template>
+          </template>
 
-        <template v-if="expanded.has(prov.name)">
+          <!-- 展开内容 -->
+          <template #content>
           <div class="pi-provider-info">
             <div class="pi-info-row">
               <span class="pi-info-label">API Key</span>
@@ -518,8 +540,9 @@ onMounted(refresh);
               </div>
             </div>
           </div>
-        </template>
-      </Card>
+            </template>
+          </CollapsePanel>
+        </Collapse>
     </div>
 
     <Dialog
@@ -654,24 +677,30 @@ onMounted(refresh);
         </div>
         <div class="pi-form-item">
           <label>输入类型</label>
-          <CheckboxGroup v-model="addModelForm.input">
-            <Checkbox v-for="opt in INPUT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</Checkbox>
-          </CheckboxGroup>
-        </div>
-        <div class="pi-form-row">
-          <div class="pi-form-item">
-            <label>上下文窗口</label>
-            <InputNumber v-model="addModelForm.contextWindow" :min="0" placeholder="留空默认 128000" />
-          </div>
-          <div class="pi-form-item">
-            <label>最大输出</label>
-            <InputNumber v-model="addModelForm.maxTokens" :min="0" placeholder="留空默认 16384" />
-          </div>
+          <Space size="16px" align="center" wrap>
+            <CheckboxGroup v-model="addModelForm.input" class="pi-checkbox-group">
+              <Checkbox v-for="opt in INPUT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</Checkbox>
+            </CheckboxGroup>
+            <Checkbox v-model="addModelForm.reasoning" class="pi-reasoning-checkbox">推理模型</Checkbox>
+          </Space>
         </div>
         <div class="pi-form-item">
-          <label>
-            <input type="checkbox" v-model="addModelForm.reasoning" /> 推理模型
-          </label>
+          <label>上下文窗口</label>
+          <PresetCustomInput
+            v-model="addModelForm.contextWindow"
+            :options="CTX_OPTIONS"
+            :step="1000"
+            :default-custom="128000"
+          />
+        </div>
+        <div class="pi-form-item">
+          <label>最大输出</label>
+          <PresetCustomInput
+            v-model="addModelForm.maxTokens"
+            :options="TOKENS_OPTIONS"
+            :step="1000"
+            :default-custom="16384"
+          />
         </div>
         <Collapse v-model="modelAdvancedOpen" class="pi-advanced-collapse">
           <CollapsePanel value="1" header="高级配置（费用 / 兼容性）">
@@ -731,24 +760,30 @@ onMounted(refresh);
         </div>
         <div class="pi-form-item">
           <label>输入类型</label>
-          <CheckboxGroup v-model="editModelForm.input">
-            <Checkbox v-for="opt in INPUT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</Checkbox>
-          </CheckboxGroup>
-        </div>
-        <div class="pi-form-row">
-          <div class="pi-form-item">
-            <label>上下文窗口</label>
-            <InputNumber v-model="editModelForm.contextWindow" :min="0" placeholder="留空默认 128000" />
-          </div>
-          <div class="pi-form-item">
-            <label>最大输出</label>
-            <InputNumber v-model="editModelForm.maxTokens" :min="0" placeholder="留空默认 16384" />
-          </div>
+          <Space size="16px" align="center" wrap>
+            <CheckboxGroup v-model="editModelForm.input" class="pi-checkbox-group">
+              <Checkbox v-for="opt in INPUT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</Checkbox>
+            </CheckboxGroup>
+            <Checkbox v-model="editModelForm.reasoning" class="pi-reasoning-checkbox">推理模型</Checkbox>
+          </Space>
         </div>
         <div class="pi-form-item">
-          <label>
-            <input type="checkbox" v-model="editModelForm.reasoning" /> 推理模型
-          </label>
+          <label>上下文窗口</label>
+          <PresetCustomInput
+            v-model="editModelForm.contextWindow"
+            :options="CTX_OPTIONS"
+            :step="1000"
+            :default-custom="128000"
+          />
+        </div>
+        <div class="pi-form-item">
+          <label>最大输出</label>
+          <PresetCustomInput
+            v-model="editModelForm.maxTokens"
+            :options="TOKENS_OPTIONS"
+            :step="1000"
+            :default-custom="16384"
+          />
         </div>
         <Collapse v-model="modelAdvancedOpen" class="pi-advanced-collapse">
           <CollapsePanel value="1" header="高级配置（费用 / 兼容性）">

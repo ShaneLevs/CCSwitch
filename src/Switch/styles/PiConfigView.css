@@ -5,14 +5,16 @@
 .pi-config-empty { margin-top: 40px; }
 .pi-config-warning { margin-bottom: 12px; }
 .pi-provider-list { display: flex; flex-direction: column; gap: 8px; }
-.pi-provider-card { cursor: pointer; }
-.pi-provider-header { display: flex; justify-content: space-between; align-items: center; }
-.pi-provider-header-left { display: flex; align-items: center; gap: 6px; }
-.pi-provider-header-right { display: flex; align-items: center; gap: 8px; }
-.pi-expand-icon { display: flex; align-items: center; color: var(--td-text-color-placeholder); }
+.pi-provider-collapse { border-radius: var(--td-radius-default); overflow: hidden; }
+.pi-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__header { padding: 10px 14px; }
+.pi-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__header:hover { background: var(--td-bg-color-container-hover); }
+.pi-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__body { background: var(--td-bg-color-container); }
+.pi-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__content { padding: 0 14px 14px; }
+.pi-provider-header-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pi-provider-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .pi-provider-name { font-weight: 600; font-size: 14px; color: var(--td-text-color-primary); }
-.pi-model-count { font-size: 12px; color: var(--td-text-color-placeholder); }
-.pi-provider-info { padding: 8px 0; }
+.pi-model-count { font-size: 12px; color: var(--td-text-color-placeholder); white-space: nowrap; }
+.pi-provider-info { padding: 10px 0 8px; }
 .pi-info-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
 .pi-info-label { color: var(--td-text-color-placeholder); min-width: 80px; }
 .pi-info-value { color: var(--td-text-color-primary); }
@@ -97,6 +99,9 @@
 }
 .star-default { color: var(--td-warning-color); }
 .pi-advanced-collapse { margin-top: 4px; }
+/* Checkbox 统一绿色主题（同 omp/Claude 配置约定） */
+.pi-checkbox-group { --td-brand-color: var(--td-success-color); }
+.pi-reasoning-checkbox { --td-brand-color: var(--td-success-color); }
 .hint-link { cursor: pointer; text-decoration: underline; color: var(--td-brand-color); }
 .hint-link:hover { opacity: 0.8; }
 .mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }

@@ -1,7 +1,11 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
+const crypto = require('node:crypto')
 const { parse: parseToml, stringify: stringifyToml } = require('smol-toml')
+
+// .env 变量名合法格式（与 writeReasonixEnvKey / deleteReasonixEnvKey 共用）
+const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 const REASONIX_HOME = () => {
   if (process.platform === 'win32') {
@@ -24,9 +28,14 @@ const toNumber = (v) => (typeof v === 'bigint' ? Number(v) : v == null ? 0 : Num
 const readReasonixConfig = () => {
   const p = REASONIX_CONFIG_PATH()
   if (!fs.existsSync(p)) return {}
+  const raw = fs.readFileSync(p, { encoding: 'utf-8' })
   try {
-    return parseToml(fs.readFileSync(p, { encoding: 'utf-8' })) || {}
-  } catch { return {} }
+    return parseToml(raw) || {}
+  } catch (e) {
+    // 解析失败必须抛错而非静默返回 {}：任何「读 → 改 → 全量写回」都会用
+    // {providers:[...]} 覆盖整个 config.toml，抹掉 [agent]/[ui]/[sandbox]/[[plugins]] 等节
+    throw new Error(`config.toml 解析失败，已阻止修改（请先修复 TOML 语法）: ${e.message}`)
+  }
 }
 
 const writeReasonixConfig = (doc) => {
@@ -92,12 +101,22 @@ const getReasonixProviderList = () => {
 
 const addReasonixProvider = (cfg) => {
   if (!cfg?.name || typeof cfg.name !== 'string') throw new Error('供应商名不能为空')
+  // 先校验 key 变量名，避免写了一半才因非法名失败留下部分状态
+  if (cfg.apiKey && cfg.apiKeyEnv && !ENV_KEY_RE.test(cfg.apiKeyEnv)) {
+    throw new Error(`Key 环境变量名 ${cfg.apiKeyEnv} 不合法`)
+  }
   const doc = readReasonixConfig()
   if (!Array.isArray(doc.providers)) doc.providers = []
   if (doc.providers.some(p => p.name === cfg.name)) throw new Error(`供应商 ${cfg.name} 已存在`)
   doc.providers.push(buildProviderToml(cfg))
   if (cfg.apiKey && cfg.apiKeyEnv) writeReasonixEnvKey(cfg.apiKeyEnv, cfg.apiKey)
-  writeReasonixConfig(doc)
+  try {
+    writeReasonixConfig(doc)
+  } catch (e) {
+    // config 写入失败 → 回滚刚写入的 key，避免 .env 留下孤儿变量
+    if (cfg.apiKey && cfg.apiKeyEnv) { try { deleteReasonixEnvKey(cfg.apiKeyEnv) } catch { /* ignore */ } }
+    throw e
+  }
   return true
 }
 
@@ -107,12 +126,24 @@ const updateReasonixProvider = (name, updates) => {
   const idx = doc.providers.findIndex(p => p.name === name)
   if (idx === -1) throw new Error(`供应商 ${name} 不存在`)
   const oldProvider = doc.providers[idx]
+  // 支持重命名：name 是唯一 key，改名需校验冲突并同步 default_model 引用
+  const newName = (updates.name === undefined || updates.name === name)
+    ? name
+    : String(updates.name).trim()
+  if (!newName) throw new Error('供应商名不能为空')
+  if (newName !== name && doc.providers.some(p => p.name === newName)) {
+    throw new Error(`供应商 ${newName} 已存在`)
+  }
   const oldEnv = oldProvider.api_key_env || ''
   // 未传 apiKeyEnv 时保留原值；显式传空串才表示清空
   const newEnv = (updates.apiKeyEnv === undefined ? oldEnv : (updates.apiKeyEnv || '').trim())
-  // name 是唯一 key，不允许重命名；统一使用 trim 后的 env 名
-  const merged = { ...normalizeProvider(oldProvider), ...updates, apiKeyEnv: newEnv, name }
+  const merged = { ...normalizeProvider(oldProvider), ...updates, apiKeyEnv: newEnv, name: newName }
   doc.providers[idx] = buildProviderToml(merged)
+  // 重命名后同步 default_model 引用：裸供应商名（解析到其默认模型）或 provider/model
+  if (newName !== name && doc.default_model) {
+    if (doc.default_model === name) doc.default_model = newName
+    else if (doc.default_model.startsWith(name + '/')) doc.default_model = newName + doc.default_model.slice(name.length)
+  }
   // key 处理：
   // 1) clearApiKey → 显式删除：同时清理旧/新 env 名的 key（改 env 名 + 删 key 组合场景）
   // 2) 提供了新 key → 写入新 env 名
@@ -246,7 +277,7 @@ const generateReasonixApiKeyEnv = (name) => {
   const raw = String(name || '')
   // 无任何 ASCII 字母数字（如全中文名）→ 用稳定 hash 后缀，避免生成全下划线的非法/无意义变量名
   if (!/[A-Za-z0-9]/.test(raw)) {
-    const hash = require('node:crypto').createHash('md5').update(raw).digest('hex').slice(0, 8)
+    const hash = crypto.createHash('md5').update(raw).digest('hex').slice(0, 8)
     return `CUSTOM_${hash}_API_KEY`
   }
   const base = raw.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()
@@ -255,7 +286,7 @@ const generateReasonixApiKeyEnv = (name) => {
 }
 
 const writeReasonixEnvKey = (key, value) => {
-  if (!key || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new Error(`密钥名 ${key} 不合法`)
+  if (!key || !ENV_KEY_RE.test(key)) throw new Error(`密钥名 ${key} 不合法`)
   // dotenv 兼容：值含 # / 空格 / 引号 / 反斜杠时用双引号包裹并转义，
   // 避免被解析器当作注释截断或意外切分（Reasonix CLI 与 readReasonixEnv 均按此解析）
   let lineValue = String(value)
@@ -275,14 +306,15 @@ const writeReasonixEnvKey = (key, value) => {
 }
 
 const deleteReasonixEnvKey = (key) => {
-  if (!key || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new Error(`密钥名 ${key} 不合法`)
+  if (!key || !ENV_KEY_RE.test(key)) throw new Error(`密钥名 ${key} 不合法`)
   const p = REASONIX_ENV_PATH()
   if (!fs.existsSync(p)) return true
   const re = new RegExp(`^(?:export\\s+)?${key}\\s*=`)
   const next = fs.readFileSync(p, { encoding: 'utf-8' })
     .split(/\r?\n/)
     .filter(l => { const t = l.trim(); return t.startsWith('#') || !re.test(t) })
-  fs.writeFileSync(p, next.join('\n'), { encoding: 'utf-8' })
+  // 与 writeReasonixEnvKey 一致：非空内容以单个尾换行结尾
+  fs.writeFileSync(p, next.length ? next.join('\n') + '\n' : '', { encoding: 'utf-8' })
   return true
 }
 
