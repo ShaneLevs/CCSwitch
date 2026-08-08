@@ -1237,6 +1237,7 @@ window.services = {
   getReasonixApiKey: reasonix.getReasonixApiKey,
   writeReasonixEnvKey: reasonix.writeReasonixEnvKey,
   deleteReasonixEnvKey: reasonix.deleteReasonixEnvKey,
+  generateReasonixApiKeyEnv: reasonix.generateReasonixApiKeyEnv,
   openReasonixDir: reasonix.openReasonixDir,
   isReasonixInstalled: reasonix.isReasonixInstalled,
 }

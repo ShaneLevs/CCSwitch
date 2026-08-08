@@ -38,23 +38,39 @@ const writeReasonixConfig = (doc) => {
 
 // ==================== Providers ====================
 
+// UI 认识并显式管理的字段（其余视为需要原样保留的扩展字段/子表）
+const KNOWN_PROVIDER_FIELDS = [
+  'name', 'kind', 'base_url', 'chat_url', 'models_url', 'api_key_env',
+  'default', 'context_window', 'max_output_tokens', 'models', 'model',
+]
+
 // 归一化一个 provider 条目供 UI 消费（models 始终为数组）
-const normalizeProvider = (p) => ({
-  name: p.name || '',
-  kind: p.kind || 'openai',
-  baseUrl: p.base_url || '',
-  chatUrl: p.chat_url || '',
-  modelsUrl: p.models_url || '',
-  apiKeyEnv: p.api_key_env || '',
-  default: p.default || '',
-  contextWindow: toNumber(p.context_window),
-  maxOutputTokens: toNumber(p.max_output_tokens),
-  models: Array.isArray(p.models) ? p.models : (p.model ? [p.model] : []),
-})
+// 未知字段（model_overrides / price / extra_body / proxy_bypass 等）原样收进 _extra，
+// 写回时由 buildProviderToml 还原，避免编辑一个字段导致整个子表丢失
+const normalizeProvider = (p) => {
+  const extra = {}
+  for (const k of Object.keys(p || {})) {
+    if (!KNOWN_PROVIDER_FIELDS.includes(k)) extra[k] = p[k]
+  }
+  return {
+    name: p.name || '',
+    kind: p.kind || 'openai',
+    baseUrl: p.base_url || '',
+    chatUrl: p.chat_url || '',
+    modelsUrl: p.models_url || '',
+    apiKeyEnv: p.api_key_env || '',
+    default: p.default || '',
+    contextWindow: toNumber(p.context_window),
+    maxOutputTokens: toNumber(p.max_output_tokens),
+    models: Array.isArray(p.models) ? p.models : (p.model ? [p.model] : []),
+    _extra: extra,
+  }
+}
 
 // 从 UI 结构构建写入 TOML 的 provider 对象（空字段不输出）
 const buildProviderToml = (cfg) => {
-  const p = { name: cfg.name, kind: cfg.kind || 'openai', base_url: cfg.baseUrl || '' }
+  const p = { name: cfg.name, kind: cfg.kind || 'openai' }
+  if (cfg.baseUrl) p.base_url = cfg.baseUrl
   if (cfg.chatUrl) p.chat_url = cfg.chatUrl
   if (cfg.modelsUrl) p.models_url = cfg.modelsUrl
   if (Array.isArray(cfg.models) && cfg.models.length) p.models = cfg.models
@@ -62,6 +78,10 @@ const buildProviderToml = (cfg) => {
   if (cfg.apiKeyEnv) p.api_key_env = cfg.apiKeyEnv
   if (cfg.contextWindow) p.context_window = Number(cfg.contextWindow)
   if (cfg.maxOutputTokens) p.max_output_tokens = Number(cfg.maxOutputTokens)
+  // 还原未被 UI 管理的扩展字段/子表
+  for (const [k, v] of Object.entries(cfg._extra || {})) {
+    if (v !== undefined) p[k] = v
+  }
   return p
 }
 
@@ -86,10 +106,44 @@ const updateReasonixProvider = (name, updates) => {
   if (!Array.isArray(doc.providers)) throw new Error(`供应商 ${name} 不存在`)
   const idx = doc.providers.findIndex(p => p.name === name)
   if (idx === -1) throw new Error(`供应商 ${name} 不存在`)
-  // name 是唯一 key，不允许重命名
-  const merged = { ...normalizeProvider(doc.providers[idx]), ...updates, name }
+  const oldProvider = doc.providers[idx]
+  const oldEnv = oldProvider.api_key_env || ''
+  // 未传 apiKeyEnv 时保留原值；显式传空串才表示清空
+  const newEnv = (updates.apiKeyEnv === undefined ? oldEnv : (updates.apiKeyEnv || '').trim())
+  // name 是唯一 key，不允许重命名；统一使用 trim 后的 env 名
+  const merged = { ...normalizeProvider(oldProvider), ...updates, apiKeyEnv: newEnv, name }
   doc.providers[idx] = buildProviderToml(merged)
-  if (updates.apiKey && updates.apiKeyEnv) writeReasonixEnvKey(updates.apiKeyEnv, updates.apiKey)
+  // key 处理：
+  // 1) clearApiKey → 显式删除：同时清理旧/新 env 名的 key（改 env 名 + 删 key 组合场景）
+  // 2) 提供了新 key → 写入新 env 名
+  // 3) 未提供新 key 但 env 名改了 → 把旧 env 名的 key 迁移到新名（旧名保留，避免误删共享 key）
+  if (updates.clearApiKey) {
+    if (newEnv) deleteReasonixEnvKey(newEnv)
+    if (oldEnv && oldEnv !== newEnv) deleteReasonixEnvKey(oldEnv)
+  } else if (updates.apiKey && newEnv) {
+    writeReasonixEnvKey(newEnv, updates.apiKey)
+  } else if (newEnv && newEnv !== oldEnv && oldEnv) {
+    // 新 env 名已被其他供应商引用（共享 key 场景）→ 不迁移，避免覆盖共享 key；
+    // 迁移仅发生在指向全新的 env 名时
+    const sharedByOthers = (doc.providers || []).some((p, i) => i !== idx && p.api_key_env === newEnv)
+    if (sharedByOthers) {
+      console.warn(`[Reasonix] api_key_env 改为 ${newEnv}，该变量被其他供应商引用，保留其已有 Key（不从 ${oldEnv} 迁移）`)
+    } else {
+      const env = readReasonixEnv()
+      const oldKey = env[oldEnv]
+      if (oldKey) {
+        // 目标 env 名已存在不同值（如删除 provider 后遗留的孤儿变量）→ 不覆盖，跳过迁移
+        if (env[newEnv] !== undefined && env[newEnv] !== oldKey) {
+          console.warn(`[Reasonix] ${newEnv} 已有其他值，跳过迁移（不从 ${oldEnv} 复制），如需迁移请先清空 ${newEnv}`)
+        } else {
+          writeReasonixEnvKey(newEnv, oldKey)
+          console.warn(`[Reasonix] api_key_env ${oldEnv} → ${newEnv}，已迁移已保存的 Key（旧名 ${oldEnv} 保留）`)
+        }
+      } else {
+        console.warn(`[Reasonix] api_key_env 改为 ${newEnv}，但 ${oldEnv} 下无已保存 Key，需手动填写`)
+      }
+    }
+  }
   writeReasonixConfig(doc)
   return true
 }
@@ -160,30 +214,60 @@ const setReasonixDefaultModel = (ref) => {
 const readReasonixEnv = () => {
   const p = REASONIX_ENV_PATH()
   if (!fs.existsSync(p)) return {}
-  const out = {}
-  for (const raw of fs.readFileSync(p, { encoding: 'utf-8' }).split(/\r?\n/)) {
-    const line = raw.trim()
-    if (!line || line.startsWith('#')) continue
-    const m = line.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/)
-    if (!m) continue
-    let val = m[2].trim()
-    if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1)
-    else if (val.startsWith("'") && val.endsWith("'")) val = val.slice(1, -1)
-    out[m[1]] = val
+  try {
+    const out = {}
+    for (const raw of fs.readFileSync(p, { encoding: 'utf-8' }).split(/\r?\n/)) {
+      const line = raw.trim()
+      if (!line || line.startsWith('#')) continue
+      const m = line.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/)
+      if (!m) continue
+      let val = m[2].trim()
+      if (val.startsWith('"') && val.endsWith('"')) {
+        // 反转义 dotenv 双引号值：\" → "，\\ → \
+        val = val.slice(1, -1).replace(/\\(["\\])/g, '$1')
+      } else if (val.startsWith("'") && val.endsWith("'")) val = val.slice(1, -1)
+      out[m[1]] = val
+    }
+    return out
+  } catch (e) {
+    // 权限不足/被占用时降级为空对象，避免编辑弹窗直接崩溃
+    console.error('读取 Reasonix .env 失败:', e)
+    return {}
   }
-  return out
 }
 
 const getReasonixApiKey = (envName) => (envName ? readReasonixEnv()[envName] || '' : '')
 
+// 按 Reasonix 官方规则生成 api_key_env 名（docs: CONFIG_PATHS.md "Custom provider api_key_env names"）：
+// - 非字母数字字符替换为 _ 并大写，如 local-gateway → LOCAL_GATEWAY_API_KEY
+// - 数字开头的名字加 CUSTOM_ 前缀，如 9router → CUSTOM_9ROUTER_API_KEY
+// - 全非 ASCII 名字用稳定 hash 后缀，如 中文名 → CUSTOM_<8位hex>_API_KEY
+const generateReasonixApiKeyEnv = (name) => {
+  const raw = String(name || '')
+  // 无任何 ASCII 字母数字（如全中文名）→ 用稳定 hash 后缀，避免生成全下划线的非法/无意义变量名
+  if (!/[A-Za-z0-9]/.test(raw)) {
+    const hash = require('node:crypto').createHash('md5').update(raw).digest('hex').slice(0, 8)
+    return `CUSTOM_${hash}_API_KEY`
+  }
+  const base = raw.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()
+  const prefix = /^[0-9]/.test(base) ? 'CUSTOM_' : ''
+  return `${prefix}${base}_API_KEY`
+}
+
 const writeReasonixEnvKey = (key, value) => {
   if (!key || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new Error(`密钥名 ${key} 不合法`)
+  // dotenv 兼容：值含 # / 空格 / 引号 / 反斜杠时用双引号包裹并转义，
+  // 避免被解析器当作注释截断或意外切分（Reasonix CLI 与 readReasonixEnv 均按此解析）
+  let lineValue = String(value)
+  if (/[#"'\s\\]/.test(lineValue)) {
+    lineValue = `"${lineValue.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+  }
   const p = REASONIX_ENV_PATH()
   const lines = fs.existsSync(p) ? fs.readFileSync(p, { encoding: 'utf-8' }).split(/\r?\n/) : []
   const re = new RegExp(`^(?:export\\s+)?${key}\\s*=`)
   const idx = lines.findIndex(l => { const t = l.trim(); return !t.startsWith('#') && re.test(t) })
-  if (idx !== -1) lines[idx] = `${key}=${value}`
-  else lines.push(`${key}=${value}`)
+  if (idx !== -1) lines[idx] = `${key}=${lineValue}`
+  else lines.push(`${key}=${lineValue}`)
   fs.mkdirSync(path.dirname(p), { recursive: true })
   fs.writeFileSync(p, lines.join('\n') + '\n', { encoding: 'utf-8' })
   try { fs.chmodSync(p, 0o600) } catch { /* 不支持则忽略 */ }
@@ -219,5 +303,8 @@ module.exports = {
   addReasonixModel, deleteReasonixModel,
   getReasonixDefaultModel, setReasonixDefaultModel,
   readReasonixEnv, getReasonixApiKey, writeReasonixEnvKey, deleteReasonixEnvKey,
+  generateReasonixApiKeyEnv,
   openReasonixDir, isReasonixInstalled,
+  // 内部结构函数导出，供测试/复用
+  normalizeProvider, buildProviderToml,
 }

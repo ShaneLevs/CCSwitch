@@ -46,3 +46,13 @@
 .hint-link { cursor: pointer; text-decoration: underline; color: var(--td-brand-color); }
 .hint-link:hover { opacity: 0.8; }
 .mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }
+
+/* 环境变量 / API Key 管理 */
+.reasonix-env-card { background: var(--td-bg-color-container); }
+.reasonix-env-header { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+.reasonix-env-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--td-border-level-1-color); }
+.reasonix-env-item:last-child { border-bottom: none; }
+.reasonix-env-name { min-width: 180px; max-width: 260px; color: var(--td-text-color-primary); flex-shrink: 0; word-break: break-all; }
+.reasonix-env-refs { flex-shrink: 0; }
+.reasonix-env-value { flex: 1; min-width: 0; }
+.reasonix-env-actions { flex-shrink: 0; display: flex; align-items: center; }
