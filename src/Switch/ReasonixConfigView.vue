@@ -2,11 +2,11 @@
 import { ref, computed, onMounted } from "vue";
 import {
   Card, Empty, Button, Tag, Space, Dialog, Input, InputNumber, MessagePlugin,
-  Select, Popconfirm, Alert as TAlert,
+  Select, Popconfirm, Alert as TAlert, Tooltip,
 } from "tdesign-vue-next";
 import {
   RefreshIcon, EditIcon, FolderOpen1Icon, AddIcon, DeleteIcon,
-  ChevronDownIcon, ChevronRightIcon,
+  ChevronDownIcon, ChevronRightIcon, CopyIcon, LockOnIcon,
 } from "tdesign-icons-vue-next";
 import ApiKeyInput from "../components/ApiKeyInput.vue";
 import "./styles/ReasonixConfigView.css";
@@ -42,6 +42,9 @@ const originalApiKey = ref("");
 const envEntries = ref([]);
 const envDialog = ref(false);
 const envForm = ref({ name: "", value: "" });
+// 当前正在行内编辑值的变量名（null = 全部收起，只读展示）
+const editingEnvName = ref(null);
+const editingEnvValue = ref("");
 
 const loadEnv = () => {
   try {
@@ -58,6 +61,35 @@ const loadEnv = () => {
 // 引用该变量的供应商（删除/编辑时提示）
 const envRefProviders = (name) =>
   providers.value.filter(p => p.apiKeyEnv === name).map(p => p.name);
+
+// 掩码显示：只保留前 4 + 后 4，中间用 ··· 替代
+const maskValue = (val) => {
+  if (!val) return "";
+  if (val.length <= 10) return "••••••";
+  return val.slice(0, 4) + "····" + val.slice(-4);
+};
+
+const startEditEnv = (entry) => {
+  editingEnvName.value = entry.name;
+  editingEnvValue.value = entry.value;
+};
+
+const cancelEditEnv = () => {
+  editingEnvName.value = null;
+  editingEnvValue.value = "";
+};
+
+const saveEnvEntry = (entry) => {
+  try {
+    if (!String(editingEnvValue.value || "").trim()) { MessagePlugin.warning("值不能为空，如需删除请用删除按钮"); return; }
+    window.services.writeReasonixEnvKey(entry.name, String(editingEnvValue.value).trim());
+    entry.value = String(editingEnvValue.value).trim();
+    MessagePlugin.success(`${entry.name} 已保存`);
+    cancelEditEnv();
+  } catch (e) {
+    MessagePlugin.error("保存失败: " + e.message);
+  }
+};
 
 const openAddEnvDialog = () => {
   envForm.value = { name: "", value: "" };
@@ -84,16 +116,6 @@ const handleAddEnv = () => {
   }
 };
 
-const saveEnvEntry = (entry) => {
-  try {
-    if (!String(entry.value || "").trim()) { MessagePlugin.warning("值不能为空，如需删除请用删除按钮"); return; }
-    window.services.writeReasonixEnvKey(entry.name, String(entry.value).trim());
-    MessagePlugin.success(`${entry.name} 已保存`);
-  } catch (e) {
-    MessagePlugin.error("保存失败: " + e.message);
-  }
-};
-
 const handleDeleteEnv = (name) => {
   try {
     window.services.deleteReasonixEnvKey(name);
@@ -101,6 +123,16 @@ const handleDeleteEnv = (name) => {
     loadEnv();
   } catch (e) {
     MessagePlugin.error("删除失败: " + e.message);
+  }
+};
+
+// 复制值到剪贴板
+const copyEnvValue = async (val) => {
+  try {
+    await navigator.clipboard.writeText(val);
+    MessagePlugin.success("已复制到剪贴板");
+  } catch {
+    MessagePlugin.error("复制失败");
   }
 };
 
@@ -141,6 +173,7 @@ const handleSetDefaultModel = () => {
   try {
     window.services.setReasonixDefaultModel(defaultModel.value);
     MessagePlugin.success("默认模型已更新");
+    refresh();
   } catch (e) {
     MessagePlugin.error("保存失败: " + e.message);
   }
@@ -331,17 +364,19 @@ onMounted(refresh);
 
 <template>
   <div class="reasonix-config-container">
-    <div class="reasonix-config-header">
-      <span class="reasonix-config-tip">
-        Reasonix 配置 — 供应商见
-        <span class="hint-link" @click="openReasonixDir">~/.reasonix/config.toml</span>，密钥存于
-        <span class="hint-link" @click="openReasonixDir">~/.reasonix/.env</span>
-      </span>
-      <div class="reasonix-config-actions">
-        <Button size="small" variant="outline" @click="openReasonixDir">
-          <template #icon><FolderOpen1Icon /></template> 打开目录
+    <!-- 顶部工具栏：路径提示 + 操作 -->
+    <div class="reasonix-toolbar">
+      <div class="reasonix-toolbar-left">
+        <span class="reasonix-toolbar-tip">
+          <span class="hint-link" @click="openReasonixDir">~/.reasonix/</span>
+          <span class="reasonix-toolbar-sub">config.toml + .env</span>
+        </span>
+      </div>
+      <div class="reasonix-toolbar-right">
+        <Button size="small" variant="text" theme="primary" @click="openReasonixDir">
+          <template #icon><FolderOpen1Icon /></template> 目录
         </Button>
-        <Button size="small" variant="outline" :loading="loading" @click="refresh">
+        <Button size="small" variant="text" theme="primary" :loading="loading" @click="refresh">
           <template #icon><RefreshIcon /></template> 刷新
         </Button>
       </div>
@@ -352,17 +387,10 @@ onMounted(refresh);
     </div>
 
     <template v-if="!loading">
-      <!-- 默认模型 -->
-      <Card :bordered="true" class="reasonix-default-card">
-        <template #header>
-          <div class="reasonix-default-header">
-            <Space size="12px" align="center">
-              <span class="reasonix-block-title">默认模型</span>
-              <span class="reasonix-block-sub">config.toml · default_model</span>
-            </Space>
-          </div>
-        </template>
+      <!-- 默认模型 + 添加供应商 合并为一行 -->
+      <div class="reasonix-top-bar">
         <div class="reasonix-default-row">
+          <span class="reasonix-top-label">默认模型</span>
           <Select
             v-model="defaultModel"
             :options="defaultModelOptions"
@@ -370,23 +398,14 @@ onMounted(refresh);
             filterable
             class="reasonix-default-select"
           />
-          <Button size="small" theme="primary" variant="base" @click="handleSetDefaultModel">
-            保存
-          </Button>
+          <Button size="small" theme="primary" variant="base" @click="handleSetDefaultModel">保存</Button>
         </div>
-      </Card>
-
-      <!-- 供应商与模型 -->
-      <div class="reasonix-providers-header">
-        <Space size="12px" align="center">
-          <span class="reasonix-block-title">供应商与模型</span>
-          <Tag size="small" variant="outline">{{ providers.length }} 个</Tag>
-        </Space>
-        <Button size="small" variant="outline" @click="openAddProviderDialog">
+        <Button size="small" variant="outline" theme="primary" @click="openAddProviderDialog">
           <template #icon><AddIcon /></template> 添加供应商
         </Button>
       </div>
 
+      <!-- 供应商列表 -->
       <div v-if="providers.length === 0" class="reasonix-config-empty">
         <Empty description="未检测到 Reasonix 供应商配置，请运行 reasonix setup 或手动编辑 config.toml" />
       </div>
@@ -399,6 +418,7 @@ onMounted(refresh);
           class="reasonix-provider-card"
           :class="{ 'reasonix-provider-card--active': expanded.has(p.name) }"
         >
+          <!-- 供应商头部：展开箭头 + 名称 + 标签 + 操作 -->
           <div class="reasonix-provider-header" @click="toggleExpand(p.name)">
             <div class="reasonix-provider-header-left">
               <span class="reasonix-expand-icon">
@@ -407,23 +427,14 @@ onMounted(refresh);
               </span>
               <span class="reasonix-provider-name">{{ p.name }}</span>
               <Tag size="small" variant="outline">{{ p.kind }}</Tag>
-              <Tag
-                v-if="p.default"
-                size="small"
-                theme="success"
-                variant="light"
-              >默认 {{ p.default }}</Tag>
+              <Tag v-if="p.default" size="small" theme="success" variant="light">默认 {{ p.default }}</Tag>
               <span class="reasonix-model-count">{{ p.models.length }} 个模型</span>
             </div>
             <div class="reasonix-provider-header-right" @click.stop>
               <Button size="small" theme="default" variant="text" @click="handleEdit(p)">
-                <template #icon><EditIcon /></template>
+                <template #icon><EditIcon /></template> 编辑
               </Button>
-              <Popconfirm
-                content="删除该供应商及其所有模型？"
-                theme="danger"
-                @confirm="handleDeleteProvider(p.name)"
-              >
+              <Popconfirm content="删除该供应商及其所有模型？" theme="danger" @confirm="handleDeleteProvider(p.name)">
                 <Button size="small" theme="danger" variant="text">
                   <template #icon><DeleteIcon /></template>
                 </Button>
@@ -431,42 +442,52 @@ onMounted(refresh);
             </div>
           </div>
 
-          <div v-if="expanded.has(p.name)" class="reasonix-provider-info">
-            <div class="reasonix-info-row"><span class="reasonix-info-label">Base URL</span><span class="reasonix-info-value">{{ p.baseUrl || "—" }}</span></div>
-            <div v-if="p.chatUrl" class="reasonix-info-row"><span class="reasonix-info-label">Chat URL</span><span class="reasonix-info-value">{{ p.chatUrl }}</span></div>
-            <div v-if="p.modelsUrl" class="reasonix-info-row"><span class="reasonix-info-label">Models URL</span><span class="reasonix-info-value">{{ p.modelsUrl }}</span></div>
-            <div class="reasonix-info-row"><span class="reasonix-info-label">Key 环境变量</span><span class="reasonix-info-value mono">{{ p.apiKeyEnv || "—" }}</span></div>
-            <div v-if="p.contextWindow || p.maxOutputTokens" class="reasonix-info-row">
-              <span class="reasonix-info-label">限制</span>
-              <span class="reasonix-info-value">
-                <template v-if="p.contextWindow">上下文 {{ formatNumber(p.contextWindow) }}</template>
-                <template v-if="p.contextWindow && p.maxOutputTokens"> · </template>
-                <template v-if="p.maxOutputTokens">输出 {{ formatNumber(p.maxOutputTokens) }}</template>
-              </span>
+          <!-- 展开内容：详情 + 模型 -->
+          <div v-if="expanded.has(p.name)" class="reasonix-provider-body">
+            <div class="reasonix-provider-details">
+              <div class="reasonix-detail-item">
+                <span class="reasonix-detail-label">Base URL</span>
+                <span class="reasonix-detail-value">{{ p.baseUrl || "—" }}</span>
+              </div>
+              <div v-if="p.chatUrl" class="reasonix-detail-item">
+                <span class="reasonix-detail-label">Chat URL</span>
+                <span class="reasonix-detail-value">{{ p.chatUrl }}</span>
+              </div>
+              <div v-if="p.modelsUrl" class="reasonix-detail-item">
+                <span class="reasonix-detail-label">Models URL</span>
+                <span class="reasonix-detail-value">{{ p.modelsUrl }}</span>
+              </div>
+              <div class="reasonix-detail-item">
+                <span class="reasonix-detail-label">Key 变量</span>
+                <span class="reasonix-detail-value mono">{{ p.apiKeyEnv || "—" }}</span>
+              </div>
+              <div v-if="p.contextWindow || p.maxOutputTokens" class="reasonix-detail-item">
+                <span class="reasonix-detail-label">限制</span>
+                <span class="reasonix-detail-value">
+                  <template v-if="p.contextWindow">上下文 {{ formatNumber(p.contextWindow) }}</template>
+                  <template v-if="p.contextWindow && p.maxOutputTokens"> · </template>
+                  <template v-if="p.maxOutputTokens">输出 {{ formatNumber(p.maxOutputTokens) }}</template>
+                </span>
+              </div>
             </div>
 
+            <!-- 模型子区 -->
             <div class="reasonix-models-section">
               <div class="reasonix-models-title">
                 <span>模型</span>
                 <Button size="small" variant="outline" @click="openAddModelDialog(p.name)">
-                  <template #icon><AddIcon /></template> 添加模型
+                  <template #icon><AddIcon /></template> 添加
                 </Button>
               </div>
               <div v-if="p.models.length === 0" class="reasonix-models-empty">暂无模型</div>
-              <div v-for="m in p.models" :key="m" class="reasonix-model-item">
-                <span class="reasonix-model-name">{{ m }}</span>
-                <Tag v-if="p.default === m" size="small" theme="success" variant="light">默认</Tag>
-                <div class="reasonix-model-actions">
-                  <Popconfirm
-                    content="删除模型？"
-                    theme="danger"
-                    @confirm="handleDeleteModel(p.name, m)"
-                  >
-                    <Button size="small" theme="danger" variant="text">
-                      <template #icon><DeleteIcon /></template>
-                    </Button>
+              <div class="reasonix-model-tags">
+                <span v-for="m in p.models" :key="m" class="reasonix-model-tag">
+                  <span class="reasonix-model-tag-name">{{ m }}</span>
+                  <Tag v-if="p.default === m" size="small" theme="success" variant="light">默认</Tag>
+                  <Popconfirm content="删除模型？" theme="danger" @confirm="handleDeleteModel(p.name, m)">
+                    <span class="reasonix-model-tag-del"><DeleteIcon size="12px" /></span>
                   </Popconfirm>
-                </div>
+                </span>
               </div>
             </div>
           </div>
@@ -474,49 +495,66 @@ onMounted(refresh);
       </div>
 
       <!-- 环境变量 / API Key -->
-      <Card :bordered="true" class="reasonix-env-card">
-        <template #header>
-          <div class="reasonix-env-header">
-            <Space size="12px" align="center">
-              <span class="reasonix-block-title">环境变量 / API Key</span>
-              <span class="reasonix-block-sub">~/.reasonix/.env · 共 {{ envEntries.length }} 个</span>
-            </Space>
-            <Button size="small" variant="outline" @click="openAddEnvDialog">
-              <template #icon><AddIcon /></template> 添加变量
-            </Button>
-          </div>
-        </template>
+      <div class="reasonix-env-section">
+        <div class="reasonix-env-header">
+          <Space size="8px" align="center">
+            <span class="reasonix-block-title">环境变量 / API Key</span>
+            <Tag size="small" variant="outline">{{ envEntries.length }}</Tag>
+            <span class="reasonix-block-sub">~/.reasonix/.env</span>
+          </Space>
+          <Button size="small" variant="outline" @click="openAddEnvDialog">
+            <template #icon><AddIcon /></template> 添加变量
+          </Button>
+        </div>
 
-        <div v-if="envEntries.length === 0" class="reasonix-models-empty">
+        <div v-if="envEntries.length === 0" class="reasonix-env-empty">
           .env 中暂无变量，可在供应商编辑弹窗中填写 API Key 自动写入
         </div>
 
-        <div v-for="e in envEntries" :key="e.name" class="reasonix-env-item">
-          <span class="reasonix-env-name mono">{{ e.name }}</span>
-          <span v-if="envRefProviders(e.name).length" class="reasonix-env-refs">
-            <Tag size="small" theme="warning" variant="light">被 {{ envRefProviders(e.name).length }} 个供应商引用</Tag>
-          </span>
-          <div class="reasonix-env-value">
-            <ApiKeyInput v-model="e.value" placeholder="输入新值后保存" />
-          </div>
-          <div class="reasonix-env-actions">
-            <Button size="small" theme="primary" variant="text" @click="saveEnvEntry(e)">
-              保存
-            </Button>
-            <Popconfirm
-              :content="envRefProviders(e.name).length
-                ? `该变量被 ${envRefProviders(e.name).join('、')} 引用，删除后这些供应商将失效！`
-                : '从 .env 删除该变量？'"
-              theme="danger"
-              @confirm="handleDeleteEnv(e.name)"
-            >
-              <Button size="small" theme="danger" variant="text">
-                <template #icon><DeleteIcon /></template>
-              </Button>
-            </Popconfirm>
+        <div v-else class="reasonix-env-list">
+          <div v-for="e in envEntries" :key="e.name" class="reasonix-env-item">
+            <!-- 左：变量名 + 引用标记 -->
+            <div class="reasonix-env-name-col">
+              <span class="reasonix-env-name mono">{{ e.name }}</span>
+              <Tooltip v-if="envRefProviders(e.name).length" :content="`被 ${envRefProviders(e.name).join('、')} 引用`">
+                <Tag size="small" theme="warning" variant="light">{{ envRefProviders(e.name).length }} 引用</Tag>
+              </Tooltip>
+            </div>
+
+            <!-- 右：值展示/编辑 + 操作 -->
+            <div class="reasonix-env-value-col">
+              <template v-if="editingEnvName === e.name">
+                <ApiKeyInput v-model="editingEnvValue" placeholder="输入新值" class="reasonix-env-edit-input" />
+                <Button size="small" theme="primary" variant="base" @click="saveEnvEntry(e)">保存</Button>
+                <Button size="small" variant="text" @click="cancelEditEnv">取消</Button>
+              </template>
+              <template v-else>
+                <span class="reasonix-env-mask mono">
+                  <LockOnIcon size="12px" class="reasonix-env-lock" />
+                  {{ maskValue(e.value) }}
+                </span>
+                <Tooltip content="复制">
+                  <Button size="small" variant="text" @click="copyEnvValue(e.value)">
+                    <template #icon><CopyIcon /></template>
+                  </Button>
+                </Tooltip>
+                <Button size="small" variant="text" @click="startEditEnv(e)">编辑</Button>
+                <Popconfirm
+                  :content="envRefProviders(e.name).length
+                    ? `该变量被 ${envRefProviders(e.name).join('、')} 引用，删除后这些供应商将失效！`
+                    : '从 .env 删除该变量？'"
+                  theme="danger"
+                  @confirm="handleDeleteEnv(e.name)"
+                >
+                  <Button size="small" theme="danger" variant="text">
+                    <template #icon><DeleteIcon /></template>
+                  </Button>
+                </Popconfirm>
+              </template>
+            </div>
           </div>
         </div>
-      </Card>
+      </div>
     </template>
 
     <!-- 添加供应商弹窗 -->

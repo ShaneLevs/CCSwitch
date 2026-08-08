@@ -1,41 +1,97 @@
-.reasonix-config-container { display: flex; flex-direction: column; gap: 12px; padding-top: 0; }
-.reasonix-config-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0; }
-.reasonix-config-tip { font-size: 12px; color: var(--td-text-color-secondary); }
-.reasonix-config-actions { display: flex; gap: 8px; }
-.reasonix-config-warning { margin-bottom: 12px; }
-.reasonix-config-empty { margin-top: 40px; }
+.reasonix-config-container { display: flex; flex-direction: column; gap: 14px; padding-top: 0; }
 
-.reasonix-default-card { background: var(--td-bg-color-container); }
-.reasonix-default-header { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-.reasonix-block-title { font-size: 15px; font-weight: 600; color: var(--td-text-color-primary); }
-.reasonix-block-sub { font-size: 12px; color: var(--td-text-color-placeholder); }
-.reasonix-default-row { display: flex; gap: 8px; align-items: center; }
-.reasonix-default-select { flex: 1; }
+/* ===== 顶部工具栏 ===== */
+.reasonix-toolbar { display: flex; justify-content: space-between; align-items: center; }
+.reasonix-toolbar-left { min-width: 0; flex: 1; }
+.reasonix-toolbar-tip { font-size: 13px; color: var(--td-text-color-secondary); display: flex; align-items: baseline; gap: 6px; }
+.reasonix-toolbar-sub { font-size: 11px; color: var(--td-text-color-placeholder); }
+.reasonix-toolbar-right { display: flex; gap: 4px; }
 
-.reasonix-providers-header { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.reasonix-config-warning { margin-bottom: 0; }
+.reasonix-config-empty { margin-top: 32px; }
+
+/* ===== 顶部操作行（默认模型 + 添加供应商） ===== */
+.reasonix-top-bar {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  background: var(--td-bg-color-container);
+  border-radius: var(--td-radius-default);
+  border: 1px solid var(--td-border-level-1-color);
+}
+.reasonix-default-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.reasonix-top-label { font-size: 13px; font-weight: 600; color: var(--td-text-color-secondary); white-space: nowrap; flex-shrink: 0; }
+.reasonix-default-select { flex: 1; min-width: 120px; }
+
+/* ===== 供应商列表 ===== */
 .reasonix-provider-list { display: flex; flex-direction: column; gap: 8px; }
-.reasonix-provider-card { cursor: pointer; }
+.reasonix-provider-card { cursor: pointer; transition: border-color 0.15s; }
 .reasonix-provider-card--active { border-color: var(--td-brand-color); }
+
 .reasonix-provider-header { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-.reasonix-provider-header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.reasonix-provider-header-right { display: flex; align-items: center; flex-shrink: 0; }
-.reasonix-expand-icon { display: flex; align-items: center; color: var(--td-text-color-placeholder); }
+.reasonix-provider-header-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.reasonix-provider-header-right { display: flex; align-items: center; flex-shrink: 0; gap: 2px; }
+.reasonix-expand-icon { display: flex; align-items: center; color: var(--td-text-color-placeholder); flex-shrink: 0; }
 .reasonix-provider-name { font-weight: 600; font-size: 14px; color: var(--td-text-color-primary); }
-.reasonix-model-count { font-size: 12px; color: var(--td-text-color-placeholder); }
+.reasonix-model-count { font-size: 12px; color: var(--td-text-color-placeholder); white-space: nowrap; }
 
-.reasonix-provider-info { padding: 8px 0 4px; }
-.reasonix-info-row { padding: 4px 0; font-size: 13px; display: flex; gap: 8px; }
-.reasonix-info-label { color: var(--td-text-color-placeholder); min-width: 100px; flex-shrink: 0; }
-.reasonix-info-value { color: var(--td-text-color-primary); word-break: break-all; }
+/* 供应商展开内容 */
+.reasonix-provider-body { padding: 10px 0 4px; }
+.reasonix-provider-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 16px;
+  padding: 8px 12px;
+  background: var(--td-bg-color-secondarycontainer);
+  border-radius: var(--td-radius-default);
+  margin-bottom: 10px;
+}
+.reasonix-detail-item { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.reasonix-detail-label { font-size: 11px; color: var(--td-text-color-placeholder); text-transform: uppercase; letter-spacing: 0.3px; }
+.reasonix-detail-value { font-size: 13px; color: var(--td-text-color-primary); word-break: break-all; }
 
-.reasonix-models-section { border-top: 1px solid var(--td-border-level-1-color); padding-top: 8px; margin-top: 4px; }
+/* 模型子区 */
+.reasonix-models-section { border-top: 1px solid var(--td-border-level-1-color); padding-top: 8px; }
 .reasonix-models-title { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 500; color: var(--td-text-color-placeholder); margin-bottom: 8px; }
 .reasonix-models-empty { font-size: 12px; color: var(--td-text-color-placeholder); padding: 8px 0; }
-.reasonix-model-item { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-radius: var(--td-radius-default); }
-.reasonix-model-item:hover { background: var(--td-bg-color-container-hover); }
-.reasonix-model-name { flex: 1; font-size: 13px; color: var(--td-text-color-primary); }
-.reasonix-model-actions { flex-shrink: 0; }
+.reasonix-model-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.reasonix-model-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px;
+  background: var(--td-bg-color-container-hover);
+  border-radius: var(--td-radius-default);
+  border: 1px solid var(--td-border-level-1-color);
+  transition: border-color 0.15s;
+}
+.reasonix-model-tag:hover { border-color: var(--td-brand-color); }
+.reasonix-model-tag-name { font-size: 12px; color: var(--td-text-color-primary); }
+.reasonix-model-tag-del { cursor: pointer; color: var(--td-text-color-placeholder); display: flex; align-items: center; padding: 2px; border-radius: var(--td-radius-small); }
+.reasonix-model-tag-del:hover { color: var(--td-error-color); background: var(--td-error-color-1); }
 
+/* ===== 环境变量 / API Key ===== */
+.reasonix-env-section { margin-top: 4px; }
+.reasonix-env-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.reasonix-block-title { font-size: 14px; font-weight: 600; color: var(--td-text-color-primary); }
+.reasonix-block-sub { font-size: 11px; color: var(--td-text-color-placeholder); }
+.reasonix-env-empty { font-size: 12px; color: var(--td-text-color-placeholder); padding: 16px 0; text-align: center; }
+.reasonix-env-list { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--td-border-level-1-color); border-radius: var(--td-radius-default); overflow: hidden; }
+.reasonix-env-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 12px;
+  background: var(--td-bg-color-container);
+  border-bottom: 1px solid var(--td-border-level-1-color);
+}
+.reasonix-env-item:last-child { border-bottom: none; }
+.reasonix-env-item:hover { background: var(--td-bg-color-container-hover); }
+
+.reasonix-env-name-col { display: flex; align-items: center; gap: 6px; flex-shrink: 0; min-width: 0; }
+.reasonix-env-name { font-size: 13px; color: var(--td-text-color-primary); word-break: break-all; }
+
+.reasonix-env-value-col { display: flex; align-items: center; gap: 4px; flex: 1; justify-content: flex-end; min-width: 0; }
+.reasonix-env-mask { font-size: 12px; color: var(--td-text-color-secondary); display: flex; align-items: center; gap: 4px; }
+.reasonix-env-lock { color: var(--td-text-color-placeholder); flex-shrink: 0; }
+.reasonix-env-edit-input { flex: 1; min-width: 120px; max-width: 240px; }
+
+/* ===== 表单弹窗 ===== */
 .reasonix-edit-form { display: flex; flex-direction: column; gap: 12px; }
 .reasonix-form-item { display: flex; flex-direction: column; gap: 4px; }
 .reasonix-form-item label { font-size: 13px; color: var(--td-text-color-secondary); }
@@ -46,13 +102,3 @@
 .hint-link { cursor: pointer; text-decoration: underline; color: var(--td-brand-color); }
 .hint-link:hover { opacity: 0.8; }
 .mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }
-
-/* 环境变量 / API Key 管理 */
-.reasonix-env-card { background: var(--td-bg-color-container); }
-.reasonix-env-header { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-.reasonix-env-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--td-border-level-1-color); }
-.reasonix-env-item:last-child { border-bottom: none; }
-.reasonix-env-name { min-width: 180px; max-width: 260px; color: var(--td-text-color-primary); flex-shrink: 0; word-break: break-all; }
-.reasonix-env-refs { flex-shrink: 0; }
-.reasonix-env-value { flex: 1; min-width: 0; }
-.reasonix-env-actions { flex-shrink: 0; display: flex; align-items: center; }
