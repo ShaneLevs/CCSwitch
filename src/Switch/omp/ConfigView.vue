@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from "vue";
 import {
   Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, Textarea, MessagePlugin,
   Select, Switch, CheckboxGroup, Checkbox, Collapse, CollapsePanel, Popconfirm, Alert as TAlert,
-  Dropdown,
+  Dropdown, AutoComplete,
 } from "tdesign-vue-next";
 import {
   RefreshIcon, EditIcon, FolderOpen1Icon, AddIcon, DeleteIcon,
@@ -144,6 +144,12 @@ const modelAdvancedOpen = ref(false);
 
 const autoModels = ref([]);
 const autoModelsLoading = ref(false);
+const autoModelsError = ref("");
+
+// AutoComplete 下拉选项（显示名 → 模型 ID）
+const modelOptions = computed(() =>
+  autoModels.value.map(m => ({ label: m.name || m.id, value: m.id }))
+);
 
 // ==================== 数据加载 ====================
 
@@ -383,23 +389,27 @@ const openAddModelDialog = (providerName) => {
   addModelForm.value = { id: "", name: "", contextWindow: 0, maxTokens: 0, reasoning: false, input: ["text"], thinking: emptyThinking(), cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, otherYaml: "" };
   autoModels.value = [];
   autoModelsLoading.value = false;
+  autoModelsError.value = "";
   modelAdvancedOpen.value = false;
   addModelDialog.value = true;
+  // 打开弹窗即自动拉取模型列表，无需手动点击
+  handleAutoFetchModels();
 };
 
 const handleAutoFetchModels = async () => {
   const prov = providers.value.find(p => p.name === addModelProvider.value);
   if (!prov || !prov.baseUrl) {
-    MessagePlugin.warning("该供应商未配置 Base URL，无法自动获取");
+    autoModelsError.value = "该供应商未配置 Base URL，无法自动获取";
     return;
   }
   autoModelsLoading.value = true;
+  autoModelsError.value = "";
   try {
     const list = await window.services.fetchProviderModels(prov.baseUrl, prov.apiKey);
     autoModels.value = list;
-    if (list.length === 0) MessagePlugin.info("接口返回空列表");
+    if (list.length === 0) autoModelsError.value = "接口返回空列表";
   } catch (e) {
-    MessagePlugin.error("获取失败: " + e.message);
+    autoModelsError.value = e.message;
   } finally {
     autoModelsLoading.value = false;
   }
@@ -416,20 +426,10 @@ const applyAutoModel = (m) => {
   };
 };
 
-const handleQuickAddModel = (m) => {
-  try {
-    window.services.addOmpModel(addModelProvider.value, {
-      id: m.id,
-      name: m.name || m.id,
-      contextWindow: m.contextWindow || 0,
-      maxTokens: m.maxTokens || 0,
-      reasoning: !!m.reasoning,
-    });
-    MessagePlugin.success(`模型 ${m.id} 已添加`);
-    refresh();
-  } catch (e) {
-    MessagePlugin.error("添加失败: " + e.message);
-  }
+// 从下拉选中模型：自动带出名称/上下文/输出/推理
+const onModelIdSelect = (val) => {
+  const m = autoModels.value.find(x => x.id === val);
+  if (m) applyAutoModel(m);
 };
 
 const handleAddModel = () => {
@@ -496,7 +496,7 @@ const handleDeleteModel = (providerName, modelId) => {
 // ==================== 工具 ====================
 
 const formatNumber = (n) => {
-  if (!n) return "0";
+  if (!n) return "默认";
   if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
   if (n >= 1000) return (n / 1000).toFixed(1) + "K";
   return String(n);
@@ -772,33 +772,26 @@ onMounted(refresh);
           <div class="omp-edit-provider-name">{{ addModelProvider }}</div>
         </div>
 
-        <div class="omp-form-item">
-          <div class="omp-form-row-between">
-            <label>从供应商接口自动获取</label>
-            <Button size="small" variant="outline" :loading="autoModelsLoading" @click="handleAutoFetchModels">
-              <template #icon><RefreshIcon /></template> 自动获取
-            </Button>
-          </div>
-          <div v-if="autoModels.length > 0" class="omp-auto-model-list">
-            <div v-for="m in autoModels" :key="m.id" class="omp-auto-model-item">
-              <span class="omp-auto-model-id">{{ m.name || m.id }}</span>
-              <span v-if="m.contextWindow" class="omp-auto-model-meta">ctx {{ formatNumber(m.contextWindow) }}</span>
-              <span v-if="m.maxTokens" class="omp-auto-model-meta">out {{ formatNumber(m.maxTokens) }}</span>
-              <span v-if="m.reasoning" class="omp-auto-model-tag">推理</span>
-              <span class="omp-auto-model-add">
-                <Button size="small" variant="text" @click="handleQuickAddModel(m)">直接添加</Button>
-                <Button size="small" variant="text" @click="applyAutoModel(m)">填入表单</Button>
-              </span>
-            </div>
-          </div>
-          <div v-else-if="!autoModelsLoading" class="omp-form-hint">
-            点击「自动获取」从供应商 /models 接口拉取，点击「直接添加」一键写入，或「填入表单」手动修改后再添加
-          </div>
-        </div>
-
+        <!-- 模型 ID：AutoComplete，弹窗打开时已自动拉取模型列表 -->
         <div class="omp-form-item">
           <label>模型 ID <span class="omp-form-required">*</span></label>
-          <Input v-model="addModelForm.id" placeholder="例如：gpt-4o、deepseek-chat" />
+          <AutoComplete
+            v-model="addModelForm.id"
+            :options="modelOptions"
+            :loading="autoModelsLoading"
+            filterable
+            clearable
+            placeholder="输入或从下拉选择模型"
+            @select="onModelIdSelect"
+          />
+          <div v-if="autoModelsLoading" class="omp-form-hint">正在自动拉取模型列表…</div>
+          <div v-else-if="autoModelsError" class="omp-form-hint omp-fetch-error">
+            自动获取失败：{{ autoModelsError }}
+            <span class="omp-fetch-retry" @click="handleAutoFetchModels">重试</span>
+          </div>
+          <div v-else-if="autoModels.length > 0" class="omp-form-hint">
+            已自动获取 {{ autoModels.length }} 个模型，选中后自动填充名称/上下文等
+          </div>
         </div>
         <div class="omp-form-item">
           <label>显示名称</label>

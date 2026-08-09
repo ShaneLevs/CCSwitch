@@ -12,10 +12,12 @@ const omp = require('./services/omp')
 const reasonix = require('./services/reasonix')
 
 const {
-  CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_SKILLS_PATH,
+  CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_MCP_PATH, CLAUDE_SKILLS_PATH,
   readClaudeSettings, writeClaudeSettings, getClaudeSettingsPath,
   readClaudeJson, writeClaudeJson, getClaudeJsonPath,
   getNativeId, getMcpServers, upsertMcpServer, deleteMcpServer,
+  getLegacyMcpSources, migrateMcpToUserFile,
+  getClaudeMcpPath, openClaudeMcpFile,
   exportConfigsToFile, importConfigsFromFile,
   compressConfigs, decompressConfigs,
   saveOverriddenEnv, getOverriddenEnv, saveHeatmapHistory, getHeatmapHistory,
@@ -54,6 +56,10 @@ window.services = {
   getMcpServers,
   upsertMcpServer,
   deleteMcpServer,
+  getLegacyMcpSources,
+  migrateMcpToUserFile,
+  getClaudeMcpPath,
+  openClaudeMcpFile,
   getMcpServerTools,
   encryptKey: encrypt,
   decryptKey: decrypt,

@@ -87,7 +87,7 @@ const getOmpProviderList = () => {
       reasoning: !!m.reasoning,
       input: m.input || ['text'],
       thinking: m.thinking || undefined,
-      cost: (m.cost && m.cost.input != null) ? m.cost : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      cost: (m.cost && m.cost.input != null) ? m.cost : null,
       compat: m.compat || {},
     })),
   }))
@@ -129,6 +129,19 @@ const deleteOmpProvider = (providerName) => {
   writeOmpModels(models)
 }
 
+// cost 规范化：全为 0 时省略（与 pi 一致，0 视为未配置）
+const normalizeCost = (cost) => {
+  if (!cost || typeof cost !== 'object') return undefined
+  const c = {
+    input: Number(cost.input) || 0,
+    output: Number(cost.output) || 0,
+    cacheRead: Number(cost.cacheRead) || 0,
+    cacheWrite: Number(cost.cacheWrite) || 0,
+  }
+  if (!c.input && !c.output && !c.cacheRead && !c.cacheWrite) return undefined
+  return c
+}
+
 const addOmpModel = (providerName, model) => {
   if (!providerName) throw new Error('供应商名不能为空')
   if (!model?.id) throw new Error('模型 ID 不能为空')
@@ -137,9 +150,7 @@ const addOmpModel = (providerName, model) => {
   const prov = models.providers[providerName]
   if (!prov.models) prov.models = []
   if (prov.models.some(m => m.id === model.id)) throw new Error(`模型 ${model.id} 已存在`)
-  const cost = (model.cost && model.cost.input != null)
-    ? model.cost
-    : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+  const cost = normalizeCost(model.cost)
   const next = {
     id: model.id,
     name: model.name || model.id,
@@ -147,8 +158,8 @@ const addOmpModel = (providerName, model) => {
     maxTokens: model.maxTokens || undefined,
     reasoning: !!model.reasoning,
     input: model.input || ['text'],
-    cost,
   }
+  if (cost) next.cost = cost
   if (model.thinking) next.thinking = model.thinking
   if (model.compat && Object.keys(model.compat).length) next.compat = model.compat
   // 自定义字段（其他参数里未预定义的）也一并写入
@@ -181,7 +192,11 @@ const updateOmpModel = (providerName, modelId, updates) => {
       delete next.thinking
     }
   }
-  if (updates.cost !== undefined) next.cost = updates.cost
+  if (updates.cost !== undefined) {
+    const cost = normalizeCost(updates.cost)
+    if (cost) next.cost = cost
+    else delete next.cost
+  }
   // compat：updates 里没有（用户从 YAML 删掉整个 compat 块）→ 删除；显式空对象 → 删除
   if (updates.compat !== undefined) {
     if (updates.compat && Object.keys(updates.compat).length) next.compat = updates.compat

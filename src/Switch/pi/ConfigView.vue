@@ -1,8 +1,8 @@
 <script setup>
 
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import {
-  Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin, Table, Loading, Popconfirm, Alert as TAlert, Select, Switch, CheckboxGroup, Checkbox, Collapse, CollapsePanel,
+  Card, Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin, Table, Loading, Popconfirm, Alert as TAlert, Select, Switch, CheckboxGroup, Checkbox, Collapse, CollapsePanel, AutoComplete,
 } from "tdesign-vue-next";
 import {
   RefreshIcon, EditIcon, FolderOpen1Icon, StarIcon,
@@ -248,26 +248,36 @@ const openAddModelDialog = (providerName) => {
   addModelForm.value = { id: '', name: '', contextWindow: 0, maxTokens: 0, reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, compat: [] };
   autoModels.value = [];
   autoModelsLoading.value = false;
+  autoModelsError.value = "";
   modelAdvancedOpen.value = false;
   addModelDialog.value = true;
+  // 打开弹窗即自动拉取模型列表，无需手动点击
+  handleAutoFetchModels();
 };
 
 const autoModels = ref([]);
 const autoModelsLoading = ref(false);
+const autoModelsError = ref("");
+
+// AutoComplete 下拉选项（显示名 → 模型 ID）
+const modelOptions = computed(() =>
+  autoModels.value.map(m => ({ label: m.name || m.id, value: m.id }))
+);
 
 const handleAutoFetchModels = async () => {
   const prov = providers.value.find(p => p.name === addModelProvider.value);
   if (!prov || !prov.baseUrl) {
-    MessagePlugin.warning('该供应商未配置 Base URL，无法自动获取');
+    autoModelsError.value = "该供应商未配置 Base URL，无法自动获取";
     return;
   }
   autoModelsLoading.value = true;
+  autoModelsError.value = "";
   try {
     const list = await window.services.fetchProviderModels(prov.baseUrl, prov.apiKey);
     autoModels.value = list;
-    if (list.length === 0) MessagePlugin.info('接口返回空列表');
+    if (list.length === 0) autoModelsError.value = "接口返回空列表";
   } catch (e) {
-    MessagePlugin.error('获取失败: ' + e.message);
+    autoModelsError.value = e.message;
   } finally {
     autoModelsLoading.value = false;
   }
@@ -275,6 +285,7 @@ const handleAutoFetchModels = async () => {
 
 const applyAutoModel = (m) => {
   addModelForm.value = {
+    ...addModelForm.value,
     id: m.id,
     name: m.name || m.id,
     contextWindow: m.contextWindow || 0,
@@ -283,21 +294,10 @@ const applyAutoModel = (m) => {
   };
 };
 
-// 自动获取列表：点击直接写入 models.json
-const handleQuickAddModel = async (m) => {
-  try {
-    window.services.addPiModel(addModelProvider.value, {
-      id: m.id,
-      name: m.name || m.id,
-      contextWindow: m.contextWindow || 0,
-      maxTokens: m.maxTokens || 0,
-      reasoning: !!m.reasoning,
-    });
-    MessagePlugin.success(`模型 ${m.id} 已添加`);
-    loadProviders();
-  } catch (e) {
-    MessagePlugin.error('添加失败: ' + e.message);
-  }
+// 从下拉选中模型：自动带出名称/上下文/输出/推理
+const onModelIdSelect = (val) => {
+  const m = autoModels.value.find(x => x.id === val);
+  if (m) applyAutoModel(m);
 };
 
 // 打开模型编辑弹窗
@@ -400,7 +400,7 @@ const handleDeleteModel = async (providerName, modelId) => {
 };
 
 const formatNumber = (n) => {
-  if (!n) return '0';
+  if (!n) return '默认';
   if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
   if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
   return String(n);
@@ -508,8 +508,7 @@ onMounted(refresh);
             </div>
             <div class="pi-model-item" v-for="m in prov.models" :key="m.id">
               <div class="pi-model-info">
-                <span class="pi-model-name">{{ m.name }}</span>
-                <span class="pi-model-id mono">{{ m.id }}</span>
+                <span class="pi-model-name">{{ m.name || m.id }}</span>
                 <Tag v-if="m.isDefault" size="small" theme="warning" variant="light">默认</Tag>
                 <Tag v-if="m.reasoning" size="small" theme="warning" variant="light">推理</Tag>
               </div>
@@ -638,38 +637,26 @@ onMounted(refresh);
           <div class="pi-edit-provider-name">{{ addModelProvider }}</div>
         </div>
 
-        <!-- 自动获取模型 -->
-        <div class="pi-form-item">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <label>从供应商接口自动获取</label>
-            <Button size="small" variant="outline" :loading="autoModelsLoading" @click="handleAutoFetchModels">
-              <template #icon><RefreshIcon /></template> 自动获取
-            </Button>
-          </div>
-          <div v-if="autoModels.length > 0" class="pi-auto-model-list">
-            <div
-              v-for="m in autoModels"
-              :key="m.id"
-              class="pi-auto-model-item"
-            >
-              <span class="pi-auto-model-id">{{ m.name || m.id }}</span>
-              <span v-if="m.contextWindow" class="pi-auto-model-meta">ctx {{ formatNumber(m.contextWindow) }}</span>
-              <span v-if="m.maxTokens" class="pi-auto-model-meta">out {{ formatNumber(m.maxTokens) }}</span>
-              <span v-if="m.reasoning" class="pi-auto-model-tag">推理</span>
-              <span class="pi-auto-model-add">
-                <Button size="small" variant="text" @click="handleQuickAddModel(m)">直接添加</Button>
-                <Button size="small" variant="text" @click="applyAutoModel(m)">填入表单</Button>
-              </span>
-            </div>
-          </div>
-          <div v-else-if="!autoModelsLoading" class="pi-form-hint">
-            点击「自动获取」从供应商 /models 接口拉取，点击「直接添加」一键写入，或「填入表单」手动修改后再添加
-          </div>
-        </div>
-
+        <!-- 模型 ID：AutoComplete，弹窗打开时已自动拉取模型列表 -->
         <div class="pi-form-item">
           <label>模型 ID <span class="pi-form-required">*</span></label>
-          <Input v-model="addModelForm.id" placeholder="例如：gpt-4o、deepseek-chat" />
+          <AutoComplete
+            v-model="addModelForm.id"
+            :options="modelOptions"
+            :loading="autoModelsLoading"
+            filterable
+            clearable
+            placeholder="输入或从下拉选择模型"
+            @select="onModelIdSelect"
+          />
+          <div v-if="autoModelsLoading" class="pi-form-hint">正在自动拉取模型列表…</div>
+          <div v-else-if="autoModelsError" class="pi-form-hint pi-fetch-error">
+            自动获取失败：{{ autoModelsError }}
+            <span class="pi-fetch-retry" @click="handleAutoFetchModels">重试</span>
+          </div>
+          <div v-else-if="autoModels.length > 0" class="pi-form-hint">
+            已自动获取 {{ autoModels.length }} 个模型，选中后自动填充名称/上下文等
+          </div>
         </div>
         <div class="pi-form-item">
           <label>显示名称</label>

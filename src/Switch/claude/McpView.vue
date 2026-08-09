@@ -23,6 +23,8 @@ import {
   EditIcon,
   DeleteIcon,
   ToolsIcon,
+  RefreshIcon,
+  MoveIcon,
 } from "tdesign-icons-vue-next";
 import { formatLastUsed } from "../../utils/time";
 import "./styles/McpView.css";
@@ -62,6 +64,36 @@ const EXAMPLE_HTTP = `{
 // 加载 MCP 服务器列表
 const loadMcpServers = () => {
   mcpServerList.value = window.services.getAllMcpServersWithStatus();
+  detectLegacyMcp();
+};
+
+// 检测旧来源（~/.claude.json / ~/.claude/.mcp.json）的 MCP，用于显示迁移按钮
+const legacySources = ref([]);
+const detectLegacyMcp = () => {
+  legacySources.value = window.services.getLegacyMcpSources();
+};
+
+// 手动迁移旧来源 MCP 到 ~/.mcp.json
+const handleMigrate = () => {
+  const result = window.services.migrateMcpToUserFile();
+  if (result.success) {
+    MessagePlugin.success(result.migrated
+      ? `已迁移 ${result.migrated} 个 MCP 到 ~/.mcp.json`
+      : "旧来源中无待迁移的 MCP");
+    loadMcpServers();
+  } else {
+    MessagePlugin.error(result.error || "迁移失败");
+  }
+};
+
+// 手动刷新（迁移/外部修改后重新加载）
+const mcpLoading = ref(false);
+const handleRefresh = () => {
+  mcpLoading.value = true;
+  setTimeout(() => {
+    loadMcpServers();
+    mcpLoading.value = false;
+  }, 50);
 };
 
 // 加载 MCP 使用统计（只在挂载时加载一次，拨动开关不刷新此数据）
@@ -92,10 +124,9 @@ const toggleMcpStatus = (server) => {
   }
 };
 
-// 打开 claude.json 文件
-const openClaudeJsonFile = () => {
-  const filePath = window.services.getClaudeJsonPath();
-  window.utools.shellOpenPath(filePath);
+// 打开 ~/.mcp.json 文件（不存在则自动创建）
+const openClaudeMcpFile = () => {
+  window.services.openClaudeMcpFile();
 };
 
 // 点击复制 MCP 名称
@@ -288,10 +319,24 @@ onMounted(() => {
 <template>
   <div class="mcp-container">
     <div class="section-header">
-      <span class="mcp-tip">仅展示 <span class="hint-link" @click="openClaudeJsonFile">.claude.json</span> 内自定义的 MCP</span>
-      <Button size="small" theme="primary" @click="openCreateDialog">
-        <template #icon><AddIcon /></template> 添加 MCP
-      </Button>
+      <span class="mcp-tip">仅展示 <span class="hint-link" @click="openClaudeMcpFile">~/.mcp.json</span> 内自定义的 MCP</span>
+      <Space size="8px">
+        <Tooltip
+          v-if="legacySources.length"
+          :content="`将 ${legacySources.join('、')} 中的 MCP 合并到 ~/.mcp.json，可被多数 agent 共同读取`"
+          placement="top"
+        >
+          <Button size="small" variant="outline" @click="handleMigrate">
+            <template #icon><MoveIcon /></template> 移至 ~/.mcp.json
+          </Button>
+        </Tooltip>
+        <Button size="small" variant="outline" :loading="mcpLoading" @click="handleRefresh">
+          <template #icon><RefreshIcon /></template> 刷新
+        </Button>
+        <Button size="small" theme="primary" @click="openCreateDialog">
+          <template #icon><AddIcon /></template> 添加 MCP
+        </Button>
+      </Space>
     </div>
 
     <div v-if="!mcpServerList.length" class="empty-state">

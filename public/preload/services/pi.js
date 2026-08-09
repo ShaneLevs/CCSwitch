@@ -110,11 +110,21 @@ const writePiModels = (data) => writeJson(PI_MODELS_PATH(), data)
 // ==================== 自动获取模型列表 ====================
 
 // GET {baseUrl}/models —— OpenAI-compatible 接口
-const fetchProviderModels = (baseUrl, apiKey, timeout = 10_000) => {
+// 容错策略：部分中转站（New API / one-api）根路径 /models 返回面板 HTML，
+// 真实 OpenAI 兼容端点在 /v1/models；baseUrl 已含 /v1 前缀时直接在其后拼接。
+// 依次尝试候选路径，直到拿到合法 JSON 模型列表。
+const fetchProviderModels = async (baseUrl, apiKey, timeout = 10_000) => {
   const base = baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`
-  const url = new URL('/models', base.endsWith('/') ? base : base + '/')
-  const mod = url.protocol === 'https:' ? https : http
-  return new Promise((resolve, reject) => {
+  const root = base.endsWith('/') ? base : base + '/'
+
+  const pathname = new URL(root).pathname
+  const hasV1Prefix = /\/v1\/?$/.test(pathname)
+  const candidates = hasV1Prefix ? ['models'] : ['models', 'v1/models']
+
+  const tryOnce = (p) => new Promise((resolve, reject) => {
+    // 相对拼接，保留 baseUrl 自身路径（如 /v1 或代理前缀）
+    const url = new URL(p, root)
+    const mod = url.protocol === 'https:' ? https : http
     const req = mod.get({
       hostname: url.hostname,
       port: url.port,
@@ -125,12 +135,16 @@ const fetchProviderModels = (baseUrl, apiKey, timeout = 10_000) => {
       },
       timeout,
     }, (res) => {
+      // 重定向：跟随（location 为绝对地址时重新解析）
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume()
         return resolve(fetchProviderModels(res.headers.location, apiKey, timeout))
       }
-      if (res.statusCode !== 200) {
+      // 非 2xx，或 content-type 明确不是 JSON（如中转站面板 HTML）→ 换下一个候选路径
+      const ct = (res.headers['content-type'] || '').toLowerCase()
+      if (res.statusCode < 200 || res.statusCode >= 300 || (ct && !ct.includes('json'))) {
         res.resume()
-        return reject(new Error(`HTTP ${res.statusCode}`))
+        return reject(new Error(`HTTP ${res.statusCode}${ct ? ` (${ct.split(';')[0]})` : ''}`))
       }
       let data = ''
       res.on('data', c => data += c)
@@ -140,10 +154,9 @@ const fetchProviderModels = (baseUrl, apiKey, timeout = 10_000) => {
           const list = parsed.data || parsed.models || parsed
           if (!Array.isArray(list)) return reject(new Error('响应格式错误'))
           resolve(list.map(m => {
-            const id = m.id || m.name
-            if (!id) return null
-            // OpenAI 风格返回的可能是纯字符串数组，补充默认值
             const item = typeof m === 'string' ? { id: m } : (m || {})
+            const id = item.id || item.name
+            if (!id) return null
             return {
               id,
               name: item.name || item.id || id,
@@ -158,6 +171,14 @@ const fetchProviderModels = (baseUrl, apiKey, timeout = 10_000) => {
     req.on('error', reject)
     req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
   })
+
+  let lastErr = null
+  for (const p of candidates) {
+    try {
+      return await tryOnce(p)
+    } catch (e) { lastErr = e }
+  }
+  throw lastErr || new Error('获取模型列表失败')
 }
 
 const getPiProviderList = () => {
@@ -178,7 +199,7 @@ const getPiProviderList = () => {
       reasoning: !!m.reasoning,
       isDefault: settings.defaultModel === m.id,
       input: m.input || ['text'],
-      cost: (m.cost && m.cost.input != null) ? m.cost : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      cost: (m.cost && m.cost.input != null) ? m.cost : null,
       compat: m.compat || {},
     })),
     isDefault: settings.defaultProvider === name,
@@ -206,6 +227,19 @@ const setPiDefaultModel = (modelId) => {
   writePiSettings(settings)
 }
 
+// cost 规范化：全为 0 时返回 undefined（配置文件中不写 cost，Pi schema 约定 0 无效）
+const normalizeCost = (cost) => {
+  if (!cost || typeof cost !== 'object') return undefined
+  const c = {
+    input: Number(cost.input) || 0,
+    output: Number(cost.output) || 0,
+    cacheRead: Number(cost.cacheRead) || 0,
+    cacheWrite: Number(cost.cacheWrite) || 0,
+  }
+  if (!c.input && !c.output && !c.cacheRead && !c.cacheWrite) return undefined
+  return c
+}
+
 const updatePiModel = (providerName, modelId, updates) => {
   const models = readPiModels()
   if (!models.providers?.[providerName]) throw new Error(`供应商 ${providerName} 不存在`)
@@ -220,7 +254,11 @@ const updatePiModel = (providerName, modelId, updates) => {
   if (updates.maxTokens !== undefined) next.maxTokens = updates.maxTokens || undefined
   if (updates.reasoning !== undefined) next.reasoning = !!updates.reasoning
   if (updates.input !== undefined) next.input = updates.input
-  if (updates.cost !== undefined) next.cost = updates.cost
+  if (updates.cost !== undefined) {
+    const cost = normalizeCost(updates.cost)
+    if (cost) next.cost = cost
+    else delete next.cost
+  }
   if (updates.compat !== undefined) next.compat = updates.compat
   prov.models[idx] = next
   writePiModels(models)
@@ -271,9 +309,7 @@ const addPiModel = (providerName, model) => {
   const prov = models.providers[providerName]
   if (!prov.models) prov.models = []
   if (prov.models.some(m => m.id === model.id)) throw new Error(`模型 ${model.id} 已存在`)
-  const cost = (model.cost && model.cost.input != null)
-    ? model.cost
-    : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+  const cost = normalizeCost(model.cost)
   prov.models.push({
     id: model.id,
     name: model.name || model.id,
@@ -281,7 +317,7 @@ const addPiModel = (providerName, model) => {
     maxTokens: model.maxTokens || undefined,
     reasoning: !!model.reasoning,
     input: model.input || ['text'],
-    cost,
+    ...(cost ? { cost } : {}),
     compat: model.compat || {},
   })
   writePiModels(models)
