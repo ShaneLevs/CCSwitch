@@ -1,0 +1,75 @@
+.common-config-container { display: flex; flex-direction: column; gap: 12px; padding-top: 0; }
+.common-config-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0; }
+.common-config-tip { font-size: 12px; color: var(--td-text-color-secondary); }
+.common-config-actions { display: flex; gap: 8px; }
+.common-config-empty { margin-top: 40px; }
+.common-config-warning { margin-bottom: 12px; }
+.common-provider-list { display: flex; flex-direction: column; gap: 8px; }
+.common-provider-collapse { border-radius: var(--td-radius-default); overflow: hidden; }
+.common-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__header { padding: 10px 14px; }
+.common-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__header:hover { background: var(--td-bg-color-container-hover); }
+.common-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__body { background: var(--td-bg-color-container); }
+.common-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__content { padding: 0 14px 14px; }
+.common-provider-header-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.common-provider-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.common-provider-name { font-weight: 600; font-size: 14px; color: var(--td-text-color-primary); }
+.common-model-count { font-size: 12px; color: var(--td-text-color-placeholder); white-space: nowrap; }
+.common-provider-info { padding: 10px 0 8px; }
+.common-info-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
+.common-info-label { color: var(--td-text-color-placeholder); min-width: 80px; }
+.common-info-value { color: var(--td-text-color-primary); }
+.common-models-section { border-top: 1px solid var(--td-border-level-1-color); padding-top: 8px; }
+.common-models-title { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 500; color: var(--td-text-color-placeholder); margin-bottom: 8px; }
+.common-model-item { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-radius: var(--td-radius-default); }
+.common-model-item:hover { background: var(--td-bg-color-container-hover); }
+.common-model-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  flex: 1;
+}
+.common-model-name {
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.common-model-meta { display: flex; gap: 12px; font-size: 12px; color: var(--td-text-color-secondary); }
+.common-model-stat { white-space: nowrap; }
+.common-model-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+}
+.common-edit-form { display: flex; flex-direction: column; gap: 12px; }
+.common-form-item { display: flex; flex-direction: column; gap: 4px; }
+.common-form-item label { font-size: 13px; color: var(--td-text-color-secondary); }
+/* flex column 默认 align-items: stretch 会把 Switch 拉满容器宽，恢复其固有宽度 */
+.common-form-item .t-switch { align-self: flex-start; }
+.common-edit-provider-name { font-size: 14px; font-weight: 600; color: var(--td-text-color-primary); }
+.common-form-hint { font-size: 12px; color: var(--td-text-color-placeholder); margin-top: 4px; }
+.common-form-required { color: var(--td-error-color); }
+.common-form-row { display: flex; gap: 12px; }
+.common-form-row .common-form-item { flex: 1; }
+
+.common-fetch-error { color: var(--td-error-color); }
+.common-fetch-retry {
+  color: var(--td-brand-color);
+  cursor: pointer;
+  text-decoration: underline;
+  margin-left: 6px;
+}
+.star-default { color: var(--td-warning-color); }
+.common-advanced-collapse { margin-top: 4px; }
+/* Checkbox 统一绿色主题（同 omp/Claude 配置约定） */
+.common-checkbox-group { --td-brand-color: var(--td-success-color); }
+.common-reasoning-checkbox { --td-brand-color: var(--td-success-color); }
+.hint-link { cursor: pointer; text-decoration: underline; color: var(--td-brand-color); }
+.hint-link:hover { opacity: 0.8; }
+.mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }

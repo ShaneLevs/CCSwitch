@@ -1,0 +1,134 @@
+.common-mcp-container {
+  padding: 4px 0;
+}
+
+.common-mcp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.common-mcp-tip {
+  font-size: 12px;
+  color: var(--td-text-color-secondary);
+}
+
+.common-mcp-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.common-mcp-empty {
+  padding: 40px 0;
+}
+
+.common-mcp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.common-mcp-card {
+  border: 1px solid var(--td-component-border);
+  border-radius: var(--td-radius-default);
+  background-color: var(--td-bg-color-container);
+  padding: 12px 16px;
+  transition: border-color 0.2s;
+}
+
+.common-mcp-card:hover {
+  border-color: var(--td-brand-color);
+}
+
+.common-mcp-card--disabled {
+  opacity: 0.55;
+}
+
+.common-mcp-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.common-mcp-srv-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.common-mcp-srv-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--td-text-color-primary);
+  cursor: pointer;
+  word-break: break-all;
+}
+
+.common-mcp-srv-name:hover {
+  color: var(--td-brand-color);
+}
+
+.common-mcp-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.common-mcp-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.common-mcp-label {
+  color: var(--td-text-color-secondary);
+  flex-shrink: 0;
+  min-width: 56px;
+}
+
+.common-mcp-value {
+  color: var(--td-text-color-primary);
+  word-break: break-all;
+}
+
+.mono {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+}
+
+.common-mcp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.common-mcp-form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.common-mcp-form-item > label {
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+  font-weight: 500;
+}
+
+.required {
+  color: var(--td-error-color);
+}
+
+.common-mcp-template-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.common-mcp-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

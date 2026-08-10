@@ -349,6 +349,7 @@ module.exports = {
   readClaudeSettings, writeClaudeSettings, getClaudeSettingsPath,
   readClaudeJson, writeClaudeJson, getClaudeJsonPath,
   getNativeId, getMcpServers, upsertMcpServer, deleteMcpServer,
+  readMcpJson, writeMcpJson,
   getLegacyMcpSources, migrateMcpToUserFile,
   getClaudeMcpPath, openClaudeMcpFile,
   exportConfigsToFile, importConfigsFromFile,

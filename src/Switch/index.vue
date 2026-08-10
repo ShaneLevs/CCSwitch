@@ -27,6 +27,9 @@ import OpenCodeSkillView from "./opencode/SkillView.vue";
 import OpenCodeUsageView from "./opencode/UsageView.vue";
 import OmpConfigView from "./omp/ConfigView.vue";
 import ReasonixConfigView from "./reasonix/ConfigView.vue";
+import CommonConfigView from "./common/ConfigView.vue";
+import CommonMcpView from "./common/McpView.vue";
+import CommonSkillView from "./common/SkillView.vue";
 import wavingDark from "../assets/waving-dark.gif";
 import wavingLight from "../assets/waving-light.gif";
 import { useAppContext } from "../composables/useAppContext";
@@ -37,7 +40,7 @@ const props = defineProps({
   payload: String,
 });
 
-const { activeApp, setActiveApp, isClaude, isOpenCode, isPi, isOmp, isReasonix } = useAppContext();
+const { activeApp, setActiveApp, isClaude, isOpenCode, isPi, isOmp, isReasonix, isCommon } = useAppContext();
 
 const { darkBackgroundEnabled, setDarkBackground, darkEffect, setDarkEffect } =
   useDarkBackground();
@@ -100,7 +103,8 @@ const appLabel = computed(() => {
   if (isOpenCode.value) return "OpenCode CLI";
   if (isPi.value) return "Pi Agent";
   if (isOmp.value) return "omp";
-  return "Reasonix";
+  if (isReasonix.value) return "Reasonix";
+  return "通用";
 });
 
 const pageTitleSuffix = computed(() => {
@@ -132,6 +136,11 @@ const pageTitleSuffix = computed(() => {
     reasonix: {
       config: "配置管理",
     },
+    common: {
+      config: "配置",
+      mcp: "MCP",
+      skill: "Skill",
+    },
   };
   return map[activeApp.value]?.[activeTab.value] || "配置切换";
 });
@@ -149,6 +158,7 @@ const switchApp = (app) => {
 };
 
 const appDropdownOptions = [
+  { content: "通用", value: "common" },
   { content: "Claude Code", value: "claude" },
   { content: "OpenCode CLI", value: "opencode" },
   { content: "Pi Agent", value: "pi" },
@@ -169,6 +179,7 @@ onMounted(() => {
     piConfig: "pi",
     ompConfig: "omp",
     reasonixConfig: "reasonix",
+    commonConfig: "common",
   };
   if (appMap[props.route]) {
     setActiveApp(appMap[props.route]);
@@ -239,7 +250,8 @@ onMounted(() => {
         />
         <img v-else-if="isOmp" src="/omp-icon.svg" alt="logo" class="logo" />
         <img v-else-if="isReasonix" src="/reasonix.svg" alt="logo" class="logo" />
-        <img v-else src="/icon-pi.png" alt="logo" class="logo" />
+        <img v-else-if="isPi" src="/icon-pi.png" alt="logo" class="logo" />
+        <img v-else-if="isCommon" src="/gen.svg" alt="logo" class="logo" />
         <Dropdown
           :options="appDropdownOptions"
           :min-column-width="160"
@@ -261,8 +273,35 @@ onMounted(() => {
         </Button>
       </div>
       <div class="header-right">
+        <!-- 通用配置 tabs -->
+        <div v-if="isCommon" class="tab-buttons">
+          <Button
+            size="small"
+            :theme="activeTab === 'config' ? 'primary' : 'default'"
+            :variant="activeTab === 'config' ? 'base' : 'outline'"
+            @click="activeTab = 'config'"
+          >
+            <template #icon><DashboardIcon /></template> 配置
+          </Button>
+          <Button
+            size="small"
+            :theme="activeTab === 'mcp' ? 'primary' : 'default'"
+            :variant="activeTab === 'mcp' ? 'base' : 'outline'"
+            @click="activeTab = 'mcp'"
+          >
+            <template #icon><ServerIcon /></template> MCP
+          </Button>
+          <Button
+            size="small"
+            :theme="activeTab === 'skill' ? 'primary' : 'default'"
+            :variant="activeTab === 'skill' ? 'base' : 'outline'"
+            @click="activeTab = 'skill'"
+          >
+            <template #icon><BookIcon /></template> Skill
+          </Button>
+        </div>
         <!-- Claude Code tabs -->
-        <div v-if="isClaude" class="tab-buttons">
+        <div v-else-if="isClaude" class="tab-buttons">
           <Button
             size="small"
             :theme="activeTab === 'config' ? 'primary' : 'default'"
@@ -414,6 +453,19 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- 通用配置 views -->
+    <template v-if="isAppReady('common')">
+      <CommonConfigView v-if="isCommon && activeTab === 'config'" />
+      <CommonMcpView
+        v-if="isTabVisited('common', 'mcp')"
+        v-show="isCommon && activeTab === 'mcp'"
+      />
+      <CommonSkillView
+        v-if="isTabVisited('common', 'skill')"
+        v-show="isCommon && activeTab === 'skill'"
+      />
+    </template>
 
     <!-- Claude Code views：已访问的标签页用 v-show 保持挂载，避免重复加载 -->
     <template v-if="isAppReady('claude')">

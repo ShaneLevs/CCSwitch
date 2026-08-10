@@ -10,6 +10,7 @@ const usage = require('./services/usage')
 const pi = require('./services/pi')
 const omp = require('./services/omp')
 const reasonix = require('./services/reasonix')
+const common = require('./services/common')
 
 const {
   CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_MCP_PATH, CLAUDE_SKILLS_PATH,
@@ -1227,6 +1228,26 @@ window.services = {
   isOmpInstalled: omp.isOmpInstalled,
 
   // ==================== Reasonix ====================
+
+  // ==================== 通用配置（主数据库） ====================
+
+  readCommonProviders: common.readCommonProviders,
+  writeCommonProviders: common.writeCommonProviders,
+  getCommonProviderList: common.getCommonProviderList,
+  addCommonProvider: common.addCommonProvider,
+  updateCommonProvider: common.updateCommonProvider,
+  deleteCommonProvider: common.deleteCommonProvider,
+  addCommonModel: common.addCommonModel,
+  updateCommonModel: common.updateCommonModel,
+  deleteCommonModel: common.deleteCommonModel,
+  readCommonMcp: common.readCommonMcp,
+  getCommonMcpServers: common.getCommonMcpServers,
+  upsertCommonMcpServer: common.upsertCommonMcpServer,
+  deleteCommonMcpServer: common.deleteCommonMcpServer,
+  getCommonMcpDisabled: common.getCommonMcpDisabled,
+  setCommonMcpDisabled: common.setCommonMcpDisabled,
+  readCommonSkills: common.readCommonSkills,
+  openCommonSkillsDir: common.openCommonSkillsDir,
 
   getReasonixConfigPath: reasonix.getReasonixConfigPath,
   readReasonixConfig: reasonix.readReasonixConfig,
