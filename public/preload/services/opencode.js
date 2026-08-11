@@ -257,31 +257,6 @@ const getOpencodeSkillsPath = () => {
   return OPENCODE_SKILLS_PATH
 }
 
-// ==================== Models.dev Presets ====================
-
-const fetchModelsDevPresets = () => {
-  const https = require('node:https')
-  return new Promise((resolve, reject) => {
-    https.get('https://models.dev/api.json', {
-      headers: { 'user-agent': 'CCSwitch/1.0', 'accept': 'application/json' },
-      timeout: 10000,
-    }, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        res.resume()
-        https.get(res.headers.location, { headers: { 'user-agent': 'CCSwitch/1.0' }, timeout: 10000 }, (res2) => {
-          let data = ''
-          res2.on('data', chunk => data += chunk)
-          res2.on('end', () => { try { resolve(JSON.parse(data)) } catch (e) { reject(e) } })
-        }).on('error', reject)
-        return
-      }
-      let data = ''
-      res.on('data', chunk => data += chunk)
-      res.on('end', () => { try { resolve(JSON.parse(data)) } catch (e) { reject(e) } })
-    }).on('error', reject).on('timeout', function() { this.destroy(); reject(new Error('timeout')) })
-  })
-}
-
 // ==================== Usage Statistics ====================
 
 const readOpencodeUsage = () => {
@@ -659,7 +634,6 @@ module.exports = {
   installOpencodePlugin,
   uninstallOpencodePlugin,
   searchOpencodePlugins,
-  fetchModelsDevPresets,
   readOpencodeUsage,
   getOpencodeSkills,
   getOpencodeSkillsPath,

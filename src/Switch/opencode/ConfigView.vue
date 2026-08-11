@@ -19,6 +19,7 @@ import {
   DropdownMenu,
   DropdownItem,
   Tooltip,
+  AutoComplete,
 } from "tdesign-vue-next";
 import {
   AddIcon,
@@ -26,9 +27,7 @@ import {
   DeleteIcon,
   DownloadIcon,
   UploadIcon,
-  ChevronDownIcon,
   RefreshIcon,
-  SearchIcon,
 } from "tdesign-icons-vue-next";
 import DynamicKvEditor from "../../components/DynamicKvEditor.vue";
 import ApiKeyInput from "../../components/ApiKeyInput.vue";
@@ -47,23 +46,13 @@ const NPM_OPTIONS = [
 const KNOWN_PROVIDER_OPTION_KEYS = ["baseURL", "apiKey", "headers"];
 const KNOWN_MODEL_KEYS = ["name", "limit", "options"];
 
-// Models.dev npm mapping: models.dev uses some custom npm names
-const MODELS_DEV_NPM_MAP = {
-  "@openrouter/ai-sdk-provider": "@ai-sdk/openai-compatible",
-};
-
 // ==================== State ====================
 
 const providers = ref({});
 const showDialog = ref(false);
 const dialogMode = ref("create");
-const showPresetDialog = ref(false);
 const showImportDialog = ref(false);
 const importString = ref("");
-const presets = ref([]);
-const presetsLoading = ref(false);
-const presetsError = ref("");
-const presetSearch = ref("");
 
 const formData = ref({
   id: "",
@@ -77,14 +66,32 @@ const formData = ref({
 
 // ==================== Computed ====================
 
-const dialogTitle = computed(() => (dialogMode.value === "edit" ? "编辑配置" : "新建配置"));
+const dialogTitle = computed(() => (dialogMode.value === "edit" ? "编辑 Provider" : "新建 Provider"));
+
+// Provider 展开状态（Pi 风格 Collapse）
+const expandedProviders = ref([]);
+
+// 上下文/输出数值格式化（如 128000 → 128K）
+const formatCtx = (n) => {
+  if (!n) return '0';
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(0) + 'K';
+  return String(n);
+};
 
 const providerList = computed(() => {
-  return Object.entries(providers.value).map(([id, config]) => ({
-    id,
-    ...config,
-    modelCount: config.models ? Object.keys(config.models).length : 0,
-  }));
+  return Object.entries(providers.value).map(([id, config]) => {
+    const models = config.models
+      ? Object.entries(config.models).map(([modelId, mc]) => ({
+          id: modelId,
+          name: mc.name || modelId,
+          context: mc.limit?.context || 0,
+          output: mc.limit?.output || 0,
+          reasoning: !!(mc.variants || mc.options?.reasoningEffort),
+        }))
+      : [];
+    return { id, ...config, models };
+  });
 });
 
 // ==================== Helpers ====================
@@ -200,186 +207,158 @@ const openEditDialog = (provider) => {
   showDialog.value = true;
 };
 
-// ==================== Preset Quick-fill ====================
+// ==================== Model Management（Pi 风格：provider 卡片内管理） ====================
 
-const fetchPresets = async () => {
-  presetsLoading.value = true;
-  presetsError.value = "";
+// 添加模型：AutoComplete 弹窗（打开即自动拉取 /models，选中自动填充）
+const showAutoModelDialog = ref(false);
+const addModelProviderId = ref(null);
+const autoModels = ref([]);
+const autoModelsLoading = ref(false);
+const autoModelsError = ref("");
+const autoModelForm = ref(createEmptyModel());
+
+// AutoComplete 下拉选项（显示名 → 模型 ID）
+const modelOptions = computed(() =>
+  autoModels.value.map(m => ({ label: m.name || m.id, value: m.id }))
+);
+
+const getProviderByList = (providerId) =>
+  providerList.value.find(p => p.id === providerId);
+
+const openAddModelDialog = (providerId) => {
+  addModelProviderId.value = providerId;
+  autoModelForm.value = createEmptyModel();
+  autoModels.value = [];
+  autoModelsLoading.value = false;
+  autoModelsError.value = "";
+  showAutoModelDialog.value = true;
+  // 打开弹窗即自动拉取模型列表，无需手动点击
+  handleAutoFetchModels();
+};
+
+const handleAutoFetchModels = async () => {
+  const prov = getProviderByList(addModelProviderId.value);
+  if (!prov || !prov.options?.baseURL) {
+    autoModelsError.value = "该 Provider 未配置 Base URL，无法自动获取";
+    return;
+  }
+  autoModelsLoading.value = true;
+  autoModelsError.value = "";
   try {
-    const apiData = await window.services.fetchModelsDevPresets();
-    const result = [];
-    for (const [providerId, provider] of Object.entries(apiData)) {
-      const npm = MODELS_DEV_NPM_MAP[provider.npm] || provider.npm || "@ai-sdk/openai-compatible";
-      const models = [];
-      if (provider.models) {
-        for (const [modelId, model] of Object.entries(provider.models)) {
-          models.push({
-            id: modelId,
-            name: model.name || modelId,
-            context: model.limit?.context || 128000,
-            output: model.limit?.output || 4096,
-            modalities: model.modalities || null,
-            cost: model.cost || null,
-            reasoning: model.reasoning || false,
-            toolCall: model.tool_call || false,
-            reasoningOptions: model.reasoning_options || null,
-            attachment: model.attachment || false,
-          });
-        }
-      }
-      result.push({
-        id: providerId,
-        name: provider.name || providerId,
-        npm,
-        baseUrl: provider.api || "",
-        env: provider.env || [],
-        doc: provider.doc || "",
-        models,
-      });
-    }
-    result.sort((a, b) => a.name.localeCompare(b.name));
-    presets.value = result;
+    const list = await window.services.fetchProviderModels(prov.options.baseURL, prov.options.apiKey);
+    autoModels.value = list;
+    if (list.length === 0) autoModelsError.value = "接口返回空列表";
   } catch (e) {
-    presetsError.value = e.message || "获取预设失败";
-    console.error("Failed to fetch models.dev presets:", e);
+    autoModelsError.value = e.message;
   } finally {
-    presetsLoading.value = false;
+    autoModelsLoading.value = false;
   }
 };
 
-const filteredPresets = computed(() => {
-  const q = presetSearch.value.trim().toLowerCase();
-  if (!q) return presets.value;
-  return presets.value.filter(p =>
-    p.name.toLowerCase().includes(q) ||
-    p.id.toLowerCase().includes(q) ||
-    p.npm.toLowerCase().includes(q)
-  );
-});
+// 选中模型：自动带出名称/上下文/输出
+const onAutoModelSelect = (val) => {
+  const m = autoModels.value.find(x => x.id === val);
+  if (!m) return;
+  autoModelForm.value.id = m.id;
+  autoModelForm.value.name = m.name || m.id;
+  if (m.contextWindow) autoModelForm.value.context = m.contextWindow;
+  if (m.maxTokens) autoModelForm.value.output = m.maxTokens;
+};
 
-const openPresetDialog = () => {
-  presetSearch.value = "";
-  showPresetDialog.value = true;
-  if (!presets.value.length && !presetsLoading.value) {
-    fetchPresets();
+// 把模型写入指定 provider 的配置文件（读-改-写）
+const writeProviderModels = (providerId, models) => {
+  const current = window.services.getOpencodeProviders();
+  const prov = current[providerId];
+  if (!prov) return false;
+  const next = { ...prov, models };
+  return window.services.setOpencodeProvider(providerId, next);
+};
+
+// 确认添加（支持手动输入 ID，不依赖下拉）
+const confirmAddAutoModel = () => {
+  const id = autoModelForm.value.id.trim();
+  if (!id) return MessagePlugin.warning("请输入模型 ID");
+  const prov = getProviderByList(addModelProviderId.value);
+  if (!prov) return MessagePlugin.error("Provider 不存在");
+  if (prov.models.some(m => m.id === id)) return MessagePlugin.warning("模型已存在: " + id);
+
+  const models = {};
+  prov.models.forEach(m => { models[m.id] = m; });
+  models[id] = {
+    name: autoModelForm.value.name.trim() || id,
+    limit: {
+      context: Number(autoModelForm.value.context) || 128000,
+      output: Number(autoModelForm.value.output) || 4096,
+    },
+  };
+  if (writeProviderModels(addModelProviderId.value, models)) {
+    MessagePlugin.success(`模型 ${id} 已添加`);
+    showAutoModelDialog.value = false;
+    loadProviders();
+  } else {
+    MessagePlugin.error("添加失败");
   }
 };
 
-// ==================== Model Selection ====================
+// ==================== Model Edit ====================
 
-const showModelSelectDialog = ref(false);
-const selectedPreset = ref(null);
-const selectedModelIds = ref([]);
-const modelSelectSearch = ref("");
+const showEditModelDialog = ref(false);
+const editModelProviderId = ref(null);
+const editModelForm = ref(createEmptyModel());
 
-const openModelSelectDialog = (preset) => {
-  selectedPreset.value = preset;
-  selectedModelIds.value = [];
-  modelSelectSearch.value = "";
-  showModelSelectDialog.value = true;
+const openEditModelDialog = (providerId, model) => {
+  editModelProviderId.value = providerId;
+  editModelForm.value = {
+    id: model.id,
+    name: model.name || model.id,
+    context: model.context || 128000,
+    output: model.output || 4096,
+    sdkOptions: model.options ? Object.entries(model.options).map(([k, v]) => ({ key: k, value: v })) : [],
+    extraFields: Object.entries(model.extraFields || {}).map(([k, v]) => ({ key: k, value: v })),
+  };
+  showEditModelDialog.value = true;
 };
 
-const filteredModels = computed(() => {
-  if (!selectedPreset.value) return [];
-  const q = modelSelectSearch.value.trim().toLowerCase();
-  const models = selectedPreset.value.models;
-  if (!q) return models;
-  return models.filter(m =>
-    m.name.toLowerCase().includes(q) ||
-    m.id.toLowerCase().includes(q)
-  );
-});
+const handleSaveModel = () => {
+  const id = editModelForm.value.id.trim();
+  if (!id) return MessagePlugin.warning("请输入模型 ID");
+  const prov = getProviderByList(editModelProviderId.value);
+  if (!prov) return MessagePlugin.error("Provider 不存在");
 
-const toggleModelSelect = (modelId) => {
-  const idx = selectedModelIds.value.indexOf(modelId);
-  if (idx >= 0) selectedModelIds.value.splice(idx, 1);
-  else selectedModelIds.value.push(modelId);
-};
+  const models = {};
+  prov.models.forEach(m => { if (m.id !== id) models[m.id] = m; });
+  models[id] = {
+    name: editModelForm.value.name.trim() || id,
+    limit: {
+      context: Number(editModelForm.value.context) || 128000,
+      output: Number(editModelForm.value.output) || 4096,
+    },
+  };
+  const sdkOptObj = kvToOptions(editModelForm.value.sdkOptions);
+  if (Object.keys(sdkOptObj).length > 0) models[id].options = sdkOptObj;
+  const extraObj = kvToOptions(editModelForm.value.extraFields);
+  Object.assign(models[id], extraObj);
 
-const selectAllModels = () => {
-  selectedModelIds.value = filteredModels.value.map(m => m.id);
-};
-
-const applySelectedModels = () => {
-  const preset = selectedPreset.value;
-  if (!preset) return;
-
-  formData.value.npm = preset.npm;
-  formData.value.baseUrl = preset.baseUrl;
-  if (!formData.value.name && preset.name) formData.value.name = preset.name;
-  if (!formData.value.id && preset.id) formData.value.id = preset.id;
-
-  const selectedModels = preset.models.filter(m => selectedModelIds.value.includes(m.id));
-  if (selectedModels.length) {
-    formData.value.models = selectedModels.map(m => {
-      const modelForm = {
-        id: m.id,
-        name: m.name || m.id,
-        context: m.context || 128000,
-        output: m.output || 4096,
-        sdkOptions: [],
-        extraFields: [],
-      };
-      // Fill modalities as extra field
-      if (m.modalities) {
-        modelForm.extraFields.push({ key: 'modalities', value: JSON.stringify(m.modalities) });
-      }
-      // Fill cost as extra field
-      if (m.cost) {
-        modelForm.extraFields.push({ key: 'cost', value: JSON.stringify(m.cost) });
-      }
-      // Build variants from reasoning_options
-      if (m.reasoning_options && m.reasoning_options.length > 0) {
-        const variants = buildVariants(m.reasoning_options, preset.npm);
-        if (Object.keys(variants).length > 0) {
-          modelForm.extraFields.push({ key: 'variants', value: JSON.stringify(variants) });
-        }
-      }
-      return modelForm;
-    });
+  if (writeProviderModels(editModelProviderId.value, models)) {
+    MessagePlugin.success(`模型 ${id} 已更新`);
+    showEditModelDialog.value = false;
+    loadProviders();
+  } else {
+    MessagePlugin.error("保存失败");
   }
-
-  showModelSelectDialog.value = false;
-  showPresetDialog.value = false;
-  MessagePlugin.success(`已填入 ${selectedModels.length} 个模型`);
 };
 
-const buildVariants = (reasoningOptions, npm) => {
-  const variants = {};
-  for (const opt of reasoningOptions) {
-    if (opt.type === 'effort' && opt.values) {
-      for (const level of opt.values) {
-        if (npm === '@ai-sdk/anthropic') {
-          variants[level] = { effort: level };
-        } else if (npm === '@ai-sdk/openai') {
-          variants[level] = { reasoningEffort: level, reasoningSummary: 'auto', textVerbosity: 'medium' };
-        } else if (npm === '@ai-sdk/google') {
-          variants[level] = { thinkingConfig: { includeThoughts: true, thinkingLevel: level } };
-        } else {
-          variants[level] = { reasoningEffort: level };
-        }
-      }
-    }
-    if (opt.type === 'budget_tokens' && opt.min) {
-      if (npm === '@ai-sdk/anthropic') {
-        variants['thinking'] = { thinking: { type: 'enabled', budgetTokens: opt.min } };
-      }
-    }
-    if (opt.type === 'toggle') {
-      variants['thinking'] = { thinking: { type: 'enabled' } };
-    }
+const handleDeleteModel = (providerId, modelId) => {
+  const prov = getProviderByList(providerId);
+  if (!prov) return;
+  const models = {};
+  prov.models.forEach(m => { if (m.id !== modelId) models[m.id] = m; });
+  if (writeProviderModels(providerId, models)) {
+    MessagePlugin.success(`模型 ${modelId} 已删除`);
+    loadProviders();
+  } else {
+    MessagePlugin.error("删除失败");
   }
-  return variants;
-};
-
-// ==================== Model Management ====================
-
-const addModel = () => {
-  formData.value.models.push(createEmptyModel());
-};
-
-const removeModel = (idx) => {
-  formData.value.models.splice(idx, 1);
 };
 
 // ==================== Save ====================
@@ -561,43 +540,96 @@ onMounted(() => {
       </Empty>
     </div>
 
-    <!-- Provider List -->
+    <!-- Provider List（Pi 风格 Collapse） -->
     <div v-else class="provider-list">
-      <div v-for="provider in providerList" :key="provider.id" class="provider-card">
-        <div class="provider-card-header">
-          <div class="provider-card-info">
-            <span class="provider-id">{{ provider.id }}</span>
-            <Tag size="small" :theme="getNpmTagTheme(provider.npm)" variant="light">
-              {{ getNpmShortLabel(provider.npm) }}
-            </Tag>
-          </div>
-          <Space size="small">
-            <Tag v-if="provider.modelCount" size="small" variant="outline" theme="primary">
-              {{ provider.modelCount }} 个模型
-            </Tag>
-            <Tooltip content="编辑" placement="top">
-              <Button size="small" theme="default" variant="text" @click="openEditDialog(provider)">
-                <EditIcon />
-              </Button>
-            </Tooltip>
-            <Popconfirm theme="danger" content="确定要删除这个 Provider 吗？" @confirm="deleteProvider(provider.id)">
-              <Tooltip content="删除" placement="top">
-                <Button size="small" theme="danger" variant="text">
-                  <DeleteIcon />
+      <Collapse v-model="expandedProviders" class="oc-provider-collapse">
+        <CollapsePanel
+          v-for="provider in providerList"
+          :key="provider.id"
+          :value="provider.id"
+        >
+          <template #header>
+            <div class="oc-provider-header-left">
+              <span class="oc-provider-name">{{ provider.id }}</span>
+              <Tag size="small" :theme="getNpmTagTheme(provider.npm)" variant="light">
+                {{ getNpmShortLabel(provider.npm) }}
+              </Tag>
+            </div>
+          </template>
+          <template #headerRightContent>
+            <div class="oc-provider-header-right" @click.stop>
+              <span class="oc-model-count">{{ provider.models.length }} 个模型</span>
+              <Space size="small">
+                <Tooltip content="编辑配置" placement="top">
+                  <Button size="small" variant="text" @click="openEditDialog(provider)">
+                    <template #icon><EditIcon /></template>
+                  </Button>
+                </Tooltip>
+                <Popconfirm theme="danger" content="确定要删除这个 Provider 吗？" @confirm="deleteProvider(provider.id)">
+                  <Tooltip content="删除" placement="top">
+                    <Button size="small" theme="danger" variant="text">
+                      <template #icon><DeleteIcon /></template>
+                    </Button>
+                  </Tooltip>
+                </Popconfirm>
+              </Space>
+            </div>
+          </template>
+
+          <template #content>
+            <div class="oc-provider-info">
+              <div class="oc-info-row">
+                <span class="oc-info-label">API Key</span>
+                <span class="oc-info-value mono">{{ provider.options?.apiKey ? provider.options.apiKey.slice(0, 8) + '...' + provider.options.apiKey.slice(-4) : '未设置' }}</span>
+              </div>
+              <div class="oc-info-row">
+                <span class="oc-info-label">Base URL</span>
+                <span class="oc-info-value mono">{{ provider.options?.baseURL || '默认' }}</span>
+              </div>
+              <div v-if="provider.name && provider.name !== provider.id" class="oc-info-row">
+                <span class="oc-info-label">显示名称</span>
+                <span class="oc-info-value">{{ provider.name }}</span>
+              </div>
+            </div>
+
+            <div class="oc-models-section">
+              <div class="oc-models-title">
+                <span>模型列表</span>
+                <Button size="small" variant="text" @click="openAddModelDialog(provider.id)">
+                  <template #icon><AddIcon /></template> 添加模型
                 </Button>
-              </Tooltip>
-            </Popconfirm>
-          </Space>
-        </div>
-        <div class="provider-card-body">
-          <span v-if="provider.name && provider.name !== provider.id" class="provider-name">{{ provider.name }}</span>
-          <span v-if="provider.options?.baseURL" class="provider-url">{{ maskUrl(provider.options.baseURL) }}</span>
-        </div>
-      </div>
+              </div>
+              <div v-if="!provider.models.length" class="oc-models-empty">暂无模型</div>
+              <div v-else class="oc-model-item" v-for="m in provider.models" :key="m.id">
+                <div class="oc-model-info">
+                  <span class="oc-model-name">{{ m.name }}</span>
+                  <Tag v-if="m.reasoning" size="small" theme="warning" variant="light">推理</Tag>
+                </div>
+                <div class="oc-model-meta">
+                  <span class="oc-model-stat">上下文: {{ m.context ? formatCtx(m.context) : '-' }}</span>
+                  <span class="oc-model-stat">输出: {{ m.output ? formatCtx(m.output) : '-' }}</span>
+                </div>
+                <div class="oc-model-actions" @click.stop>
+                  <Tooltip content="编辑模型" placement="top">
+                    <Button size="small" variant="text" @click="openEditModelDialog(provider.id, m)">
+                      <template #icon><EditIcon /></template>
+                    </Button>
+                  </Tooltip>
+                  <Popconfirm content="确定删除此模型？" @confirm="handleDeleteModel(provider.id, m.id)">
+                    <Button size="small" variant="text" theme="danger">
+                      <template #icon><DeleteIcon /></template>
+                    </Button>
+                  </Popconfirm>
+                </div>
+              </div>
+            </div>
+          </template>
+        </CollapsePanel>
+      </Collapse>
     </div>
 
-    <!-- Create/Edit Dialog -->
-    <Dialog v-model:visible="showDialog" :header="dialogTitle" width="640px" @confirm="saveProvider">
+    <!-- Create/Edit Dialog（Pi 风格） -->
+    <Dialog v-model:visible="showDialog" :header="dialogTitle" width="480px" @confirm="saveProvider">
       <div class="oc-form">
         <!-- Provider ID -->
         <div class="oc-form-item">
@@ -630,8 +662,8 @@ onMounted(() => {
         </div>
 
         <!-- Extra Options -->
-        <div class="oc-form-section">
-          <div class="oc-form-section-title">额外选项 (options)</div>
+        <div class="oc-form-item">
+          <label>额外选项 (options)</label>
           <DynamicKvEditor
             v-model="formData.extraOptions"
             :key-options="[]"
@@ -639,78 +671,10 @@ onMounted(() => {
             value-placeholder="选项值 (JSON 或字符串)"
           />
         </div>
-
-        <!-- Models -->
-        <div class="oc-form-section">
-          <div class="oc-form-section-header">
-            <span class="oc-form-section-title">模型 (models)</span>
-            <Button size="small" variant="outline" @click="addModel">
-              <template #icon><AddIcon /></template> 添加模型
-            </Button>
-          </div>
-
-          <div v-if="!formData.models.length" class="oc-models-empty">暂无模型</div>
-
-          <Collapse v-else class="oc-model-collapse">
-            <CollapsePanel
-              v-for="(model, idx) in formData.models"
-              :key="idx"
-              :header="model.id || model.name || '新模型'"
-              :value="String(idx)"
-            >
-              <div class="oc-model-form">
-                <div class="oc-form-item">
-                  <label>Model ID <span class="required">*</span></label>
-                  <Input v-model="model.id" placeholder="例如: deepseek-chat" />
-                </div>
-                <div class="oc-form-item">
-                  <label>显示名称</label>
-                  <Input v-model="model.name" placeholder="Model 显示名称" />
-                </div>
-                <div class="oc-form-item-row">
-                  <div class="oc-form-item oc-form-item--flex">
-                    <label>Context 限制</label>
-                    <InputNumber v-model="model.context" :min="0" :step="1000" theme="normal" />
-                  </div>
-                  <div class="oc-form-item oc-form-item--flex">
-                    <label>Output 限制</label>
-                    <InputNumber v-model="model.output" :min="0" :step="1000" theme="normal" />
-                  </div>
-                </div>
-                <div class="oc-form-subsection">
-                  <div class="oc-form-subsection-title">SDK Options</div>
-                  <DynamicKvEditor
-                    v-model="model.sdkOptions"
-                    :key-options="[]"
-                    key-placeholder="选项名"
-                    value-placeholder="选项值"
-                  />
-                </div>
-                <div class="oc-form-subsection">
-                  <div class="oc-form-subsection-title">额外字段 (variants, modalities, cost 等)</div>
-                  <DynamicKvEditor
-                    v-model="model.extraFields"
-                    :key-options="[]"
-                    key-placeholder="字段名"
-                    value-placeholder="字段值 (JSON 或字符串)"
-                  />
-                </div>
-                <div class="oc-model-remove">
-                  <Button size="small" theme="danger" variant="outline" @click="removeModel(idx)">
-                    <template #icon><DeleteIcon /></template> 移除此模型
-                  </Button>
-                </div>
-              </div>
-            </CollapsePanel>
-          </Collapse>
-        </div>
       </div>
 
       <template #footer>
         <div class="oc-dialog-footer">
-          <Button variant="outline" @click="openPresetDialog">
-            <template #icon><ChevronDownIcon /></template> 预设填充
-          </Button>
           <div class="oc-dialog-footer-right">
             <Button variant="outline" @click="showDialog = false">取消</Button>
             <Button theme="primary" @click="saveProvider">保存</Button>
@@ -719,98 +683,106 @@ onMounted(() => {
       </template>
     </Dialog>
 
-    <!-- Preset Quick-fill Dialog -->
-    <Dialog v-model:visible="showPresetDialog" header="选择预设 (models.dev)" width="560px" :footer="false">
-      <div class="oc-preset-toolbar">
-        <Input
-          v-model="presetSearch"
-          placeholder="搜索提供商..."
-          clearable
-          class="oc-preset-search"
-        >
-          <template #prefixIcon><SearchIcon /></template>
-        </Input>
-        <Button size="small" variant="text" @click="fetchPresets" :loading="presetsLoading">
-          <template #icon><RefreshIcon /></template>
-        </Button>
-      </div>
-      <div v-if="presetsLoading" class="oc-preset-loading">加载中...</div>
-      <div v-else-if="presetsError" class="oc-preset-error">
-        {{ presetsError }}
-        <Button size="small" variant="outline" @click="fetchPresets">重试</Button>
-      </div>
-      <div v-else-if="!filteredPresets.length" class="oc-preset-empty">无匹配的提供商</div>
-      <div v-else class="oc-preset-list">
-        <div
-          v-for="preset in filteredPresets"
-          :key="preset.id"
-          class="oc-preset-item"
-          @click="openModelSelectDialog(preset)"
-        >
-          <div class="oc-preset-name">{{ preset.name }}</div>
-          <div class="oc-preset-desc">
-            <Tag size="small" :theme="getNpmTagTheme(preset.npm)" variant="light">
-              {{ getNpmShortLabel(preset.npm) }}
-            </Tag>
-            <span v-if="preset.baseUrl" class="oc-preset-url">{{ maskUrl(preset.baseUrl) }}</span>
-            <span v-if="preset.models.length" class="oc-preset-models">{{ preset.models.length }} 个模型</span>
+    <!-- 添加模型（Pi 风格 AutoComplete 自动拉取） -->
+    <Dialog
+      v-model:visible="showAutoModelDialog"
+      header="添加模型"
+      width="520px"
+      :confirm-btn="{ content: '添加', theme: 'primary' }"
+      @confirm="confirmAddAutoModel"
+    >
+      <div class="oc-form">
+        <div class="oc-form-item">
+          <label>所属 Provider</label>
+          <div class="oc-provider-name">{{ addModelProviderId }}</div>
+        </div>
+        <div class="oc-form-item">
+          <label>模型 ID <span class="required">*</span></label>
+          <AutoComplete
+            v-model="autoModelForm.id"
+            :options="modelOptions"
+            :loading="autoModelsLoading"
+            filterable
+            clearable
+            placeholder="输入或从下拉选择模型"
+            @select="onAutoModelSelect"
+          />
+          <div v-if="autoModelsLoading" class="oc-form-hint">正在自动拉取模型列表…</div>
+          <div v-else-if="autoModelsError" class="oc-form-hint oc-fetch-error">
+            自动获取失败：{{ autoModelsError }}
+            <span class="oc-fetch-retry" @click="handleAutoFetchModels">重试</span>
+          </div>
+          <div v-else-if="autoModels.length > 0" class="oc-form-hint">
+            已自动获取 {{ autoModels.length }} 个模型，选中后自动填充名称/上下文等
+          </div>
+        </div>
+        <div class="oc-form-item">
+          <label>显示名称</label>
+          <Input v-model="autoModelForm.name" placeholder="留空则使用模型 ID" />
+        </div>
+        <div class="oc-form-item-row">
+          <div class="oc-form-item oc-form-item--flex">
+            <label>Context 限制</label>
+            <InputNumber v-model="autoModelForm.context" :min="0" :step="1000" theme="normal" />
+          </div>
+          <div class="oc-form-item oc-form-item--flex">
+            <label>Output 限制</label>
+            <InputNumber v-model="autoModelForm.output" :min="0" :step="1000" theme="normal" />
           </div>
         </div>
       </div>
     </Dialog>
 
-    <!-- Model Selection Dialog -->
+    <!-- 编辑模型（Pi 风格独立弹窗） -->
     <Dialog
-      v-model:visible="showModelSelectDialog"
-      :header="selectedPreset ? `选择模型 — ${selectedPreset.name}` : '选择模型'"
-      width="560px"
-      @confirm="applySelectedModels"
+      v-model:visible="showEditModelDialog"
+      header="编辑模型"
+      width="520px"
+      :confirm-btn="{ content: '保存', theme: 'primary' }"
+      @confirm="handleSaveModel"
     >
-      <div v-if="selectedPreset" class="oc-model-select">
-        <div class="oc-model-select-toolbar">
-          <Input
-            v-model="modelSelectSearch"
-            placeholder="搜索模型..."
-            clearable
-            class="oc-preset-search"
-          >
-            <template #prefixIcon><SearchIcon /></template>
-          </Input>
-          <Button size="small" variant="outline" @click="selectAllModels">全选</Button>
+      <div class="oc-form">
+        <div class="oc-form-item">
+          <label>所属 Provider</label>
+          <div class="oc-provider-name">{{ editModelProviderId }}</div>
         </div>
-        <div v-if="!filteredModels.length" class="oc-preset-empty">无匹配的模型</div>
-        <div v-else class="oc-model-select-list">
-          <div
-            v-for="model in filteredModels"
-            :key="model.id"
-            class="oc-model-select-item"
-            :class="{ 'oc-model-select-item--selected': selectedModelIds.includes(model.id) }"
-            @click="toggleModelSelect(model.id)"
-          >
-            <div class="oc-model-select-check">
-              <span class="oc-check-box">{{ selectedModelIds.includes(model.id) ? '☑' : '☐' }}</span>
-            </div>
-            <div class="oc-model-select-info">
-              <span class="oc-model-select-name">{{ model.name || model.id }}</span>
-              <span class="oc-model-select-id">{{ model.id }}</span>
-            </div>
-            <div class="oc-model-select-meta">
-              <span v-if="model.context" class="oc-model-meta-tag">{{ (model.context / 1000).toFixed(0) }}K ctx</span>
-              <span v-if="model.reasoning" class="oc-model-meta-tag oc-meta-reasoning">推理</span>
-              <span v-if="model.toolCall" class="oc-model-meta-tag oc-meta-tool">工具</span>
-            </div>
+        <div class="oc-form-item">
+          <label>模型 ID <span class="required">*</span></label>
+          <Input v-model="editModelForm.id" placeholder="例如: deepseek-chat" />
+        </div>
+        <div class="oc-form-item">
+          <label>显示名称</label>
+          <Input v-model="editModelForm.name" placeholder="留空则使用模型 ID" />
+        </div>
+        <div class="oc-form-item-row">
+          <div class="oc-form-item oc-form-item--flex">
+            <label>Context 限制</label>
+            <InputNumber v-model="editModelForm.context" :min="0" :step="1000" theme="normal" />
           </div>
+          <div class="oc-form-item oc-form-item--flex">
+            <label>Output 限制</label>
+            <InputNumber v-model="editModelForm.output" :min="0" :step="1000" theme="normal" />
+          </div>
+        </div>
+        <div class="oc-form-subsection">
+          <div class="oc-form-subsection-title">SDK Options</div>
+          <DynamicKvEditor
+            v-model="editModelForm.sdkOptions"
+            :key-options="[]"
+            key-placeholder="选项名"
+            value-placeholder="选项值"
+          />
+        </div>
+        <div class="oc-form-subsection">
+          <div class="oc-form-subsection-title">额外字段 (variants, modalities, cost 等)</div>
+          <DynamicKvEditor
+            v-model="editModelForm.extraFields"
+            :key-options="[]"
+            key-placeholder="字段名"
+            value-placeholder="字段值 (JSON 或字符串)"
+          />
         </div>
       </div>
-      <template #footer>
-        <div class="oc-dialog-footer">
-          <span class="oc-model-select-count">已选 {{ selectedModelIds.length }} 个模型</span>
-          <div class="oc-dialog-footer-right">
-            <Button variant="outline" @click="showModelSelectDialog = false">取消</Button>
-            <Button theme="primary" @click="applySelectedModels" :disabled="!selectedModelIds.length">填入</Button>
-          </div>
-        </div>
-      </template>
     </Dialog>
 
     <!-- Import Dialog -->

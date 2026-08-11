@@ -37,7 +37,6 @@ const {
   getOpencodeProviders, setOpencodeProvider, setOpencodeProviders, removeOpencodeProvider,
   getOpencodeMcpServers, setOpencodeMcpServer, removeOpencodeMcpServer,
   getOpencodePlugins, setOpencodePlugins, addOpencodePlugin, removeOpencodePlugin, installOpencodePlugin, uninstallOpencodePlugin,
-  fetchModelsDevPresets,
   getOpencodeSkills, getOpencodeSkillsPath, deleteOpencodeSkill,
 } = opencode
 
@@ -92,7 +91,6 @@ window.services = {
   removeOpencodePlugin,
   installOpencodePlugin,
   uninstallOpencodePlugin,
-  fetchModelsDevPresets,
   searchOpencodePlugins: opencode.searchOpencodePlugins,
   readOpencodeUsage: opencode.readOpencodeUsage,
   getOpencodeSkills,

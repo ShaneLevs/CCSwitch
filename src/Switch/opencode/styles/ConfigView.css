@@ -9,66 +9,17 @@
 /* Provider List */
 .provider-list { display: flex; flex-direction: column; gap: 12px; }
 
-.provider-card {
-  background: var(--td-bg-color-container);
-  border-radius: var(--td-radius-medium);
-  border: 1px solid var(--td-component-border);
-  overflow: hidden;
-  transition: border-color 0.2s;
-}
-.provider-card:hover { border-color: var(--td-brand-color); }
-
-.provider-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--td-component-border);
-}
-
-.provider-card-info { display: flex; align-items: center; gap: 8px; }
-
-.provider-id {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--td-text-color-primary);
-  font-family: monospace;
-}
-
-.provider-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 16px 12px;
-}
-
-.provider-name {
-  font-size: 13px;
-  color: var(--td-text-color-secondary);
-}
-
-.provider-url {
-  font-size: 12px;
-  color: var(--td-brand-color);
-  font-family: monospace;
-  word-break: break-all;
-}
-
 /* Dialog Form */
-.oc-form { display: flex; flex-direction: column; gap: 16px; }
+.oc-form { display: flex; flex-direction: column; gap: 12px; }
 
 .oc-form-item {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 4px;
 }
 .oc-form-item label {
-  font-size: 14px;
-  color: var(--td-text-color-primary);
-  flex-shrink: 0;
-  width: 110px;
-  text-align: right;
-  white-space: nowrap;
+  font-size: 13px;
+  color: var(--td-text-color-secondary);
 }
 .oc-form-item .required { color: var(--td-error-color); }
 .oc-form-item--flex { flex: 1; }
@@ -78,27 +29,6 @@
 .oc-form-item-vertical label { font-size: 14px; color: var(--td-text-color-primary); }
 
 .oc-form-item-row { display: flex; gap: 16px; }
-
-/* Form Sections */
-.oc-form-section {
-  border-top: 1px solid var(--td-component-border);
-  padding-top: 16px;
-}
-
-.oc-form-section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.oc-form-section-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--td-text-color-secondary);
-  margin-bottom: 8px;
-}
-.oc-form-section-header .oc-form-section-title { margin-bottom: 0; }
 
 /* Model Collapse */
 .oc-models-empty {
@@ -126,74 +56,65 @@
 .oc-dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .oc-dialog-footer-right { display: flex; gap: 8px; }
 
-/* Preset List */
-.oc-preset-toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
-.oc-preset-search { flex: 1; }
-.oc-preset-loading { text-align: center; padding: 24px 0; color: var(--td-text-color-placeholder); font-size: 13px; }
-.oc-preset-error { text-align: center; padding: 24px 0; color: var(--td-error-color); font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.oc-preset-empty { text-align: center; padding: 24px 0; color: var(--td-text-color-placeholder); font-size: 13px; }
-.oc-preset-list { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
+/* Dark mode overrides */
 
-.oc-preset-item {
-  padding: 12px 16px;
-  background: var(--td-bg-color-container);
-  border-radius: var(--td-radius-medium);
-  border: 1px solid var(--td-component-border);
+/* 添加模型弹窗（Pi 风格） */
+.oc-form-hint { font-size: 12px; color: var(--td-text-color-placeholder); margin-top: 4px; }
+.oc-fetch-error { color: var(--td-error-color); }
+.oc-fetch-retry {
+  color: var(--td-brand-color);
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
-}
-.oc-preset-item:hover {
-  border-color: var(--td-brand-color);
-  background: var(--td-bg-color-container-hover);
+  text-decoration: underline;
+  margin-left: 6px;
 }
 
-.oc-preset-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--td-text-color-primary);
-  margin-bottom: 6px;
-}
+/* ==================== Provider 列表（Pi 风格） ==================== */
+.oc-provider-collapse { border-radius: var(--td-radius-default); overflow: hidden; }
+.oc-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__header { padding: 10px 14px; }
+.oc-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__header:hover { background: var(--td-bg-color-container-hover); }
+.oc-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__body { background: var(--td-bg-color-container); }
+.oc-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__content { padding: 0 14px 14px; }
+.oc-provider-header-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.oc-provider-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.oc-provider-name { font-weight: 600; font-size: 14px; color: var(--td-text-color-primary); }
+.oc-model-count { font-size: 12px; color: var(--td-text-color-placeholder); white-space: nowrap; }
+.oc-provider-info { padding: 10px 0 8px; }
+.oc-info-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
+.oc-info-label { color: var(--td-text-color-placeholder); min-width: 80px; }
+.oc-info-value { color: var(--td-text-color-primary); }
 
-.oc-preset-desc {
+/* ==================== 模型列表（Pi 风格） ==================== */
+.oc-models-section { border-top: 1px solid var(--td-border-level-1-color); padding-top: 8px; }
+.oc-models-title { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 500; color: var(--td-text-color-placeholder); margin-bottom: 8px; }
+.oc-model-item { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-radius: var(--td-radius-default); }
+.oc-model-item:hover { background: var(--td-bg-color-container-hover); }
+.oc-model-info {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  flex: 1;
+}
+.oc-model-name {
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.oc-model-meta { display: flex; gap: 12px; font-size: 12px; color: var(--td-text-color-secondary); white-space: nowrap; }
+.oc-model-stat { white-space: nowrap; }
+.oc-model-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
 }
 
-.oc-preset-url {
-  font-size: 12px;
-  color: var(--td-brand-color);
-  font-family: monospace;
+.mono {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  word-break: break-all;
 }
-
-.oc-preset-models {
-  font-size: 12px;
-  color: var(--td-text-color-placeholder);
-}
-
-/* Model Selection Dialog */
-.oc-model-select { display: flex; flex-direction: column; gap: 12px; }
-.oc-model-select-toolbar { display: flex; gap: 8px; align-items: center; }
-.oc-model-select-list { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; }
-.oc-model-select-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 12px; border-radius: var(--td-radius-default);
-  border: 1px solid var(--td-component-border); cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-}
-.oc-model-select-item:hover { background: var(--td-bg-color-container-hover); }
-.oc-model-select-item--selected { border-color: var(--td-brand-color); background: var(--td-bg-color-container-hover); }
-.oc-model-select-check { flex-shrink: 0; font-size: 16px; line-height: 1; }
-.oc-model-select-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.oc-model-select-name { font-size: 13px; font-weight: 500; color: var(--td-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.oc-model-select-id { font-size: 11px; color: var(--td-text-color-placeholder); font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.oc-model-select-meta { display: flex; gap: 4px; flex-shrink: 0; }
-.oc-model-meta-tag { font-size: 11px; padding: 1px 5px; border-radius: 3px; background: var(--td-bg-color-container-hover); color: var(--td-text-color-secondary); }
-.oc-meta-reasoning { color: var(--td-warning-color); }
-.oc-meta-tool { color: var(--td-success-color); }
-.oc-model-select-count { font-size: 13px; color: var(--td-text-color-secondary); }
-
-/* Dark mode overrides */
-:root[theme-mode="dark"] .provider-card:hover { border-color: var(--td-brand-color); }
-:root[theme-mode="dark"] .oc-preset-item:hover { border-color: var(--td-brand-color); }
