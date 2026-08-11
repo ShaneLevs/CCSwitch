@@ -18,6 +18,8 @@ const resolvePiPath = () => {
   const candidates = [
     path.join(require('os').homedir(), '.local', 'bin', 'pi'),
     path.join(require('os').homedir(), '.npm-global', 'bin', 'pi'),
+    path.join(require('os').homedir(), '.bun', 'bin', 'pi'),
+    path.join(require('os').homedir(), '.bun', 'install', 'global', 'bin', 'pi'),
     '/usr/local/bin/pi',
     '/usr/bin/pi',
   ]
@@ -340,6 +342,79 @@ const deletePiModel = (providerName, modelId) => {
 
 // ==================== Extensions (Packages) ====================
 
+// pi.dev 包市场：拉取 /packages 并解析 SSR HTML
+const fetchPiDevPackages = (params = {}, redirects = 0) => {
+  const { page = 1, name = '', type = '', sort = 'downloads' } = params
+  const url = new URL('https://pi.dev/packages')
+  if (sort && sort !== 'downloads') url.searchParams.set('sort', sort)
+  if (name) url.searchParams.set('name', name)
+  if (type) url.searchParams.set('type', type)
+  if (page && page > 1) url.searchParams.set('page', String(page))
+
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, {
+      headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36', 'accept': 'text/html' },
+      timeout: 15_000,
+    }, (res) => {
+      // pi.dev 会对参数顺序做 302 规范化，跟随重定向（最多 3 次）
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume()
+        if (redirects >= 3) return reject(new Error('too many redirects'))
+        const next = new URL(res.headers.location, url)
+        const nextParams = Object.fromEntries(next.searchParams.entries())
+        return resolve(fetchPiDevPackages(nextParams, redirects + 1))
+      }
+      let data = ''
+      res.on('data', (c) => { data += c })
+      res.on('end', () => {
+        try { resolve(parsePiDevPackagesHtml(data)) }
+        catch (e) { reject(e) }
+      })
+    })
+    req.on('error', reject)
+    req.on('timeout', function () { this.destroy(); reject(new Error('timeout')) })
+  })
+}
+
+const parsePiDevPackagesHtml = (html) => {
+  let total = 0
+  const t = html.match(/packages-count">[^<]*\/\s*(\d+)/)
+  if (t) total = parseInt(t[1], 10)
+
+  let lastPage = 0
+  const pageLinks = [...html.matchAll(/href="\/packages[^"]*page=(\d+)"/g)]
+  for (const pl of pageLinks) lastPage = Math.max(lastPage, parseInt(pl[1], 10))
+
+  const items = []
+  const re = /<article class="surface-panel content-card"[^>]*data-package-card="true"([\s\S]*?)<\/article>/g
+  let m
+  while ((m = re.exec(html))) {
+    const b = m[1]
+    const name = (b.match(/data-package-name="([^"]*)"/) || [])[1] || ''
+    if (!name) continue
+    const types = [...b.matchAll(/class="meta-chip packages-badge" data-type="([^"]*)"/g)].map((x) => x[1])
+    const downloads = parseInt((b.match(/data-package-downloads="(\d+)"/) || [])[1] || '0', 10)
+    const date = parseInt((b.match(/data-package-date="(\d+)"/) || [])[1] || '0', 10)
+    const desc = ((b.match(/class="packages-desc">([\s\S]*?)<\/p>/) || [])[1] || '').replace(/<[^>]+>/g, '').trim()
+    const metaMatch = b.match(/class="packages-meta">([\s\S]*?)<\/div>/)
+    const metaSpans = metaMatch ? [...metaMatch[1].matchAll(/<span>([^<]*)<\/span>/g)].map((x) => x[1]) : []
+    const links = [...b.matchAll(/<a href="(https?:\/\/[^"]*)" target="_blank" rel="noopener">/g)].map((x) => x[1])
+    items.push({
+      name,
+      types,
+      downloads,
+      date,
+      description: desc,
+      author: metaSpans[0] || '',
+      downloadsText: metaSpans[1] || '',
+      dateText: metaSpans[2] || '',
+      npm: links[0] || '',
+      repo: links[1] || '',
+    })
+  }
+  return { items, total, lastPage, pageSize: 50 }
+}
+
 const getPiExtensions = () => {
   const settings = readPiSettings()
   const packages = settings.packages || []
@@ -552,10 +627,15 @@ const openPiExtDir = () => {
   }
 }
 
+// pi 命令是否可用（不存在 = 未安装 Pi Agent）
 const isPiInstalled = () => {
+  // 1. 已知路径（resolvePiPath 找到真实路径）
+  const piBin = resolvePiPath()
+  if (piBin && piBin !== 'pi') return true
+  // 2. 兜底：shell 执行验证（覆盖 PATH 里但不在候选列表的安装方式）
   try {
-    const piBin = resolvePiPath()
-    return fs.existsSync(piBin) || piBin === 'pi'
+    const out = execSync('pi --version', { encoding: 'utf-8', timeout: 8000, shell: true })
+    return !!out.trim()
   } catch { return false }
 }
 
@@ -565,9 +645,10 @@ module.exports = {
   getPiProviderList, setPiDefaultProvider, setPiDefaultModel, updatePiProvider, updatePiModel,
   addPiProvider, deletePiProvider, addPiModel, deletePiModel,
   getPiExtensions, installPiExtension, uninstallPiExtension,
+  fetchPiDevPackages, isPiInstalled,
   getPiSkills,
   getPiMcpServers, getPiMcpTools,
   readPiUsage,
   fetchProviderModels,
-  openPiDir, openPiExtDir, isPiInstalled, resolvePiPath,
+  openPiDir, openPiExtDir, resolvePiPath,
 }

@@ -3,6 +3,11 @@
 .pi-plugin-header-left { display: flex; align-items: center; gap: 8px; }
 .pi-plugin-tip { font-size: 12px; color: var(--td-text-color-secondary); }
 .pi-plugin-actions { display: flex; gap: 8px; }
+.pi-plugin-tabs { display: flex; align-items: center; justify-content: space-between; padding-bottom: 4px; }
+.pi-section-count { font-size: 12px; color: var(--td-text-color-secondary); }
+.pi-plugin-installed-header { display: flex; justify-content: flex-end; }
+.pi-market-filters { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
 .pi-plugin-empty { margin-top: 40px; }
 .pi-plugin-list { display: flex; flex-direction: column; gap: 8px; }
 .pi-plugin-card-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -15,3 +20,33 @@
 .mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }
 .pi-plugin-dir-link { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: var(--td-brand-color); cursor: pointer; margin-left: 4px; }
 .pi-plugin-dir-link:hover { text-decoration: underline; }
+
+/* ==================== 包市场（pi.dev/packages） ==================== */
+.pi-market { display: flex; flex-direction: column; gap: 12px; }
+.pi-market-toolbar { display: flex; gap: 8px; align-items: center; }
+.pi-market-search { flex: 1; }
+.pi-market-select { width: 140px; }
+.pi-market-error { text-align: center; padding: 24px 0; color: var(--td-error-color); font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.pi-market-loading { text-align: center; padding: 24px 0; color: var(--td-text-color-placeholder); font-size: 13px; }
+.pi-market-empty { padding: 24px 0; }
+.pi-market-list { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.pi-market-item {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+  padding: 12px 14px;
+  background: var(--td-bg-color-container);
+  border: 1px solid var(--td-component-border);
+  border-radius: var(--cc-radius-card);
+}
+.pi-market-item:hover { border-color: var(--td-brand-color); }
+.pi-market-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pi-market-item-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pi-market-name { font-size: 14px; font-weight: 600; color: var(--td-text-color-primary); word-break: break-all; }
+.pi-market-type { text-transform: lowercase; }
+.pi-market-desc {
+  font-size: 13px; color: var(--td-text-color-secondary); margin: 0;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pi-market-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--td-text-color-placeholder); }
+.pi-market-item-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.pi-market-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 4px; }
+.pi-market-count { font-size: 12px; color: var(--td-text-color-secondary); }
