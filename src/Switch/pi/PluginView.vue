@@ -125,7 +125,7 @@ const loadMarket = async (page = marketPage.value) => {
     marketLastPage.value = Math.max(data.lastPage || 1, 1);
     marketPage.value = page;
   } catch (e) {
-    marketError.value = e.message || "加载市场失败";
+    marketError.value = (e && (e.message || e.stack || String(e))) || "加载市场失败";
     marketItems.value = [];
   } finally {
     marketLoading.value = false;

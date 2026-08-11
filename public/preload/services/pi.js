@@ -343,13 +343,16 @@ const deletePiModel = (providerName, modelId) => {
 // ==================== Extensions (Packages) ====================
 
 // pi.dev 包市场：拉取 /packages 并解析 SSR HTML
+// 说明：pi.dev 无 JSON API，包列表为 SSR HTML；搜索/类型/排序/分页均为 GET 整页导航，
+// 接口即 https://pi.dev/packages?sort=&name=&type=&page= ，可直接离线重放（不依赖浏览器）
 const fetchPiDevPackages = (params = {}, redirects = 0) => {
   const { page = 1, name = '', type = '', sort = 'downloads' } = params
-  const url = new URL('https://pi.dev/packages')
-  if (sort && sort !== 'downloads') url.searchParams.set('sort', sort)
-  if (name) url.searchParams.set('name', name)
-  if (type) url.searchParams.set('type', type)
-  if (page && page > 1) url.searchParams.set('page', String(page))
+  const qs = []
+  if (sort && sort !== 'downloads') qs.push('sort=' + encodeURIComponent(sort))
+  if (name) qs.push('name=' + encodeURIComponent(name))
+  if (type) qs.push('type=' + encodeURIComponent(type))
+  if (page && Number(page) > 1) qs.push('page=' + encodeURIComponent(String(page)))
+  const url = 'https://pi.dev/packages' + (qs.length ? '?' + qs.join('&') : '')
 
   return new Promise((resolve, reject) => {
     const req = https.get(url, {
@@ -360,8 +363,16 @@ const fetchPiDevPackages = (params = {}, redirects = 0) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume()
         if (redirects >= 3) return reject(new Error('too many redirects'))
-        const next = new URL(res.headers.location, url)
-        const nextParams = Object.fromEntries(next.searchParams.entries())
+        const loc = res.headers.location
+        const next = loc.indexOf('://') >= 0 ? loc : 'https://pi.dev' + loc
+        const nextParams = {}
+        const qi = next.indexOf('?')
+        if (qi >= 0) {
+          for (const kv of next.slice(qi + 1).split('&')) {
+            const eq = kv.indexOf('=')
+            if (eq > 0) nextParams[decodeURIComponent(kv.slice(0, eq))] = decodeURIComponent(kv.slice(eq + 1))
+          }
+        }
         return resolve(fetchPiDevPackages(nextParams, redirects + 1))
       }
       let data = ''
