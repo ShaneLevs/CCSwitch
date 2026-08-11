@@ -111,9 +111,13 @@ const deleteCommonModel = (providerName, modelId) => {
   return writeCommonProviders({ providers })
 }
 
-// ==================== MCP（存 uTools DB，格式与 ~/.mcp.json 一致） ====================
-// 单 doc：ccswitch_common_mcp -> { mcpServers: { name: config } }
+// ==================== MCP（本地 ~/.mcp.json + 云端 uTools DB 双存储） ====================
+// 本地：直接读写用户级 ~/.mcp.json（多数 agent 共同读取），保留文件中其他字段
+// 云端：uTools DB 单 doc：ccswitch_common_mcp -> { mcpServers: { name: config } }
 const DOC_MCP = 'ccswitch_common_mcp'
+const LOCAL_MCP_PATH = () => path.join(window.utools.getPath('home'), '.mcp.json')
+
+// ---------- 云端（uTools DB） ----------
 
 const readCommonMcpDoc = () => {
   const data = readDoc(DOC_MCP, null) || { mcpServers: {} }
@@ -140,6 +144,95 @@ const deleteCommonMcpServer = (name) => {
 const writeCommonMcpServers = (mcpServers) => {
   const obj = (mcpServers && typeof mcpServers === 'object') ? mcpServers : {}
   return writeDoc(DOC_MCP, { mcpServers: obj })
+}
+
+// ---------- 本地（~/.mcp.json 文件） ----------
+
+const readLocalMcpRaw = () => {
+  try {
+    if (!fs.existsSync(LOCAL_MCP_PATH())) return null
+    return JSON.parse(fs.readFileSync(LOCAL_MCP_PATH(), { encoding: 'utf-8' }))
+  } catch (e) {
+    console.error('读取本地 MCP 配置失败:', e)
+    return null
+  }
+}
+
+// 读整份文件（保留 mcpServers 之外的其他字段，如 $schema）
+const readLocalMcpDoc = () => {
+  const raw = readLocalMcpRaw()
+  const doc = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : { mcpServers: {} }
+  if (!doc.mcpServers || typeof doc.mcpServers !== 'object') doc.mcpServers = {}
+  return doc
+}
+
+const writeLocalMcpDoc = (doc) => {
+  try {
+    fs.writeFileSync(LOCAL_MCP_PATH(), JSON.stringify(doc, null, 2), { encoding: 'utf-8' })
+    return true
+  } catch (e) {
+    console.error('写入本地 MCP 配置失败:', e)
+    return false
+  }
+}
+
+const getLocalMcpServers = () => readLocalMcpDoc().mcpServers
+
+const upsertLocalMcpServer = (name, serverConfig) => {
+  const doc = readLocalMcpDoc()
+  doc.mcpServers[name] = serverConfig
+  return writeLocalMcpDoc(doc)
+}
+
+const deleteLocalMcpServer = (name) => {
+  const doc = readLocalMcpDoc()
+  if (!doc.mcpServers[name]) return false
+  delete doc.mcpServers[name]
+  return writeLocalMcpDoc(doc)
+}
+
+const writeLocalMcpServers = (mcpServers) => {
+  const doc = readLocalMcpDoc()
+  const obj = (mcpServers && typeof mcpServers === 'object') ? mcpServers : {}
+  doc.mcpServers = obj
+  return writeLocalMcpDoc(doc)
+}
+
+// ---------- 跨端操作 ----------
+
+// 把另一端的一个 server 复制到本端（同名覆盖）。target: 'local'（云端→本地）| 'cloud'（本地→云端）
+const copyCommonMcpServer = (name, target) => {
+  if (target === 'local') {
+    const cloud = readCommonMcpDoc().mcpServers
+    if (!cloud[name]) throw new Error(`云端不存在 ${name}`)
+    const doc = readLocalMcpDoc()
+    doc.mcpServers[name] = JSON.parse(JSON.stringify(cloud[name]))
+    return writeLocalMcpDoc(doc)
+  } else {
+    const local = readLocalMcpDoc().mcpServers
+    if (!local[name]) throw new Error(`本地不存在 ${name}`)
+    const data = readCommonMcpDoc()
+    data.mcpServers[name] = JSON.parse(JSON.stringify(local[name]))
+    return writeDoc(DOC_MCP, { mcpServers: data.mcpServers })
+  }
+}
+
+// 批量同步：direction 'toLocal'（云端→本地）| 'toCloud'（本地→云端）
+// 并集合并：源端覆盖目标端同名配置，目标端独有配置保留，不丢数据
+const syncCommonMcp = (direction) => {
+  const local = readLocalMcpDoc()
+  const cloud = readCommonMcpDoc()
+  if (direction === 'toLocal') {
+    for (const [k, v] of Object.entries(cloud.mcpServers)) {
+      local.mcpServers[k] = JSON.parse(JSON.stringify(v))
+    }
+    return { total: Object.keys(cloud.mcpServers).length, written: writeLocalMcpDoc(local) }
+  } else {
+    for (const [k, v] of Object.entries(local.mcpServers)) {
+      cloud.mcpServers[k] = JSON.parse(JSON.stringify(v))
+    }
+    return { total: Object.keys(local.mcpServers).length, written: writeDoc(DOC_MCP, { mcpServers: cloud.mcpServers }) }
+  }
 }
 
 // ==================== Skill（只读扫描 ~/.agents/skills） ====================
@@ -232,5 +325,7 @@ module.exports = {
   addCommonProvider, updateCommonProvider, deleteCommonProvider,
   addCommonModel, updateCommonModel, deleteCommonModel,
   getCommonMcpServers, upsertCommonMcpServer, deleteCommonMcpServer, writeCommonMcpServers,
-  readCommonSkills, openCommonSkillsDir,
+  getLocalMcpServers, upsertLocalMcpServer, deleteLocalMcpServer, writeLocalMcpServers,
+  copyCommonMcpServer, syncCommonMcp,
+  readCommonSkills, openCommonSkillsDir, getCommonSkillsPath,
 }
