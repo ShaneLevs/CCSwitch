@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
 import { Empty, Dialog, Button, MessagePlugin, Switch, Popconfirm, Space, Tag, Tooltip } from "tdesign-vue-next";
-import { DownloadIcon, DeleteIcon, FileExportIcon, FolderOpen1Icon } from "tdesign-icons-vue-next";
+import { DownloadIcon, DeleteIcon, FileExportIcon, FolderOpen1Icon, RefreshIcon } from "tdesign-icons-vue-next";
 import SkillInstallDialog from "../../components/SkillInstallDialog.vue";
 import SkillCard from "../../components/SkillCard.vue";
 import { formatLastUsed } from "../../utils/time";
@@ -162,6 +162,11 @@ onMounted(() => setTimeout(() => loadSkills(), 50));
       <Button size="small" theme="primary" @click="installDialogRef?.open()">
         <template #icon><DownloadIcon /></template> 安装 Skill
       </Button>
+      <Tooltip content="刷新" placement="top">
+        <Button size="small" variant="outline" @click="loadSkills">
+          <template #icon><RefreshIcon /></template>
+        </Button>
+      </Tooltip>
     </div>
 
     <div v-if="!skills.length" class="empty-state">

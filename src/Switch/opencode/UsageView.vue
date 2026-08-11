@@ -123,10 +123,11 @@ onMounted(loadData);
           style="width: 240px;"
           placeholder="选择日期区间"
         />
-        <Button size="small" variant="outline" :loading="loading" @click="handleRefresh">
-          <template #icon><RefreshIcon /></template>
-          刷新数据
-        </Button>
+        <Tooltip content="刷新" placement="top">
+          <Button size="small" variant="outline" :loading="loading" @click="handleRefresh">
+            <template #icon><RefreshIcon /></template>
+          </Button>
+        </Tooltip>
       </div>
     </div>
 

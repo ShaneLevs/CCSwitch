@@ -510,6 +510,7 @@ onMounted(() => { loadCurrentConfig(); checkFirstOpen(); loadSavedConfigs(); loa
         <Button size="small" variant="outline" @click="handleExportAsString"><template #icon><DownloadIcon /></template> 导出</Button>
         <Button size="small" variant="outline" @click="openImportStringDialog"><template #icon><UploadIcon /></template> 导入</Button>
         <Button size="small" theme="primary" @click="openCreateDialog"><template #icon><AddIcon /></template> 新建配置</Button>
+        <Tooltip content="刷新" placement="top"><Button size="small" variant="outline" @click="loadSavedConfigs"><template #icon><RefreshIcon /></template></Button></Tooltip>
       </Space>
     </div>
 

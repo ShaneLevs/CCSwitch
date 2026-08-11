@@ -520,9 +520,11 @@ onMounted(refresh);
         <Button size="small" variant="outline" @click="openOmpDir">
           <template #icon><FolderOpen1Icon /></template> 打开目录
         </Button>
-        <Button size="small" variant="outline" :loading="loading" @click="refresh">
-          <template #icon><RefreshIcon /></template> 刷新
-        </Button>
+        <Tooltip content="刷新" placement="top">
+          <Button size="small" variant="outline" :loading="loading" @click="refresh">
+            <template #icon><RefreshIcon /></template>
+          </Button>
+        </Tooltip>
       </div>
     </div>
 

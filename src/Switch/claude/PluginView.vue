@@ -398,7 +398,6 @@ onMounted(() => {
             @click="handleRefresh"
           >
             <template #icon><RefreshIcon /></template>
-            刷新
           </Button>
         </Tooltip>
       </div>

@@ -128,9 +128,14 @@ onMounted(loadSkills);
         <Button size="small" theme="primary" @click="installDialogRef?.open()">
           <template #icon><DownloadIcon /></template> 安装 Skill
         </Button>
-        <Button size="small" variant="outline" :loading="loading" @click="loadSkills">
+
+        <Tooltip content="刷新" placement="top">
+
+          <Button size="small" variant="outline" :loading="loading" @click="loadSkills">
           <template #icon><RefreshIcon /></template>
         </Button>
+
+        </Tooltip>
       </Space>
     </div>
 

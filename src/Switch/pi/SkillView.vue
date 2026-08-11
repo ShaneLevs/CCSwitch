@@ -45,9 +45,14 @@ onMounted(loadSkills);
   <div class="pi-skill-container">
     <div class="pi-section-header">
       <span class="pi-skill-tip">Pi Agent 扩展包提供的 Skills — 通过 <code class="pi-hint-link" @click="openPiSkillsDir">pi config</code> 管理</span>
-      <Button size="small" variant="outline" :loading="loading" @click="loadSkills">
+
+      <Tooltip content="刷新" placement="top">
+
+        <Button size="small" variant="outline" :loading="loading" @click="loadSkills">
         <template #icon><RefreshIcon /></template>
       </Button>
+
+      </Tooltip>
     </div>
 
     <div v-if="skills.length === 0" class="pi-empty-state">

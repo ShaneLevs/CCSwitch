@@ -209,12 +209,14 @@ onMounted(() => {
             <template #icon><MoveIcon /></template> 移至 ~/.mcp.json
           </Button>
         </Tooltip>
-        <Button size="small" variant="outline" :loading="mcpLoading" @click="handleRefresh">
-          <template #icon><RefreshIcon /></template> 刷新
-        </Button>
         <Button size="small" theme="primary" @click="openCreateDialog">
           <template #icon><AddIcon /></template> 添加 MCP
         </Button>
+        <Tooltip content="刷新" placement="top">
+          <Button size="small" variant="outline" :loading="mcpLoading" @click="handleRefresh">
+            <template #icon><RefreshIcon /></template>
+          </Button>
+        </Tooltip>
       </Space>
     </div>
 

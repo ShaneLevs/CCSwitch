@@ -109,7 +109,7 @@ onMounted(loadServers);
         </Button>
         <Tooltip content="刷新" placement="top">
           <Button size="small" variant="outline" :loading="loading" @click="refresh">
-            <template #icon><RefreshIcon /></template> 刷新
+            <template #icon><RefreshIcon /></template>
           </Button>
         </Tooltip>
       </div>
