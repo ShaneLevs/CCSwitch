@@ -42,10 +42,6 @@
   border-color: var(--td-brand-color);
 }
 
-.common-mcp-card--disabled {
-  opacity: 0.55;
-}
-
 .common-mcp-card-header {
   display: flex;
   justify-content: space-between;
@@ -131,4 +127,145 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* ==================== 工具抽屉 ==================== */
+
+.common-tool-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.common-skeleton-card {
+  padding: 12px;
+  border: 1px solid var(--td-component-border);
+  border-radius: var(--td-radius-default);
+  background-color: var(--td-bg-color-container);
+}
+
+.common-skeleton-card-body {
+  margin-top: 8px;
+}
+
+.common-tool-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--td-error-color);
+  border-radius: var(--td-radius-default);
+  background-color: var(--td-error-color-1);
+}
+
+.common-tool-error-msg {
+  font-size: 13px;
+  color: var(--td-error-color);
+  word-break: break-all;
+}
+
+.common-tool-empty {
+  padding: 40px 0;
+}
+
+.common-tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.common-tool-item {
+  padding: 12px 16px;
+  border: 1px solid var(--td-component-border);
+  border-radius: var(--td-radius-default);
+  background-color: var(--td-bg-color-container);
+}
+
+.common-tool-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--td-text-color-primary);
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+
+.common-tool-meta {
+  font-size: 12px;
+  color: var(--td-text-color-secondary);
+  margin-bottom: 6px;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+}
+
+.common-tool-meta-label {
+  color: var(--td-text-color-placeholder);
+  margin-right: 4px;
+}
+
+.common-tool-section {
+  margin-top: 8px;
+}
+
+.common-tool-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--td-text-color-secondary);
+  margin-bottom: 4px;
+}
+
+.common-tool-desc {
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.common-param-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.common-param-item {
+  font-size: 12px;
+  color: var(--td-text-color-primary);
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.common-param-bullet {
+  color: var(--td-brand-color);
+  margin-right: 4px;
+}
+
+.common-param-name {
+  font-weight: 600;
+  color: var(--td-text-color-primary);
+}
+
+.common-param-required {
+  color: var(--td-error-color);
+  margin-left: 4px;
+  font-size: 11px;
+}
+
+.common-param-optional {
+  color: var(--td-text-color-placeholder);
+  margin-left: 4px;
+  font-size: 11px;
+}
+
+.common-param-type {
+  color: var(--td-brand-color);
+  margin-left: 6px;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.common-param-separator {
+  color: var(--td-text-color-placeholder);
+  margin: 0 4px;
+}
+
+.common-param-desc {
+  color: var(--td-text-color-secondary);
 }

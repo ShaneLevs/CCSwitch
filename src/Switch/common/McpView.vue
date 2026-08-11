@@ -1,14 +1,15 @@
 <script setup>
 
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted } from "vue";
 import {
-  Empty, Button, Tag, Space, Tooltip, Dialog, Input, RadioGroup, RadioButton, Textarea, MessagePlugin, Popconfirm, Switch,
+  Empty, Button, Tag, Space, Tooltip, Dialog, Drawer, Input, RadioGroup, RadioButton, Textarea, MessagePlugin, Popconfirm, Skeleton,
 } from "tdesign-vue-next";
-import { RefreshIcon, EditIcon, AddIcon, DeleteIcon } from "tdesign-icons-vue-next";
+import { RefreshIcon, EditIcon, AddIcon, DeleteIcon, ToolsIcon } from "tdesign-icons-vue-next";
 import DynamicKvEditor from "../../components/DynamicKvEditor.vue";
 import "./styles/McpView.css";
 
-// 通用 MCP 库：跨 agent 的 MCP Server 主数据（Claude 官方 MCP 格式，所有 agent 通用）
+// 通用 MCP 库：所有 server 存 uTools DB（ccswitch_common_mcp），格式 { mcpServers: {...} }
+// 与 ~/.mcp.json 解耦；查看工具复用 getMcpServerTools(config)（纯函数式，不依赖存储位置）
 
 const loading = ref(false);
 const servers = ref([]);
@@ -21,7 +22,13 @@ const mcpArgsText = ref('');
 const mcpUrl = ref('');
 const mcpEnv = ref([]);
 const mcpHeaders = ref([]);
-const disabledNames = ref(new Set());
+
+// 工具抽屉
+const showToolDrawer = ref(false);
+const toolDrawerTitle = ref('');
+const toolList = ref([]);
+const toolLoading = ref(false);
+const toolError = ref('');
 
 const typeLabel = (config) => (config.type === 'http' || config.url) ? 'HTTP' : 'STDIO';
 
@@ -29,7 +36,6 @@ const loadServers = () => {
   try {
     const data = window.services.getCommonMcpServers();
     servers.value = Object.entries(data || {}).map(([name, config]) => ({ name, config }));
-    disabledNames.value = new Set(window.services.getCommonMcpDisabled());
   } catch (e) {
     console.error("加载通用 MCP 服务器失败:", e);
     servers.value = [];
@@ -134,11 +140,41 @@ const deleteServer = (name) => {
   }
 };
 
-const toggleDisabled = async (name, val) => {
-  const next = new Set(disabledNames.value);
-  if (val) next.add(name); else next.delete(name);
-  disabledNames.value = next;
-  window.services.setCommonMcpDisabled([...next]);
+// 查看工具：复用 Claude 的 getMcpServerTools(config)，从 DB 读 config 喂进去即可
+const openToolDrawer = async (srv) => {
+  showToolDrawer.value = true;
+  toolDrawerTitle.value = srv.name;
+  toolList.value = [];
+  toolLoading.value = true;
+  toolError.value = '';
+  try {
+    const result = await window.services.getMcpServerTools(srv.config);
+    if (result.success) {
+      toolList.value = result.tools;
+      if (result.tools.length === 0) MessagePlugin.info("该 MCP 服务器未提供任何工具");
+    } else {
+      toolError.value = result.error;
+      MessagePlugin.error("获取工具列表失败: " + result.error);
+    }
+  } catch (e) {
+    toolError.value = e.message;
+    MessagePlugin.error("获取工具列表失败: " + e.message);
+  } finally {
+    toolLoading.value = false;
+  }
+};
+
+// 格式化 JSON Schema 参数为可读文本
+const formatSchema = (schema) => {
+  if (!schema || !schema.properties) return null;
+  const entries = Object.entries(schema.properties);
+  if (entries.length === 0) return null;
+  return entries.map(([name, prop]) => ({
+    name,
+    type: prop.type || 'any',
+    description: prop.description || '',
+    required: schema.required?.includes(name) || false,
+  }));
 };
 
 onMounted(loadServers);
@@ -148,7 +184,7 @@ onMounted(loadServers);
   <div class="common-mcp-container">
     <div class="common-mcp-header">
       <span class="common-mcp-tip">
-        通用 MCP 服务器库 — 维护一份跨 agent 共用的 MCP Server 定义，后续可下发到 Claude / Pi / OpenCode
+        通用 MCP 服务器库 — 所有 server 存 uTools DB，与各 agent 配置解耦；点击「查看工具」可直接连接探活
       </span>
       <div class="common-mcp-actions">
         <Tooltip content="添加服务器" placement="top">
@@ -165,7 +201,7 @@ onMounted(loadServers);
     </div>
 
     <div v-if="servers.length === 0" class="common-mcp-empty">
-      <Empty description="~/.mcp.json 中还没有 MCP 服务器，点击右上角「添加服务器」开始配置" />
+      <Empty description="还没有 MCP 服务器，点击右上角「添加服务器」开始配置" />
     </div>
 
     <div v-else class="common-mcp-list">
@@ -173,7 +209,6 @@ onMounted(loadServers);
         v-for="srv in servers"
         :key="srv.name"
         class="common-mcp-card"
-        :class="{ 'common-mcp-card--disabled': disabledNames.has(srv.name) }"
       >
         <div class="common-mcp-card-header">
           <div class="common-mcp-srv-name-wrap">
@@ -183,11 +218,12 @@ onMounted(loadServers);
             <Tag size="small" :theme="typeLabel(srv.config) === 'HTTP' ? 'primary' : 'success'" variant="light">
               {{ typeLabel(srv.config) }}
             </Tag>
-            <Tag v-if="disabledNames.has(srv.name)" size="small" theme="default" variant="light">已停用</Tag>
           </div>
           <Space size="small">
-            <Tooltip content="启用/停用（下发给 agent 时跳过停用的服务器）" placement="top">
-              <Switch :model-value="!disabledNames.has(srv.name)" size="small" @change="(v) => toggleDisabled(srv.name, !v)" />
+            <Tooltip content="查看工具" placement="top">
+              <Button size="small" variant="text" @click="openToolDrawer(srv)">
+                <template #icon><ToolsIcon /></template>
+              </Button>
             </Tooltip>
             <Tooltip content="编辑" placement="top">
               <Button size="small" variant="text" @click="openEditDialog(srv)">
@@ -304,5 +340,55 @@ onMounted(loadServers);
         </div>
       </template>
     </Dialog>
+
+    <Drawer
+      v-model:visible="showToolDrawer"
+      :header="`${toolDrawerTitle} — 工具列表`"
+      placement="right"
+      size="60%"
+      :footer="false"
+    >
+      <div v-if="toolLoading" class="common-tool-skeleton">
+        <div v-for="i in 3" :key="i" class="common-skeleton-card">
+          <Skeleton :row="1" :loading="true" animation="fluent" />
+          <div class="common-skeleton-card-body">
+            <Skeleton :row="2" :loading="true" animation="fluent" />
+          </div>
+        </div>
+      </div>
+      <div v-else-if="toolError" class="common-tool-error">
+        <Tag theme="danger" variant="light">连接失败</Tag>
+        <span class="common-tool-error-msg">{{ toolError }}</span>
+      </div>
+      <div v-else-if="!toolList.length && !toolLoading" class="common-tool-empty">
+        <Empty description="暂无工具" />
+      </div>
+      <div v-else class="common-tool-list">
+        <div v-for="tool in toolList" :key="tool.name" class="common-tool-item">
+          <div class="common-tool-name">{{ tool.name }}</div>
+          <div class="common-tool-meta">
+            <span class="common-tool-meta-label">Full name:</span> mcp__{{ toolDrawerTitle }}__{{ tool.name }}
+          </div>
+          <div class="common-tool-section">
+            <div class="common-tool-section-title">Description:</div>
+            <div class="common-tool-desc">{{ tool.description || '无描述' }}</div>
+          </div>
+          <div v-if="formatSchema(tool.inputSchema)" class="common-tool-section">
+            <div class="common-tool-section-title">Parameters:</div>
+            <div class="common-param-list">
+              <div v-for="param in formatSchema(tool.inputSchema)" :key="param.name" class="common-param-item">
+                <span class="common-param-bullet">●</span>
+                <span class="common-param-name">{{ param.name }}</span>
+                <span class="common-param-required" v-if="param.required">(required)</span>
+                <span class="common-param-optional" v-else>(optional)</span>
+                <span class="common-param-type">{{ param.type }}</span>
+                <span v-if="param.description" class="common-param-separator"> - </span>
+                <span v-if="param.description" class="common-param-desc">{{ param.description }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Drawer>
   </div>
 </template>

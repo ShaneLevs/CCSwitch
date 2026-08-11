@@ -1240,12 +1240,10 @@ window.services = {
   addCommonModel: common.addCommonModel,
   updateCommonModel: common.updateCommonModel,
   deleteCommonModel: common.deleteCommonModel,
-  readCommonMcp: common.readCommonMcp,
   getCommonMcpServers: common.getCommonMcpServers,
   upsertCommonMcpServer: common.upsertCommonMcpServer,
   deleteCommonMcpServer: common.deleteCommonMcpServer,
-  getCommonMcpDisabled: common.getCommonMcpDisabled,
-  setCommonMcpDisabled: common.setCommonMcpDisabled,
+  writeCommonMcpServers: common.writeCommonMcpServers,
   readCommonSkills: common.readCommonSkills,
   openCommonSkillsDir: common.openCommonSkillsDir,
 

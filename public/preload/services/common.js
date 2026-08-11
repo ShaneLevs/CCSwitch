@@ -1,12 +1,11 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const crypto = require('./crypto')
-const config = require('./config')
 
 // ==================== 通用配置 ====================
 // 设计约定：
 //   - 模型/供应商主数据：存 uTools DB（ccswitch_common_providers）
-//   - MCP：直接读写 ~/.mcp.json（与 Claude 共用同一文件，格式为 { mcpServers: {...} }）
+//   - MCP：存 uTools DB（ccswitch_common_mcp，格式与 ~/.mcp.json 一致 { mcpServers: {...} }）
 //   - Skill：只读扫描 ~/.agents/skills 目录下的 SKILL.md
 
 const AGENTS_DIR = () => path.join(window.utools.getPath('home'), '.agents')
@@ -112,50 +111,35 @@ const deleteCommonModel = (providerName, modelId) => {
   return writeCommonProviders({ providers })
 }
 
-// ==================== MCP（直接读写 ~/.mcp.json） ====================
-// 只操作 ~/.mcp.json 单一文件（config.js 的 readMcpJson/writeMcpJson 即该文件）
+// ==================== MCP（存 uTools DB，格式与 ~/.mcp.json 一致） ====================
+// 单 doc：ccswitch_common_mcp -> { mcpServers: { name: config } }
+const DOC_MCP = 'ccswitch_common_mcp'
 
-const getCommonMcpServers = () => {
-  const data = config.readMcpJson()
-  return (data && data.mcpServers) || {}
+const readCommonMcpDoc = () => {
+  const data = readDoc(DOC_MCP, null) || { mcpServers: {} }
+  if (!data.mcpServers || typeof data.mcpServers !== 'object') data.mcpServers = {}
+  return data
 }
 
+const getCommonMcpServers = () => readCommonMcpDoc().mcpServers
+
 const upsertCommonMcpServer = (name, serverConfig) => {
-  const data = config.readMcpJson() || { mcpServers: {} }
-  if (!data.mcpServers) data.mcpServers = {}
+  const data = readCommonMcpDoc()
   data.mcpServers[name] = serverConfig
-  return config.writeMcpJson(data)
+  return writeDoc(DOC_MCP, { mcpServers: data.mcpServers })
 }
 
 const deleteCommonMcpServer = (name) => {
-  const data = config.readMcpJson()
-  if (data && data.mcpServers && data.mcpServers[name]) {
-    delete data.mcpServers[name]
-    return config.writeMcpJson(data)
-  }
-  return false
+  const data = readCommonMcpDoc()
+  if (!data.mcpServers[name]) return false
+  delete data.mcpServers[name]
+  return writeDoc(DOC_MCP, { mcpServers: data.mcpServers })
 }
 
-// MCP 停用状态（补充标记存 DB，不影响 ~/.mcp.json 内容）
-const getCommonMcpDisabled = () => {
-  try {
-    const doc = window.utools.db.get('ccswitch_common_mcp_disabled')
-    return Array.isArray(doc?.names) ? doc.names : []
-  } catch { return [] }
-}
-
-const setCommonMcpDisabled = (names) => {
-  try {
-    const docId = 'ccswitch_common_mcp_disabled'
-    const doc = { _id: docId, names: Array.isArray(names) ? names : [], updatedAt: Date.now() }
-    const existing = window.utools.db.get(docId)
-    if (existing) doc._rev = existing._rev
-    window.utools.db.put(doc)
-    return true
-  } catch (e) {
-    console.error('保存通用 MCP 停用状态失败:', e)
-    return false
-  }
+// 一次性把整份 { mcpServers: {...} } 写回（用于批量导入/覆盖）
+const writeCommonMcpServers = (mcpServers) => {
+  const obj = (mcpServers && typeof mcpServers === 'object') ? mcpServers : {}
+  return writeDoc(DOC_MCP, { mcpServers: obj })
 }
 
 // ==================== Skill（只读扫描 ~/.agents/skills） ====================
@@ -241,7 +225,6 @@ module.exports = {
   readCommonProviders, writeCommonProviders, getCommonProviderList,
   addCommonProvider, updateCommonProvider, deleteCommonProvider,
   addCommonModel, updateCommonModel, deleteCommonModel,
-  getCommonMcpServers, upsertCommonMcpServer, deleteCommonMcpServer,
-  getCommonMcpDisabled, setCommonMcpDisabled,
+  getCommonMcpServers, upsertCommonMcpServer, deleteCommonMcpServer, writeCommonMcpServers,
   readCommonSkills, openCommonSkillsDir,
 }
