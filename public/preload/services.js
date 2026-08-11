@@ -1386,6 +1386,8 @@ window.services = {
   readCommonSkills: common.readCommonSkills,
   openCommonSkillsDir: common.openCommonSkillsDir,
   getCommonSkillsPath: common.getCommonSkillsPath,
+  setCommonSkillEnabled: common.setCommonSkillEnabled,
+  deleteCommonSkill: common.deleteCommonSkill,
 
   getReasonixConfigPath: reasonix.getReasonixConfigPath,
   readReasonixConfig: reasonix.readReasonixConfig,

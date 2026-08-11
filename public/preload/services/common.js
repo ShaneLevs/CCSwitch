@@ -235,6 +235,52 @@ const syncCommonMcp = (direction) => {
   }
 }
 
+// ==================== Skill 启停（.disabled 文件夹方式，同 Claude Code） ====================
+// 通用 Skill 存放在 ~/.agents/skills（跨 Agent 共享）。
+// 禁用 = 将 skill 目录移动到 ~/.agents/skills/.disabled/<name>，启用 = 移回，
+// 与 Claude Code 的 skill 启停方式一致（agent 扫描时 .disabled 目录会被忽略）。
+
+const DISABLED_DIR_NAME = '.disabled'
+
+const getDisabledSkillsDir = () => path.join(COMMON_SKILLS_DIR(), DISABLED_DIR_NAME)
+
+// 设置通用 Skill 启用/禁用（物理移动目录到 .disabled / 移回）
+const setCommonSkillEnabled = (skillName, enabled) => {
+  if (!skillName) return { success: false, error: 'Skill 名不能为空' }
+  const disabledDir = getDisabledSkillsDir()
+  const sourceDir = enabled
+    ? path.join(disabledDir, skillName)
+    : path.join(COMMON_SKILLS_DIR(), skillName)
+  const targetDir = enabled
+    ? path.join(COMMON_SKILLS_DIR(), skillName)
+    : path.join(disabledDir, skillName)
+  if (!fs.existsSync(sourceDir)) return { success: false, error: 'Skill 不存在' }
+  try {
+    if (!enabled) fs.mkdirSync(disabledDir, { recursive: true })
+    fs.renameSync(sourceDir, targetDir)
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+}
+
+// 删除通用 Skill（已禁用时从 .disabled 删除）
+const deleteCommonSkill = (skillName) => {
+  if (!skillName) return { success: false, error: 'Skill 名不能为空' }
+  const candidates = [
+    path.join(COMMON_SKILLS_DIR(), skillName),
+    path.join(getDisabledSkillsDir(), skillName),
+  ]
+  const dir = candidates.find((p) => fs.existsSync(p))
+  if (!dir) return { success: false, error: 'Skill 目录不存在' }
+  try {
+    fs.rmSync(dir, { recursive: true, force: true })
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+}
+
 // ==================== Skill（只读扫描 ~/.agents/skills） ====================
 
 // 解析 SKILL.md 的 name/description（frontmatter 简单解析，兼容单行与多行块首行）
@@ -271,7 +317,8 @@ const parseSkillFrontmatter = (content) => {
   return result
 }
 
-// 读取 ~/.agents/skills 下每个子目录的 SKILL.md（只读展示，目录不存在时自动创建）
+// 读取 ~/.agents/skills 下每个子目录的 SKILL.md（目录不存在时自动创建）
+// 启用的 skill 直接扫描；禁用的 skill 扫描 .disabled 子目录（与 Claude Code 机制一致）
 const readCommonSkills = () => {
   const dir = COMMON_SKILLS_DIR()
   if (!fs.existsSync(dir)) {
@@ -281,24 +328,47 @@ const readCommonSkills = () => {
     return []
   }
   try {
-    const entries = fs.readdirSync(dir, { withFileTypes: true })
     const skills = []
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      const skillDir = path.join(dir, entry.name)
+    const readOne = (skillDir, dirName, enabled) => {
       const skillMdPath = path.join(skillDir, 'SKILL.md')
-      if (!fs.existsSync(skillMdPath)) continue
+      if (!fs.existsSync(skillMdPath)) return
       try {
         const content = fs.readFileSync(skillMdPath, { encoding: 'utf-8' })
         const fm = parseSkillFrontmatter(content)
+        const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+        let fileCount = 0
+        try {
+          fileCount = fs.readdirSync(skillDir).filter(f => !f.startsWith('.')).length
+        } catch { /* ignore */ }
         skills.push({
-          name: fm.name || entry.name,
-          dirName: entry.name,
+          name: fm.name || dirName,
+          dirName,
           description: fm.description,
           dir: skillDir,
+          frontmatter: fmMatch ? fmMatch[1] : '',
+          fileCount,
+          enabled,
         })
       } catch (e) { /* 单个 skill 解析失败跳过 */ }
     }
+
+    // 启用的 skills（跳过 .disabled 及隐藏目录）
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+      readOne(path.join(dir, entry.name), entry.name, true)
+    }
+
+    // 禁用的 skills（.disabled 目录内）
+    const disabledDir = getDisabledSkillsDir()
+    if (fs.existsSync(disabledDir)) {
+      const disabledEntries = fs.readdirSync(disabledDir, { withFileTypes: true })
+      for (const entry of disabledEntries) {
+        if (!entry.isDirectory()) continue
+        readOne(path.join(disabledDir, entry.name), entry.name, false)
+      }
+    }
+
     skills.sort((a, b) => a.name.localeCompare(b.name))
     return skills
   } catch (e) {
@@ -328,4 +398,5 @@ module.exports = {
   getLocalMcpServers, upsertLocalMcpServer, deleteLocalMcpServer, writeLocalMcpServers,
   copyCommonMcpServer, syncCommonMcp,
   readCommonSkills, openCommonSkillsDir, getCommonSkillsPath,
+  setCommonSkillEnabled, deleteCommonSkill,
 }

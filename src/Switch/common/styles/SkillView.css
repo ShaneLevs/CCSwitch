@@ -1,40 +1,118 @@
-.common-skill-container {
-  padding: 4px 0;
+.skill-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 0;
 }
 
-.common-skill-header {
+.section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 0;
+  margin-top: 0;
 }
 
-.common-skill-header-actions {
+.skill-tip {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
+}
+
+.empty-state {
+  padding: 60px 0;
+}
+
+.skill-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.skill-section-divider {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--td-component-border);
+}
+
+.skill-section-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--td-text-color-placeholder);
+  white-space: nowrap;
+}
+
+.skill-dir-name {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
+  word-break: break-all;
+}
+
+.hint-link {
+  color: var(--td-brand-color);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* 详情弹窗 */
+.detail-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.skill-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.detail-info-item {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.common-skill-tip {
-  font-size: 12px;
+.detail-info-item--full {
+  grid-column: 1 / -1;
+}
+
+.detail-info-label {
+  font-size: 13px;
+  color: var(--td-text-color-placeholder);
+  white-space: nowrap;
+  min-width: 64px;
+}
+
+.detail-info-value {
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+  word-break: break-all;
+}
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-section-title {
+  font-size: 13px;
+  font-weight: 600;
   color: var(--td-text-color-secondary);
 }
 
-.common-skill-error {
-  margin-bottom: 12px;
-}
-
-.common-skill-empty {
-  padding: 40px 0;
-}
-
-.common-skill-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.common-skill-meta-item {
-  font-size: 12px;
-  color: var(--td-text-color-placeholder);
+.detail-desc {
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+  line-height: 1.6;
 }
