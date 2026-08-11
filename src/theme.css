@@ -134,6 +134,20 @@
   --cc-effort-low-color: #8B4513;
   --cc-effort-medium-color: #27ae60;
   --cc-effort-high-color: #2980b9;
+
+  /* 统计色卡浅色（UsageView） */
+  --cc-stat-blue-light: #e6f7ff;
+  --cc-stat-teal-light: #e6fffb;
+  --cc-stat-purple-light: #f9f0ff;
+  --cc-stat-pink-light: #fff0f6;
+
+  /* 特殊阴影与圆角 */
+  --cc-shadow-focus-glow: 0 0 6px var(--td-brand-color-focus);
+  --cc-shadow-effort-ring: 0 0 0 2px;
+  --cc-radius-top: 16px 16px 0 0;
+  --cc-radius-card: 10px;
+  --cc-radius-tag: 3px;
+  --cc-radius-tag-sm: 2px;
 }
 
 :root.dark,
@@ -272,6 +286,15 @@
   --cc-effort-low-color: #A0522D;
   --cc-effort-medium-color: #2ecc71;
   --cc-effort-high-color: #3498db;
+
+  /* 统计色卡深色（UsageView） */
+  --cc-stat-green-dark: rgba(82, 196, 26, 0.12);
+  --cc-stat-blue-dark: rgba(24, 144, 255, 0.12);
+  --cc-stat-teal-dark: rgba(19, 194, 194, 0.12);
+  --cc-stat-red-dark: rgba(245, 34, 45, 0.12);
+  --cc-stat-orange-dark: rgba(250, 140, 22, 0.12);
+  --cc-stat-purple-dark: rgba(114, 46, 209, 0.12);
+  --cc-stat-pink-dark: rgba(235, 47, 150, 0.12);
 }
 
 /* 深色模式全局背景（供 PrismaticBurst WebGL 背景混合） */

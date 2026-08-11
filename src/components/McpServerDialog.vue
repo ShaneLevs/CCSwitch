@@ -165,8 +165,8 @@ defineExpose({ open, close });
     width="600px"
   >
     <div class="mcp-dialog-form">
-      <div class="form-item">
-        <label>名称 <span class="required">*</span></label>
+      <div class="mcp-dialog-form-item">
+        <label>名称 <span class="mcp-dialog-required">*</span></label>
         <Input
           v-model="mcpName"
           placeholder="例如: my-mcp-server"
@@ -174,7 +174,7 @@ defineExpose({ open, close });
         />
       </div>
 
-      <div class="form-item">
+      <div class="mcp-dialog-form-item">
         <label>编辑模式</label>
         <RadioGroup :model-value="editMode" variant="default-filled" @change="(v) => switchEditMode(v)">
           <RadioButton value="form">表单</RadioButton>
@@ -183,7 +183,7 @@ defineExpose({ open, close });
       </div>
 
       <template v-if="editMode === 'form'">
-        <div class="form-item">
+        <div class="mcp-dialog-form-item">
           <label>类型</label>
           <RadioGroup v-model="mcpType" variant="default-filled">
             <RadioButton value="stdio">STDIO</RadioButton>
@@ -191,17 +191,17 @@ defineExpose({ open, close });
           </RadioGroup>
         </div>
 
-        <div v-if="dialogMode === 'create'" class="template-buttons">
+        <div v-if="dialogMode === 'create'" class="mcp-dialog-template-buttons">
           <Button size="small" variant="outline" @click="useStdioTemplate">STDIO 模板</Button>
           <Button size="small" variant="outline" @click="useHttpTemplate">HTTP 模板</Button>
         </div>
 
         <template v-if="mcpType === 'stdio'">
-          <div class="form-item">
-            <label>启动命令 <span class="required">*</span></label>
+          <div class="mcp-dialog-form-item">
+            <label>启动命令 <span class="mcp-dialog-required">*</span></label>
             <Input v-model="mcpCommand" placeholder="例如: npx" />
           </div>
-          <div class="form-item">
+          <div class="mcp-dialog-form-item">
             <label>参数 (args，空格分隔)</label>
             <Textarea
               v-model="mcpArgsText"
@@ -209,7 +209,7 @@ defineExpose({ open, close });
               placeholder="例如: -y @modelcontextprotocol/server-filesystem /path/to/files"
             />
           </div>
-          <div class="form-item">
+          <div class="mcp-dialog-form-item">
             <label>环境变量 (env)</label>
             <DynamicKvEditor
               v-model="mcpEnv"
@@ -220,11 +220,11 @@ defineExpose({ open, close });
         </template>
 
         <template v-else>
-          <div class="form-item">
-            <label>HTTP URL <span class="required">*</span></label>
+          <div class="mcp-dialog-form-item">
+            <label>HTTP URL <span class="mcp-dialog-required">*</span></label>
             <Input v-model="mcpUrl" placeholder="例如: http://localhost:3000/mcp" />
           </div>
-          <div class="form-item">
+          <div class="mcp-dialog-form-item">
             <label>请求头 (headers)</label>
             <DynamicKvEditor
               v-model="mcpHeaders"
@@ -236,22 +236,22 @@ defineExpose({ open, close });
       </template>
 
       <template v-else>
-        <div class="form-item">
+        <div class="mcp-dialog-form-item">
           <label>配置内容 (JSON)</label>
           <Textarea
             v-model="jsonContent"
             :autosize="{ minRows: 12, maxRows: 20 }"
             :status="jsonError ? 'error' : 'default'"
             placeholder='{ "type": "stdio", "command": "npx", "args": ["-y", "..."] }'
-            class="json-textarea"
+            class="mcp-dialog-json-textarea"
           />
-          <div v-if="jsonError" class="json-error">{{ jsonError }}</div>
+          <div v-if="jsonError" class="mcp-dialog-json-error">{{ jsonError }}</div>
         </div>
       </template>
     </div>
 
     <template #footer>
-      <div class="dialog-footer">
+      <div class="mcp-dialog-footer">
         <Button variant="outline" @click="close">取消</Button>
         <Button theme="primary" @click="submit">
           {{ dialogMode === 'create' ? '添加' : '保存' }}
@@ -268,40 +268,40 @@ defineExpose({ open, close });
   gap: 14px;
 }
 
-.form-item {
+.mcp-dialog-form-item {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.form-item > label {
+.mcp-dialog-form-item > label {
   font-size: 13px;
   color: var(--td-text-color-primary);
   font-weight: 500;
 }
 
-.required {
+.mcp-dialog-required {
   color: var(--td-error-color);
 }
 
-.template-buttons {
+.mcp-dialog-template-buttons {
   display: flex;
   gap: 8px;
 }
 
-.dialog-footer {
+.mcp-dialog-footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
 }
 
-.json-textarea textarea,
-.json-textarea .t-textarea__wrapper {
+.mcp-dialog-json-textarea textarea,
+.mcp-dialog-json-textarea .t-textarea__wrapper {
   font-family: 'SF Mono', Menlo, Consolas, monospace;
   font-size: 12px;
 }
 
-.json-error {
+.mcp-dialog-json-error {
   font-size: 12px;
   color: var(--td-error-color);
   margin-top: 4px;

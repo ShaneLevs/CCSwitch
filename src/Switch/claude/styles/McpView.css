@@ -1,5 +1,5 @@
 .t-drawer__content-wrapper--bottom {
-  border-radius: 16px 16px 0 0;
+  border-radius: var(--cc-radius-top);
 }
 
 .mcp-container {

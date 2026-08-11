@@ -258,7 +258,7 @@
 .component-badge {
   font-size: 10px;
   padding: 0px 4px;
-  border-radius: 3px;
+  border-radius: var(--cc-radius-tag);
   border: 1px solid;
   font-weight: 500;
   white-space: nowrap;
@@ -351,7 +351,7 @@
 .installed-badge {
   font-size: 9px;
   padding: 0px 3px;
-  border-radius: 2px;
+  border-radius: var(--cc-radius-tag-sm);
   border: 1px solid;
   font-weight: 500;
   white-space: nowrap;
@@ -421,7 +421,7 @@
 .plugin-form-hint code {
   background: var(--td-bg-color-component);
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: var(--cc-radius-tag);
   font-size: 11px;
   font-family: monospace;
 }

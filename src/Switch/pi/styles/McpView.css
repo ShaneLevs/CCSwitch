@@ -33,6 +33,6 @@
 .pi-param-name { font-weight: 600; font-family: monospace; color: var(--td-text-color-primary); }
 .pi-param-required { color: var(--td-error-color); font-size: 11px; }
 .pi-param-optional { color: var(--td-text-color-placeholder); font-size: 11px; }
-.pi-param-type { color: var(--td-brand-color); font-size: 11px; background: var(--td-brand-color-light); padding: 0 6px; border-radius: 2px; }
+.pi-param-type { color: var(--td-brand-color); font-size: 11px; background: var(--td-brand-color-light); padding: 0 6px; border-radius: var(--cc-radius-tag-sm); }
 .pi-param-separator { color: var(--td-text-color-placeholder); }
 .pi-param-desc { color: var(--td-text-color-secondary); }
