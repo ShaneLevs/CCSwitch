@@ -169,7 +169,7 @@ const loadSavedConfigs = () => {
 
 const {
   leftColumn, rightColumn, dragState, groupOrder,
-  loadGroupOrder, rebalanceColumns, onDragMouseDown,
+  loadGroupOrder, onDragMouseDown,
 } = useConfigColumns(savedConfigs);
 
 const {
@@ -506,7 +506,6 @@ onMounted(() => { loadCurrentConfig(); checkFirstOpen(); loadSavedConfigs(); loa
     <div class="section-header">
       <span class="section-tip">直接编辑 <span class="hint-link" @click="openSettingsFile">settings.json</span><span class="section-tip-divider">|</span><Checkbox v-model="skipLogin" @change="toggleSkipLogin" class="skip-login-checkbox">跳过登录验证</Checkbox></span>
       <Space size="small">
-        <Tooltip content="平衡列"><Button size="small" variant="text" @click="rebalanceColumns"><template #icon><RefreshIcon /></template></Button></Tooltip>
         <Button size="small" variant="outline" @click="handleExportAsString"><template #icon><DownloadIcon /></template> 导出</Button>
         <Button size="small" variant="outline" @click="openImportStringDialog"><template #icon><UploadIcon /></template> 导入</Button>
         <Button size="small" theme="primary" @click="openCreateDialog"><template #icon><AddIcon /></template> 新建配置</Button>

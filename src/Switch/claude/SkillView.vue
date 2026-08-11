@@ -159,14 +159,16 @@ onMounted(() => setTimeout(() => loadSkills(), 50));
   <div class="skill-container">
     <div class="section-header">
       <span class="skill-tip">展示 <span class="hint-link" @click="installDialogRef?.openDir()">~/.claude/skills</span> 及项目目录下的 SKILL</span>
-      <Button size="small" theme="primary" @click="installDialogRef?.open()">
-        <template #icon><DownloadIcon /></template> 安装 Skill
-      </Button>
-      <Tooltip content="刷新" placement="top">
-        <Button size="small" variant="outline" @click="loadSkills">
-          <template #icon><RefreshIcon /></template>
+      <Space size="small">
+        <Button size="small" theme="primary" @click="installDialogRef?.open()">
+          <template #icon><DownloadIcon /></template> 安装 Skill
         </Button>
-      </Tooltip>
+        <Tooltip content="刷新" placement="top">
+          <Button size="small" variant="outline" @click="loadSkills">
+            <template #icon><RefreshIcon /></template>
+          </Button>
+        </Tooltip>
+      </Space>
     </div>
 
     <div v-if="!skills.length" class="empty-state">
