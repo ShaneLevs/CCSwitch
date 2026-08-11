@@ -2,48 +2,70 @@
 
 import { ref, onMounted } from "vue";
 import {
-  Empty, Button, Tag, Space, Tooltip, Dialog, Drawer, Input, RadioGroup, RadioButton, Textarea, MessagePlugin, Popconfirm, Skeleton,
+  Empty, Button, Tag, Space, Tooltip, MessagePlugin, Popconfirm,
 } from "tdesign-vue-next";
-import { RefreshIcon, EditIcon, AddIcon, DeleteIcon, ToolsIcon } from "tdesign-icons-vue-next";
-import DynamicKvEditor from "../../components/DynamicKvEditor.vue";
+import { RefreshIcon, EditIcon, AddIcon, DeleteIcon, ToolsIcon, MoveIcon, SwapIcon } from "tdesign-icons-vue-next";
+import McpToolDrawer from "../../components/McpToolDrawer.vue";
+import McpServerDialog from "../../components/McpServerDialog.vue";
 import "./styles/McpView.css";
 
-// 通用 MCP 库：所有 server 存 uTools DB（ccswitch_common_mcp），格式 { mcpServers: {...} }
-// 与 ~/.mcp.json 解耦；查看工具复用 getMcpServerTools(config)（纯函数式，不依赖存储位置）
+// 通用 MCP 库：分「本地」与「云端」两部分
+//   - 本地：直接读写 ~/.mcp.json（多数 agent 共同读取）
+//   - 云端：存 uTools DB（ccswitch_common_mcp，{ mcpServers: {...} }）
+// 两端各自可添加/编辑/删除，支持单个「复制到另一端」与批量同步（并集合并，源覆盖同名）
 
 const loading = ref(false);
-const servers = ref([]);
-const showDialog = ref(false);
-const dialogMode = ref('create'); // create | edit
-const mcpName = ref('');
-const mcpType = ref('stdio');
-const mcpCommand = ref('');
-const mcpArgsText = ref('');
-const mcpUrl = ref('');
-const mcpEnv = ref([]);
-const mcpHeaders = ref([]);
 
-// 编辑模式：form 表单 / json 直接编辑（双向同步）
-const editMode = ref('form');
-const jsonContent = ref('');
-const jsonError = ref('');
+// 两个存储端
+const localServers = ref([]);
+const cloudServers = ref([]);
+
+// MCP 添加/编辑弹窗（通用组件）
+const mcpDialogRef = ref(null);
+const dialogTarget = ref('local'); // local | cloud（弹窗保存到哪一端）
+const openCreateDialog = (target) => {
+  dialogTarget.value = target;
+  mcpDialogRef.value?.open('create');
+};
+const openEditDialog = (srv, target) => {
+  dialogTarget.value = target;
+  mcpDialogRef.value?.open('edit', srv.name, srv.config);
+};
+const handleSaveMcp = ({ mode, name, config }) => {
+  try {
+    if (dialogTarget.value === 'local') {
+      window.services.upsertLocalMcpServer(name, config);
+    } else {
+      window.services.upsertCommonMcpServer(name, config);
+    }
+    MessagePlugin.success(`${dialogTarget.value === 'local' ? '本地' : '云端'}服务器 ${name} ${mode === 'create' ? '已添加' : '已更新'}`);
+    mcpDialogRef.value?.close();
+    loadServers();
+  } catch (e) {
+    MessagePlugin.error('保存失败: ' + e.message);
+  }
+};
 
 // 工具抽屉
 const showToolDrawer = ref(false);
-const toolDrawerTitle = ref('');
-const toolList = ref([]);
-const toolLoading = ref(false);
-const toolError = ref('');
+const toolServerName = ref('');
+const toolServerConfig = ref(null);
 
 const typeLabel = (config) => (config.type === 'http' || config.url) ? 'HTTP' : 'STDIO';
+const targetLabel = (t) => (t === 'local' ? '本地' : '云端');
 
 const loadServers = () => {
   try {
-    const data = window.services.getCommonMcpServers();
-    servers.value = Object.entries(data || {}).map(([name, config]) => ({ name, config }));
+    localServers.value = Object.entries(window.services.getLocalMcpServers() || {}).map(([name, config]) => ({ name, config }));
   } catch (e) {
-    console.error("加载通用 MCP 服务器失败:", e);
-    servers.value = [];
+    console.error("加载本地 MCP 服务器失败:", e);
+    localServers.value = [];
+  }
+  try {
+    cloudServers.value = Object.entries(window.services.getCommonMcpServers() || {}).map(([name, config]) => ({ name, config }));
+  } catch (e) {
+    console.error("加载云端 MCP 服务器失败:", e);
+    cloudServers.value = [];
   }
 };
 
@@ -64,186 +86,52 @@ const copyName = (name) => {
   } catch { MessagePlugin.error("复制失败"); }
 };
 
-// 表单 → config 对象（saveServer 表单模式 + syncFormToJson 共用）
-const buildConfigFromForm = () => {
-  const config = {};
-  if (mcpType.value === 'http') {
-    config.type = 'http';
-    if (mcpUrl.value.trim()) config.url = mcpUrl.value.trim();
-    const headersObj = {};
-    (mcpHeaders.value || []).forEach(({ key, value }) => {
-      if (key && key.trim()) headersObj[key.trim()] = value;
-    });
-    if (Object.keys(headersObj).length) config.headers = headersObj;
-  } else {
-    config.type = 'stdio';
-    if (mcpCommand.value.trim()) config.command = mcpCommand.value.trim();
-    const args = mcpArgsText.value.trim().split(/\s+/).filter(Boolean);
-    if (args.length) config.args = args;
-    const envObj = {};
-    (mcpEnv.value || []).forEach(({ key, value }) => {
-      if (key && key.trim()) envObj[key.trim()] = value;
-    });
-    if (Object.keys(envObj).length) config.env = envObj;
-  }
-  return config;
-};
-
-// 表单字段 → JSON 字符串（切到 json 模式 / 表单变更时同步）
-const syncFormToJson = () => {
-  jsonContent.value = JSON.stringify(buildConfigFromForm(), null, 2);
-  jsonError.value = '';
-};
-
-// config 对象 → 表单字段（切回 form 模式时回填）
-const applyConfigToForm = (config) => {
-  mcpType.value = (config.type === 'http' || config.url) ? 'http' : 'stdio';
-  mcpCommand.value = config.command || '';
-  mcpArgsText.value = (Array.isArray(config.args) ? config.args.join(' ') : '') || '';
-  mcpUrl.value = config.url || '';
-  mcpEnv.value = config.env ? Object.entries(config.env).map(([k, v]) => ({ key: k, value: v })) : [];
-  mcpHeaders.value = config.headers ? Object.entries(config.headers).map(([k, v]) => ({ key: k, value: v })) : [];
-};
-
-// 切换编辑模式：成功才改 editMode，失败保持原模式
-const switchEditMode = (mode) => {
-  if (mode === editMode.value) return;
-  if (mode === 'json') {
-    syncFormToJson();
-    editMode.value = mode;
-  } else {
-    try {
-      const config = JSON.parse(jsonContent.value || '{}');
-      applyConfigToForm(config);
-      jsonError.value = '';
-      editMode.value = mode;
-    } catch (e) {
-      jsonError.value = 'JSON 解析失败: ' + e.message;
-      MessagePlugin.error('JSON 解析失败，无法切回表单: ' + e.message);
-    }
-  }
-};
-
-const openCreateDialog = () => {
-  dialogMode.value = 'create';
-  mcpName.value = '';
-  mcpType.value = 'stdio';
-  mcpCommand.value = '';
-  mcpArgsText.value = '';
-  mcpUrl.value = '';
-  mcpEnv.value = [];
-  mcpHeaders.value = [];
-  editMode.value = 'form';
-  jsonError.value = '';
-  syncFormToJson();
-  showDialog.value = true;
-};
-
-const openEditDialog = (srv) => {
-  dialogMode.value = 'edit';
-  const cfg = srv.config || {};
-  mcpName.value = srv.name;
-  mcpType.value = cfg.type === 'http' || cfg.url ? 'http' : 'stdio';
-  mcpCommand.value = cfg.command || '';
-  mcpArgsText.value = (cfg.args && cfg.args.join(' ')) || '';
-  mcpUrl.value = cfg.url || '';
-  mcpEnv.value = cfg.env ? Object.entries(cfg.env).map(([k, v]) => ({ key: k, value: v })) : [];
-  mcpHeaders.value = cfg.headers ? Object.entries(cfg.headers).map(([k, v]) => ({ key: k, value: v })) : [];
-  editMode.value = 'form';
-  jsonError.value = '';
-  syncFormToJson();
-  showDialog.value = true;
-};
-
-const useStdioTemplate = () => {
-  mcpType.value = 'stdio';
-  mcpCommand.value = 'npx';
-  mcpArgsText.value = '-y @modelcontextprotocol/server-filesystem /path/to/files';
-  syncFormToJson();
-};
-
-const useHttpTemplate = () => {
-  mcpType.value = 'http';
-  mcpUrl.value = 'http://localhost:3000/mcp';
-  syncFormToJson();
-};
-
-const saveServer = () => {
-  const name = mcpName.value.trim();
-  if (!name) { MessagePlugin.warning('请输入服务器名称'); return; }
-  let config;
-  if (editMode.value === 'json') {
-    try {
-      config = JSON.parse(jsonContent.value || '{}');
-    } catch (e) {
-      jsonError.value = 'JSON 格式错误: ' + e.message;
-      MessagePlugin.error('JSON 格式错误: ' + e.message);
-      return;
-    }
-    if (!config || typeof config !== 'object' || Array.isArray(config)) {
-      MessagePlugin.warning('JSON 内容必须是对象');
-      return;
-    }
-  } else {
-    config = buildConfigFromForm();
-    if (config.type === 'http' && !config.url) { MessagePlugin.warning('请输入 HTTP URL'); return; }
-    if (config.type === 'stdio' && !config.command) { MessagePlugin.warning('请输入启动命令'); return; }
-  }
+const deleteServer = (srv, target) => {
   try {
-    window.services.upsertCommonMcpServer(name, config);
-    MessagePlugin.success(dialogMode.value === 'create' ? `服务器 ${name} 已添加` : `服务器 ${name} 已更新`);
-    showDialog.value = false;
-    loadServers();
-  } catch (e) {
-    MessagePlugin.error('保存失败: ' + e.message);
-  }
-};
-
-const deleteServer = (name) => {
-  try {
-    window.services.deleteCommonMcpServer(name);
-    MessagePlugin.success(`服务器 ${name} 已删除`);
+    if (target === 'local') {
+      window.services.deleteLocalMcpServer(srv.name);
+    } else {
+      window.services.deleteCommonMcpServer(srv.name);
+    }
+    MessagePlugin.success(`${targetLabel(target)}服务器 ${srv.name} 已删除`);
     loadServers();
   } catch (e) {
     MessagePlugin.error('删除失败: ' + e.message);
   }
 };
 
-// 查看工具：复用 Claude 的 getMcpServerTools(config)，从 DB 读 config 喂进去即可
-const openToolDrawer = async (srv) => {
-  showToolDrawer.value = true;
-  toolDrawerTitle.value = srv.name;
-  toolList.value = [];
-  toolLoading.value = true;
-  toolError.value = '';
+// 单个复制到另一端（同名覆盖目标端）
+const copyToOtherSide = (srv, target) => {
+  const dest = target === 'local' ? 'cloud' : 'local';
   try {
-    const result = await window.services.getMcpServerTools(srv.config);
-    if (result.success) {
-      toolList.value = result.tools;
-      if (result.tools.length === 0) MessagePlugin.info("该 MCP 服务器未提供任何工具");
-    } else {
-      toolError.value = result.error;
-      MessagePlugin.error("获取工具列表失败: " + result.error);
-    }
+    window.services.copyCommonMcpServer(srv.name, dest);
+    MessagePlugin.success(`已复制 "${srv.name}" 到${targetLabel(dest)}`);
+    loadServers();
   } catch (e) {
-    toolError.value = e.message;
-    MessagePlugin.error("获取工具列表失败: " + e.message);
-  } finally {
-    toolLoading.value = false;
+    MessagePlugin.error('复制失败: ' + e.message);
   }
 };
 
-// 格式化 JSON Schema 参数为可读文本
-const formatSchema = (schema) => {
-  if (!schema || !schema.properties) return null;
-  const entries = Object.entries(schema.properties);
-  if (entries.length === 0) return null;
-  return entries.map(([name, prop]) => ({
-    name,
-    type: prop.type || 'any',
-    description: prop.description || '',
-    required: schema.required?.includes(name) || false,
-  }));
+// 批量同步：direction 'toLocal'（云端→本地）| 'toCloud'（本地→云端）
+const syncAll = (direction) => {
+  try {
+    const result = window.services.syncCommonMcp(direction);
+    if (result.written) {
+      MessagePlugin.success(`已同步 ${result.total} 个服务器到${targetLabel(direction === 'toLocal' ? 'local' : 'cloud')}`);
+    } else {
+      MessagePlugin.error('同步失败');
+    }
+    loadServers();
+  } catch (e) {
+    MessagePlugin.error('同步失败: ' + e.message);
+  }
+};
+
+// 查看工具：探活与展示逻辑在通用组件 McpToolDrawer 内
+const openToolDrawer = (srv) => {
+  toolServerName.value = srv.name;
+  toolServerConfig.value = srv.config;
+  showToolDrawer.value = true;
 };
 
 onMounted(loadServers);
@@ -253,235 +141,202 @@ onMounted(loadServers);
   <div class="common-mcp-container">
     <div class="common-mcp-header">
       <span class="common-mcp-tip">
-        通用 MCP 服务器库 — 所有 server 存 uTools DB，与各 agent 配置解耦；点击「查看工具」可直接连接探活
+        通用 MCP 服务器库 — 分「本地 (~/.mcp.json)」与「云端 (DB)」两部分，各自可增删改，支持互相复制与批量同步
       </span>
-      <div class="common-mcp-actions">
-        <Tooltip content="添加服务器" placement="top">
-          <Button size="small" variant="outline" @click="openCreateDialog">
-            <template #icon><AddIcon /></template> 添加服务器
+      <Tooltip content="刷新" placement="top">
+        <Button size="small" variant="outline" :loading="loading" @click="refresh">
+          <template #icon><RefreshIcon /></template> 刷新
+        </Button>
+      </Tooltip>
+    </div>
+
+    <!-- 本地区 -->
+    <div class="common-mcp-section">
+      <div class="common-mcp-section-header">
+        <div class="common-mcp-section-title">
+          <Tag size="small" theme="success" variant="light">本地</Tag>
+          <span class="common-mcp-section-name">~/.mcp.json</span>
+          <span class="common-mcp-section-count">{{ localServers.length }} 个</span>
+        </div>
+        <Space size="small">
+          <Popconfirm
+            content="将云端全部服务器合并到本地（同名覆盖），确定？"
+            @confirm="syncAll('toLocal')"
+          >
+            <Button size="small" variant="outline">
+              <template #icon><SwapIcon /></template> 云端 → 本地
+            </Button>
+          </Popconfirm>
+          <Button size="small" theme="primary" @click="openCreateDialog('local')">
+            <template #icon><AddIcon /></template> 添加
           </Button>
-        </Tooltip>
-        <Tooltip content="刷新" placement="top">
-          <Button size="small" variant="outline" :loading="loading" @click="refresh">
-            <template #icon><RefreshIcon /></template> 刷新
-          </Button>
-        </Tooltip>
+        </Space>
+      </div>
+
+      <div v-if="localServers.length === 0" class="common-mcp-section-empty">
+        <Empty description="本地还没有 MCP 服务器" />
+      </div>
+
+      <div v-else class="common-mcp-list">
+        <div v-for="srv in localServers" :key="'local-' + srv.name" class="common-mcp-card">
+          <div class="common-mcp-card-header">
+            <div class="common-mcp-srv-name-wrap">
+              <Tooltip content="点击复制名称" placement="top">
+                <span class="common-mcp-srv-name" @click="copyName(srv.name)">{{ srv.name }}</span>
+              </Tooltip>
+              <Tag size="small" :theme="typeLabel(srv.config) === 'HTTP' ? 'primary' : 'success'" variant="light">
+                {{ typeLabel(srv.config) }}
+              </Tag>
+            </div>
+            <Space size="small">
+              <Tooltip content="查看工具" placement="top">
+                <Button size="small" variant="text" @click="openToolDrawer(srv)">
+                  <template #icon><ToolsIcon /></template>
+                </Button>
+              </Tooltip>
+              <Tooltip content="复制到云端" placement="top">
+                <Button size="small" variant="text" @click="copyToOtherSide(srv, 'local')">
+                  <template #icon><MoveIcon /></template>
+                </Button>
+              </Tooltip>
+              <Tooltip content="编辑" placement="top">
+                <Button size="small" variant="text" @click="openEditDialog(srv, 'local')">
+                  <template #icon><EditIcon /></template>
+                </Button>
+              </Tooltip>
+              <Popconfirm content="确定删除此 MCP 服务器？" @confirm="deleteServer(srv, 'local')">
+                <Button size="small" variant="text" theme="danger">
+                  <template #icon><DeleteIcon /></template>
+                </Button>
+              </Popconfirm>
+            </Space>
+          </div>
+
+          <div class="common-mcp-card-body">
+            <div v-if="typeLabel(srv.config) === 'STDIO'" class="common-mcp-info-row">
+              <span class="common-mcp-label">命令</span>
+              <span class="common-mcp-value mono">{{ srv.config.command }}</span>
+            </div>
+            <div v-if="srv.config.args?.length" class="common-mcp-info-row">
+              <span class="common-mcp-label">参数</span>
+              <span class="common-mcp-value mono">{{ formatArgs(srv.config.args) }}</span>
+            </div>
+            <div v-if="srv.config.url" class="common-mcp-info-row">
+              <span class="common-mcp-label">URL</span>
+              <span class="common-mcp-value mono">{{ srv.config.url }}</span>
+            </div>
+            <div v-if="Object.keys(srv.config.env || {}).length" class="common-mcp-info-row">
+              <span class="common-mcp-label">环境变量</span>
+              <span class="common-mcp-value mono">{{ Object.keys(srv.config.env).join(', ') }}</span>
+            </div>
+            <div v-if="Object.keys(srv.config.headers || {}).length" class="common-mcp-info-row">
+              <span class="common-mcp-label">请求头</span>
+              <span class="common-mcp-value mono">{{ Object.keys(srv.config.headers).join(', ') }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div v-if="servers.length === 0" class="common-mcp-empty">
-      <Empty description="还没有 MCP 服务器，点击右上角「添加服务器」开始配置" />
-    </div>
-
-    <div v-else class="common-mcp-list">
-      <div
-        v-for="srv in servers"
-        :key="srv.name"
-        class="common-mcp-card"
-      >
-        <div class="common-mcp-card-header">
-          <div class="common-mcp-srv-name-wrap">
-            <Tooltip content="点击复制名称" placement="top">
-              <span class="common-mcp-srv-name" @click="copyName(srv.name)">{{ srv.name }}</span>
-            </Tooltip>
-            <Tag size="small" :theme="typeLabel(srv.config) === 'HTTP' ? 'primary' : 'success'" variant="light">
-              {{ typeLabel(srv.config) }}
-            </Tag>
-          </div>
-          <Space size="small">
-            <Tooltip content="查看工具" placement="top">
-              <Button size="small" variant="text" @click="openToolDrawer(srv)">
-                <template #icon><ToolsIcon /></template>
-              </Button>
-            </Tooltip>
-            <Tooltip content="编辑" placement="top">
-              <Button size="small" variant="text" @click="openEditDialog(srv)">
-                <template #icon><EditIcon /></template>
-              </Button>
-            </Tooltip>
-            <Popconfirm content="确定删除此 MCP 服务器？" @confirm="deleteServer(srv.name)">
-              <Button size="small" variant="text" theme="danger">
-                <template #icon><DeleteIcon /></template>
-              </Button>
-            </Popconfirm>
-          </Space>
+    <!-- 云端区 -->
+    <div class="common-mcp-section">
+      <div class="common-mcp-section-header">
+        <div class="common-mcp-section-title">
+          <Tag size="small" theme="primary" variant="light">云端</Tag>
+          <span class="common-mcp-section-name">uTools DB</span>
+          <span class="common-mcp-section-count">{{ cloudServers.length }} 个</span>
         </div>
-
-        <div class="common-mcp-card-body">
-          <div v-if="typeLabel(srv.config) === 'STDIO'" class="common-mcp-info-row">
-            <span class="common-mcp-label">命令</span>
-            <span class="common-mcp-value mono">{{ srv.config.command }}</span>
-          </div>
-          <div v-if="srv.config.args?.length" class="common-mcp-info-row">
-            <span class="common-mcp-label">参数</span>
-            <span class="common-mcp-value mono">{{ formatArgs(srv.config.args) }}</span>
-          </div>
-          <div v-if="srv.config.url" class="common-mcp-info-row">
-            <span class="common-mcp-label">URL</span>
-            <span class="common-mcp-value mono">{{ srv.config.url }}</span>
-          </div>
-          <div v-if="Object.keys(srv.config.env || {}).length" class="common-mcp-info-row">
-            <span class="common-mcp-label">环境变量</span>
-            <span class="common-mcp-value mono">{{ Object.keys(srv.config.env).join(', ') }}</span>
-          </div>
-          <div v-if="Object.keys(srv.config.headers || {}).length" class="common-mcp-info-row">
-            <span class="common-mcp-label">请求头</span>
-            <span class="common-mcp-value mono">{{ Object.keys(srv.config.headers).join(', ') }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <Dialog
-      v-model:visible="showDialog"
-      :header="dialogMode === 'create' ? '添加 MCP 服务器' : '编辑 MCP 服务器'"
-      width="600px"
-      :footer="false"
-    >
-      <div class="common-mcp-form">
-        <div class="common-mcp-form-item">
-          <label>名称 <span class="required">*</span></label>
-          <Input
-            v-model="mcpName"
-            placeholder="例如: my-mcp-server"
-            :disabled="dialogMode === 'edit'"
-          />
-        </div>
-
-        <div class="common-mcp-form-item">
-          <label>编辑模式</label>
-          <RadioGroup :model-value="editMode" variant="default-filled" @change="(v) => switchEditMode(v)">
-            <RadioButton value="form">表单</RadioButton>
-            <RadioButton value="json">JSON</RadioButton>
-          </RadioGroup>
-        </div>
-
-        <template v-if="editMode === 'form'">
-          <div class="common-mcp-form-item">
-            <label>类型</label>
-            <RadioGroup v-model="mcpType" variant="default-filled">
-              <RadioButton value="stdio">STDIO</RadioButton>
-              <RadioButton value="http">HTTP</RadioButton>
-            </RadioGroup>
-          </div>
-
-          <div v-if="dialogMode === 'create'" class="common-mcp-template-buttons">
-            <Button size="small" variant="outline" @click="useStdioTemplate">STDIO 模板</Button>
-            <Button size="small" variant="outline" @click="useHttpTemplate">HTTP 模板</Button>
-          </div>
-
-          <template v-if="mcpType === 'stdio'">
-            <div class="common-mcp-form-item">
-              <label>启动命令 <span class="required">*</span></label>
-              <Input v-model="mcpCommand" placeholder="例如: npx" />
-            </div>
-            <div class="common-mcp-form-item">
-              <label>参数 (args，空格分隔)</label>
-              <Textarea
-                v-model="mcpArgsText"
-                :autosize="{ minRows: 2, maxRows: 4 }"
-                placeholder="例如: -y @modelcontextprotocol/server-filesystem /path/to/files"
-              />
-            </div>
-            <div class="common-mcp-form-item">
-              <label>环境变量 (env)</label>
-              <DynamicKvEditor
-                v-model="mcpEnv"
-                key-placeholder="变量名"
-                value-placeholder="变量值"
-              />
-            </div>
-          </template>
-
-          <template v-else>
-            <div class="common-mcp-form-item">
-              <label>HTTP URL <span class="required">*</span></label>
-              <Input v-model="mcpUrl" placeholder="例如: http://localhost:3000/mcp" />
-            </div>
-            <div class="common-mcp-form-item">
-              <label>请求头 (headers)</label>
-              <DynamicKvEditor
-                v-model="mcpHeaders"
-                key-placeholder="Header 名"
-                value-placeholder="Header 值"
-              />
-            </div>
-          </template>
-        </template>
-
-        <template v-else>
-          <div class="common-mcp-form-item">
-            <label>配置内容 (JSON)</label>
-            <Textarea
-              v-model="jsonContent"
-              :autosize="{ minRows: 12, maxRows: 20 }"
-              :status="jsonError ? 'error' : 'default'"
-              placeholder='{ "type": "stdio", "command": "npx", "args": ["-y", "..."] }'
-              class="common-mcp-json-textarea"
-            />
-            <div v-if="jsonError" class="common-mcp-json-error">{{ jsonError }}</div>
-          </div>
-        </template>
-      </div>
-
-      <template #footer>
-        <div class="common-mcp-dialog-footer">
-          <Button variant="outline" @click="showDialog = false">取消</Button>
-          <Button theme="primary" @click="saveServer">
-            {{ dialogMode === 'create' ? '添加' : '保存' }}
+        <Space size="small">
+          <Popconfirm
+            content="将本地全部服务器合并到云端（同名覆盖），确定？"
+            @confirm="syncAll('toCloud')"
+          >
+            <Button size="small" variant="outline">
+              <template #icon><SwapIcon /></template> 本地 → 云端
+            </Button>
+          </Popconfirm>
+          <Button size="small" theme="primary" @click="openCreateDialog('cloud')">
+            <template #icon><AddIcon /></template> 添加
           </Button>
-        </div>
-      </template>
-    </Dialog>
+        </Space>
+      </div>
 
-    <Drawer
+      <div v-if="cloudServers.length === 0" class="common-mcp-section-empty">
+        <Empty description="云端还没有 MCP 服务器" />
+      </div>
+
+      <div v-else class="common-mcp-list">
+        <div v-for="srv in cloudServers" :key="'cloud-' + srv.name" class="common-mcp-card">
+          <div class="common-mcp-card-header">
+            <div class="common-mcp-srv-name-wrap">
+              <Tooltip content="点击复制名称" placement="top">
+                <span class="common-mcp-srv-name" @click="copyName(srv.name)">{{ srv.name }}</span>
+              </Tooltip>
+              <Tag size="small" :theme="typeLabel(srv.config) === 'HTTP' ? 'primary' : 'success'" variant="light">
+                {{ typeLabel(srv.config) }}
+              </Tag>
+            </div>
+            <Space size="small">
+              <Tooltip content="查看工具" placement="top">
+                <Button size="small" variant="text" @click="openToolDrawer(srv)">
+                  <template #icon><ToolsIcon /></template>
+                </Button>
+              </Tooltip>
+              <Tooltip content="复制到本地" placement="top">
+                <Button size="small" variant="text" @click="copyToOtherSide(srv, 'cloud')">
+                  <template #icon><MoveIcon /></template>
+                </Button>
+              </Tooltip>
+              <Tooltip content="编辑" placement="top">
+                <Button size="small" variant="text" @click="openEditDialog(srv, 'cloud')">
+                  <template #icon><EditIcon /></template>
+                </Button>
+              </Tooltip>
+              <Popconfirm content="确定删除此 MCP 服务器？" @confirm="deleteServer(srv, 'cloud')">
+                <Button size="small" variant="text" theme="danger">
+                  <template #icon><DeleteIcon /></template>
+                </Button>
+              </Popconfirm>
+            </Space>
+          </div>
+
+          <div class="common-mcp-card-body">
+            <div v-if="typeLabel(srv.config) === 'STDIO'" class="common-mcp-info-row">
+              <span class="common-mcp-label">命令</span>
+              <span class="common-mcp-value mono">{{ srv.config.command }}</span>
+            </div>
+            <div v-if="srv.config.args?.length" class="common-mcp-info-row">
+              <span class="common-mcp-label">参数</span>
+              <span class="common-mcp-value mono">{{ formatArgs(srv.config.args) }}</span>
+            </div>
+            <div v-if="srv.config.url" class="common-mcp-info-row">
+              <span class="common-mcp-label">URL</span>
+              <span class="common-mcp-value mono">{{ srv.config.url }}</span>
+            </div>
+            <div v-if="Object.keys(srv.config.env || {}).length" class="common-mcp-info-row">
+              <span class="common-mcp-label">环境变量</span>
+              <span class="common-mcp-value mono">{{ Object.keys(srv.config.env).join(', ') }}</span>
+            </div>
+            <div v-if="Object.keys(srv.config.headers || {}).length" class="common-mcp-info-row">
+              <span class="common-mcp-label">请求头</span>
+              <span class="common-mcp-value mono">{{ Object.keys(srv.config.headers).join(', ') }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <McpServerDialog
+      ref="mcpDialogRef"
+      :header-prefix="targetLabel(dialogTarget) + ' · '"
+      :name-disabled-on-edit="true"
+      @save="handleSaveMcp"
+    />
+
+    <McpToolDrawer
       v-model:visible="showToolDrawer"
-      :header="`${toolDrawerTitle} — 工具列表`"
-      placement="right"
-      size="60%"
-      :footer="false"
-    >
-      <div v-if="toolLoading" class="common-tool-skeleton">
-        <div v-for="i in 3" :key="i" class="common-skeleton-card">
-          <Skeleton :row="1" :loading="true" animation="fluent" />
-          <div class="common-skeleton-card-body">
-            <Skeleton :row="2" :loading="true" animation="fluent" />
-          </div>
-        </div>
-      </div>
-      <div v-else-if="toolError" class="common-tool-error">
-        <Tag theme="danger" variant="light">连接失败</Tag>
-        <span class="common-tool-error-msg">{{ toolError }}</span>
-      </div>
-      <div v-else-if="!toolList.length && !toolLoading" class="common-tool-empty">
-        <Empty description="暂无工具" />
-      </div>
-      <div v-else class="common-tool-list">
-        <div v-for="tool in toolList" :key="tool.name" class="common-tool-item">
-          <div class="common-tool-name">{{ tool.name }}</div>
-          <div class="common-tool-meta">
-            <span class="common-tool-meta-label">Full name:</span> mcp__{{ toolDrawerTitle }}__{{ tool.name }}
-          </div>
-          <div class="common-tool-section">
-            <div class="common-tool-section-title">Description:</div>
-            <div class="common-tool-desc">{{ tool.description || '无描述' }}</div>
-          </div>
-          <div v-if="formatSchema(tool.inputSchema)" class="common-tool-section">
-            <div class="common-tool-section-title">Parameters:</div>
-            <div class="common-param-list">
-              <div v-for="param in formatSchema(tool.inputSchema)" :key="param.name" class="common-param-item">
-                <span class="common-param-bullet">●</span>
-                <span class="common-param-name">{{ param.name }}</span>
-                <span class="common-param-required" v-if="param.required">(required)</span>
-                <span class="common-param-optional" v-else>(optional)</span>
-                <span class="common-param-type">{{ param.type }}</span>
-                <span v-if="param.description" class="common-param-separator"> - </span>
-                <span v-if="param.description" class="common-param-desc">{{ param.description }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Drawer>
+      :server-name="toolServerName"
+      :config="toolServerConfig"
+    />
   </div>
 </template>

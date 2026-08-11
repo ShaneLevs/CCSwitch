@@ -3,17 +3,12 @@ import { ref, onMounted } from "vue";
 import {
   Card,
   Button,
-  Input,
-  Dialog,
   MessagePlugin,
   Tag,
   Space,
   Empty,
-  Textarea,
   Popconfirm,
   Switch,
-  Drawer,
-  Skeleton,
   Tooltip,
   Collapse,
   CollapsePanel,
@@ -26,40 +21,46 @@ import {
   RefreshIcon,
   MoveIcon,
 } from "tdesign-icons-vue-next";
+import McpToolDrawer from "../../components/McpToolDrawer.vue";
+import McpServerDialog from "../../components/McpServerDialog.vue";
 import { formatLastUsed } from "../../utils/time";
 import "./styles/McpView.css";
 
 const mcpServerList = ref([]);
 const mcpUsage = ref({});
-const showDialog = ref(false);
-const editingName = ref("");
-const dialogMode = ref("create"); // 'create' or 'edit'
 
-// JSON 编辑内容
-const jsonContent = ref("");
-const jsonError = ref("");
-const mcpName = ref("");
+// MCP 添加/编辑弹窗（通用组件）
+const mcpDialogRef = ref(null);
+const editingName = ref("");
+const openCreateDialog = () => {
+  editingName.value = "";
+  mcpDialogRef.value?.open('create');
+};
+const openEditDialog = (server) => {
+  if (!server.enabled) {
+    return MessagePlugin.warning("请先开启 MCP 后再编辑");
+  }
+  editingName.value = server.name;
+  mcpDialogRef.value?.open('edit', server.name, server.config);
+};
+// 保存：编辑改名时删除旧配置；支持 JSON-only 视图没有的校验（组件内已完成）
+const handleSaveMcp = ({ mode, name, config }) => {
+  if (mode === "edit" && editingName.value && editingName.value !== name) {
+    window.services.deleteMcpServer(editingName.value);
+  }
+  if (window.services.upsertMcpServer(name, config)) {
+    MessagePlugin.success(mode === "create" ? "MCP 配置已添加" : "MCP 配置已更新");
+    mcpDialogRef.value?.close();
+    loadMcpServers();
+  } else {
+    MessagePlugin.error("保存失败");
+  }
+};
 
 // 工具查看相关
 const showToolDrawer = ref(false);
-const toolDrawerTitle = ref("");
-const toolList = ref([]);
-const toolLoading = ref(false);
-const toolError = ref("");
-
-// 示例模板
-const EXAMPLE_STDIO = `{
-  "type": "stdio",
-  "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/files"],
-  "env": {}
-}`;
-
-const EXAMPLE_HTTP = `{
-  "type": "http",
-  "url": "http://localhost:3000/mcp",
-  "env": {}
-}`;
+const toolServerName = ref("");
+const toolServerConfig = ref(null);
 
 // 加载 MCP 服务器列表
 const loadMcpServers = () => {
@@ -157,85 +158,6 @@ const formatArgs = (args) => {
   return args.join(" ");
 };
 
-// 打开创建对话框
-const openCreateDialog = () => {
-  dialogMode.value = "create";
-  editingName.value = "";
-  mcpName.value = "";
-  jsonContent.value = EXAMPLE_STDIO;
-  jsonError.value = "";
-  showDialog.value = true;
-};
-
-// 打开编辑对话框
-const openEditDialog = (server) => {
-  if (!server.enabled) {
-    return MessagePlugin.warning("请先开启 MCP 后再编辑");
-  }
-  dialogMode.value = "edit";
-  editingName.value = server.name;
-  mcpName.value = server.name;
-  const config = { ...server.config };
-  jsonContent.value = JSON.stringify(config, null, 2);
-  jsonError.value = "";
-  showDialog.value = true;
-};
-
-// 验证 JSON
-const validateJson = () => {
-  try {
-    const parsed = JSON.parse(jsonContent.value);
-    jsonError.value = "";
-    return parsed;
-  } catch (e) {
-    jsonError.value = e.message;
-    return null;
-  }
-};
-
-// 使用 STDIO 模板
-const useStdioTemplate = () => {
-  jsonContent.value = EXAMPLE_STDIO;
-  jsonError.value = "";
-};
-
-// 使用 HTTP 模板
-const useHttpTemplate = () => {
-  jsonContent.value = EXAMPLE_HTTP;
-  jsonError.value = "";
-};
-
-// 保存 MCP 配置
-const saveMcpServer = () => {
-  const config = validateJson();
-  if (!config) {
-    return MessagePlugin.error("JSON 格式错误: " + jsonError.value);
-  }
-
-  // 验证必需字段
-  if (!config.type) {
-    return MessagePlugin.error("配置缺少 type 字段");
-  }
-
-  const name = mcpName.value.trim();
-  if (!name) {
-    return MessagePlugin.error("MCP 名称不能为空");
-  }
-
-  // 如果是编辑且名称改变，删除旧配置
-  if (dialogMode.value === "edit" && editingName.value && editingName.value !== name) {
-    window.services.deleteMcpServer(editingName.value);
-  }
-
-  if (window.services.upsertMcpServer(name, config)) {
-    MessagePlugin.success(dialogMode.value === "create" ? "MCP 配置已添加" : "MCP 配置已更新");
-    showDialog.value = false;
-    loadMcpServers();
-  } else {
-    MessagePlugin.error("保存失败");
-  }
-};
-
 // 删除 MCP 配置
 const deleteMcpServer = (server) => {
   let result;
@@ -267,47 +189,14 @@ const getConfigSummary = (config) => {
   return parts.join(" | ");
 };
 
-// 打开工具查看抽屉
-const openToolDrawer = async (server) => {
+// 打开工具查看抽屉（探活与展示逻辑在通用组件 McpToolDrawer 内）
+const openToolDrawer = (server) => {
   if (!server.enabled) {
     return MessagePlugin.warning("请先开启 MCP 后再查看工具");
   }
+  toolServerName.value = server.name;
+  toolServerConfig.value = server.config;
   showToolDrawer.value = true;
-  toolDrawerTitle.value = server.name;
-  toolList.value = [];
-  toolLoading.value = true;
-  toolError.value = "";
-
-  try {
-    const result = await window.services.getMcpServerTools(server.config);
-    if (result.success) {
-      toolList.value = result.tools;
-      if (result.tools.length === 0) {
-        MessagePlugin.info("该 MCP 服务器未提供任何工具");
-      }
-    } else {
-      toolError.value = result.error;
-      MessagePlugin.error("获取工具列表失败: " + result.error);
-    }
-  } catch (e) {
-    toolError.value = e.message;
-    MessagePlugin.error("获取工具列表失败: " + e.message);
-  } finally {
-    toolLoading.value = false;
-  }
-};
-
-// 格式化 JSON Schema 参数为可读文本
-const formatSchema = (schema) => {
-  if (!schema || !schema.properties) return null;
-  const entries = Object.entries(schema.properties);
-  if (entries.length === 0) return null;
-  return entries.map(([name, prop]) => ({
-    name,
-    type: prop.type || "any",
-    description: prop.description || "",
-    required: schema.required?.includes(name) || false,
-  }));
 };
 
 onMounted(() => {
@@ -422,107 +311,15 @@ onMounted(() => {
       </Card>
     </div>
 
-    <Dialog
-      v-model:visible="showDialog"
-      :header="dialogMode === 'create' ? '添加 MCP 服务器' : '编辑 MCP 服务器'"
-      width="600px"
-      @confirm="saveMcpServer"
-    >
-      <div class="json-editor">
-        <!-- 名称输入 -->
-        <div class="form-row">
-          <label class="form-label">名称 <span class="required">*</span></label>
-          <Input
-            v-model="mcpName"
-            placeholder="例如: my-mcp-server"
-            :disabled="dialogMode === 'edit'"
-          />
-        </div>
+    <McpServerDialog
+      ref="mcpDialogRef"
+      @save="handleSaveMcp"
+    />
 
-        <div v-if="dialogMode === 'create'" class="template-buttons">
-          <Button size="small" variant="outline" @click="useStdioTemplate">STDIO 模板</Button>
-          <Button size="small" variant="outline" @click="useHttpTemplate">HTTP 模板</Button>
-        </div>
-
-        <div class="editor-label">
-          <span>配置内容 (JSON)</span>
-          <span v-if="jsonError" class="error-text">{{ jsonError }}</span>
-        </div>
-
-        <Textarea
-          v-if="showDialog"
-          v-model="jsonContent"
-          :autosize="{ minRows: 12, maxRows: 20 }"
-          :status="jsonError ? 'error' : 'default'"
-          placeholder="{ ... }"
-          class="json-textarea"
-        />
-
-      </div>
-
-      <template #footer>
-        <div class="dialog-footer">
-          <Button variant="outline" @click="showDialog = false">取消</Button>
-          <Button theme="primary" @click="saveMcpServer">
-            {{ dialogMode === 'create' ? '添加' : '保存' }}
-          </Button>
-        </div>
-      </template>
-    </Dialog>
-
-    <Drawer
+    <McpToolDrawer
       v-model:visible="showToolDrawer"
-      :header="false"
-      placement="left"
-      size="80%"
-      :footer="false"
-    >
-      <div v-if="toolLoading" class="tool-skeleton">
-        <div v-for="i in 3" :key="i" class="skeleton-card">
-          <Skeleton :row="1" :loading="true" animation="fluent" />
-          <div class="skeleton-card-body">
-            <Skeleton :row="2" :loading="true" animation="fluent" />
-          </div>
-        </div>
-      </div>
-      <div v-else-if="toolError" class="tool-error">
-          <Tag theme="danger" variant="light">连接失败</Tag>
-          <span class="tool-error-msg">{{ toolError }}</span>
-        </div>
-        <div v-else-if="!toolList.length && !toolLoading" class="tool-empty">
-          <Empty description="暂无工具" />
-        </div>
-        <div v-else class="tool-list">
-          <div v-for="tool in toolList" :key="tool.name" class="tool-item">
-            <div class="tool-name">{{ tool.name }}</div>
-            <div class="tool-meta">
-              <span class="tool-meta-label">Tool name:</span> {{ tool.name }}
-            </div>
-            <div class="tool-meta">
-              <span class="tool-meta-label">Full name:</span> mcp__{{ toolDrawerTitle }}__{{ tool.name }}
-            </div>
-
-            <div class="tool-section">
-              <div class="tool-section-title">Description:</div>
-              <div class="tool-desc">{{ tool.description || '无描述' }}</div>
-            </div>
-
-            <div v-if="formatSchema(tool.inputSchema)" class="tool-section">
-              <div class="tool-section-title">Parameters:</div>
-              <div class="param-list">
-                <div v-for="param in formatSchema(tool.inputSchema)" :key="param.name" class="param-item">
-                  <span class="param-bullet">●</span>
-                  <span class="param-name">{{ param.name }}</span>
-                  <span class="param-required" v-if="param.required">(required)</span>
-                  <span class="param-optional" v-else>(optional)</span>
-                  <span class="param-type">{{ param.type }}</span>
-                  <span v-if="param.description" class="param-separator"> - </span>
-                  <span v-if="param.description" class="param-desc">{{ param.description }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-    </Drawer>
+      :server-name="toolServerName"
+      :config="toolServerConfig"
+    />
   </div>
 </template>
