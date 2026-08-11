@@ -23,6 +23,11 @@ const mcpUrl = ref('');
 const mcpEnv = ref([]);
 const mcpHeaders = ref([]);
 
+// 编辑模式：form 表单 / json 直接编辑（双向同步）
+const editMode = ref('form');
+const jsonContent = ref('');
+const jsonError = ref('');
+
 // 工具抽屉
 const showToolDrawer = ref(false);
 const toolDrawerTitle = ref('');
@@ -59,6 +64,66 @@ const copyName = (name) => {
   } catch { MessagePlugin.error("复制失败"); }
 };
 
+// 表单 → config 对象（saveServer 表单模式 + syncFormToJson 共用）
+const buildConfigFromForm = () => {
+  const config = {};
+  if (mcpType.value === 'http') {
+    config.type = 'http';
+    if (mcpUrl.value.trim()) config.url = mcpUrl.value.trim();
+    const headersObj = {};
+    (mcpHeaders.value || []).forEach(({ key, value }) => {
+      if (key && key.trim()) headersObj[key.trim()] = value;
+    });
+    if (Object.keys(headersObj).length) config.headers = headersObj;
+  } else {
+    config.type = 'stdio';
+    if (mcpCommand.value.trim()) config.command = mcpCommand.value.trim();
+    const args = mcpArgsText.value.trim().split(/\s+/).filter(Boolean);
+    if (args.length) config.args = args;
+    const envObj = {};
+    (mcpEnv.value || []).forEach(({ key, value }) => {
+      if (key && key.trim()) envObj[key.trim()] = value;
+    });
+    if (Object.keys(envObj).length) config.env = envObj;
+  }
+  return config;
+};
+
+// 表单字段 → JSON 字符串（切到 json 模式 / 表单变更时同步）
+const syncFormToJson = () => {
+  jsonContent.value = JSON.stringify(buildConfigFromForm(), null, 2);
+  jsonError.value = '';
+};
+
+// config 对象 → 表单字段（切回 form 模式时回填）
+const applyConfigToForm = (config) => {
+  mcpType.value = (config.type === 'http' || config.url) ? 'http' : 'stdio';
+  mcpCommand.value = config.command || '';
+  mcpArgsText.value = (Array.isArray(config.args) ? config.args.join(' ') : '') || '';
+  mcpUrl.value = config.url || '';
+  mcpEnv.value = config.env ? Object.entries(config.env).map(([k, v]) => ({ key: k, value: v })) : [];
+  mcpHeaders.value = config.headers ? Object.entries(config.headers).map(([k, v]) => ({ key: k, value: v })) : [];
+};
+
+// 切换编辑模式：成功才改 editMode，失败保持原模式
+const switchEditMode = (mode) => {
+  if (mode === editMode.value) return;
+  if (mode === 'json') {
+    syncFormToJson();
+    editMode.value = mode;
+  } else {
+    try {
+      const config = JSON.parse(jsonContent.value || '{}');
+      applyConfigToForm(config);
+      jsonError.value = '';
+      editMode.value = mode;
+    } catch (e) {
+      jsonError.value = 'JSON 解析失败: ' + e.message;
+      MessagePlugin.error('JSON 解析失败，无法切回表单: ' + e.message);
+    }
+  }
+};
+
 const openCreateDialog = () => {
   dialogMode.value = 'create';
   mcpName.value = '';
@@ -68,6 +133,9 @@ const openCreateDialog = () => {
   mcpUrl.value = '';
   mcpEnv.value = [];
   mcpHeaders.value = [];
+  editMode.value = 'form';
+  jsonError.value = '';
+  syncFormToJson();
   showDialog.value = true;
 };
 
@@ -81,6 +149,9 @@ const openEditDialog = (srv) => {
   mcpUrl.value = cfg.url || '';
   mcpEnv.value = cfg.env ? Object.entries(cfg.env).map(([k, v]) => ({ key: k, value: v })) : [];
   mcpHeaders.value = cfg.headers ? Object.entries(cfg.headers).map(([k, v]) => ({ key: k, value: v })) : [];
+  editMode.value = 'form';
+  jsonError.value = '';
+  syncFormToJson();
   showDialog.value = true;
 };
 
@@ -88,37 +159,35 @@ const useStdioTemplate = () => {
   mcpType.value = 'stdio';
   mcpCommand.value = 'npx';
   mcpArgsText.value = '-y @modelcontextprotocol/server-filesystem /path/to/files';
+  syncFormToJson();
 };
 
 const useHttpTemplate = () => {
   mcpType.value = 'http';
   mcpUrl.value = 'http://localhost:3000/mcp';
+  syncFormToJson();
 };
 
 const saveServer = () => {
   const name = mcpName.value.trim();
   if (!name) { MessagePlugin.warning('请输入服务器名称'); return; }
-  const config = {};
-  if (mcpType.value === 'http') {
-    if (!mcpUrl.value.trim()) { MessagePlugin.warning('请输入 HTTP URL'); return; }
-    config.type = 'http';
-    config.url = mcpUrl.value.trim();
-    const headersObj = {};
-    (mcpHeaders.value || []).forEach(({ key, value }) => {
-      if (key && key.trim()) headersObj[key.trim()] = value;
-    });
-    if (Object.keys(headersObj).length) config.headers = headersObj;
+  let config;
+  if (editMode.value === 'json') {
+    try {
+      config = JSON.parse(jsonContent.value || '{}');
+    } catch (e) {
+      jsonError.value = 'JSON 格式错误: ' + e.message;
+      MessagePlugin.error('JSON 格式错误: ' + e.message);
+      return;
+    }
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+      MessagePlugin.warning('JSON 内容必须是对象');
+      return;
+    }
   } else {
-    if (!mcpCommand.value.trim()) { MessagePlugin.warning('请输入启动命令'); return; }
-    config.type = 'stdio';
-    config.command = mcpCommand.value.trim();
-    const args = mcpArgsText.value.trim().split(/\s+/).filter(Boolean);
-    if (args.length) config.args = args;
-    const envObj = {};
-    (mcpEnv.value || []).forEach(({ key, value }) => {
-      if (key && key.trim()) envObj[key.trim()] = value;
-    });
-    if (Object.keys(envObj).length) config.env = envObj;
+    config = buildConfigFromForm();
+    if (config.type === 'http' && !config.url) { MessagePlugin.warning('请输入 HTTP URL'); return; }
+    if (config.type === 'stdio' && !config.command) { MessagePlugin.warning('请输入启动命令'); return; }
   }
   try {
     window.services.upsertCommonMcpServer(name, config);
@@ -280,53 +349,77 @@ onMounted(loadServers);
         </div>
 
         <div class="common-mcp-form-item">
-          <label>类型</label>
-          <RadioGroup v-model="mcpType" variant="default-filled">
-            <RadioButton value="stdio">STDIO</RadioButton>
-            <RadioButton value="http">HTTP</RadioButton>
+          <label>编辑模式</label>
+          <RadioGroup :model-value="editMode" variant="default-filled" @change="(v) => switchEditMode(v)">
+            <RadioButton value="form">表单</RadioButton>
+            <RadioButton value="json">JSON</RadioButton>
           </RadioGroup>
         </div>
 
-        <div v-if="dialogMode === 'create'" class="common-mcp-template-buttons">
-          <Button size="small" variant="outline" @click="useStdioTemplate">STDIO 模板</Button>
-          <Button size="small" variant="outline" @click="useHttpTemplate">HTTP 模板</Button>
-        </div>
+        <template v-if="editMode === 'form'">
+          <div class="common-mcp-form-item">
+            <label>类型</label>
+            <RadioGroup v-model="mcpType" variant="default-filled">
+              <RadioButton value="stdio">STDIO</RadioButton>
+              <RadioButton value="http">HTTP</RadioButton>
+            </RadioGroup>
+          </div>
 
-        <template v-if="mcpType === 'stdio'">
-          <div class="common-mcp-form-item">
-            <label>启动命令 <span class="required">*</span></label>
-            <Input v-model="mcpCommand" placeholder="例如: npx" />
+          <div v-if="dialogMode === 'create'" class="common-mcp-template-buttons">
+            <Button size="small" variant="outline" @click="useStdioTemplate">STDIO 模板</Button>
+            <Button size="small" variant="outline" @click="useHttpTemplate">HTTP 模板</Button>
           </div>
-          <div class="common-mcp-form-item">
-            <label>参数 (args，空格分隔)</label>
-            <Textarea
-              v-model="mcpArgsText"
-              :autosize="{ minRows: 2, maxRows: 4 }"
-              placeholder="例如: -y @modelcontextprotocol/server-filesystem /path/to/files"
-            />
-          </div>
-          <div class="common-mcp-form-item">
-            <label>环境变量 (env)</label>
-            <DynamicKvEditor
-              v-model="mcpEnv"
-              key-placeholder="变量名"
-              value-placeholder="变量值"
-            />
-          </div>
+
+          <template v-if="mcpType === 'stdio'">
+            <div class="common-mcp-form-item">
+              <label>启动命令 <span class="required">*</span></label>
+              <Input v-model="mcpCommand" placeholder="例如: npx" />
+            </div>
+            <div class="common-mcp-form-item">
+              <label>参数 (args，空格分隔)</label>
+              <Textarea
+                v-model="mcpArgsText"
+                :autosize="{ minRows: 2, maxRows: 4 }"
+                placeholder="例如: -y @modelcontextprotocol/server-filesystem /path/to/files"
+              />
+            </div>
+            <div class="common-mcp-form-item">
+              <label>环境变量 (env)</label>
+              <DynamicKvEditor
+                v-model="mcpEnv"
+                key-placeholder="变量名"
+                value-placeholder="变量值"
+              />
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="common-mcp-form-item">
+              <label>HTTP URL <span class="required">*</span></label>
+              <Input v-model="mcpUrl" placeholder="例如: http://localhost:3000/mcp" />
+            </div>
+            <div class="common-mcp-form-item">
+              <label>请求头 (headers)</label>
+              <DynamicKvEditor
+                v-model="mcpHeaders"
+                key-placeholder="Header 名"
+                value-placeholder="Header 值"
+              />
+            </div>
+          </template>
         </template>
 
         <template v-else>
           <div class="common-mcp-form-item">
-            <label>HTTP URL <span class="required">*</span></label>
-            <Input v-model="mcpUrl" placeholder="例如: http://localhost:3000/mcp" />
-          </div>
-          <div class="common-mcp-form-item">
-            <label>请求头 (headers)</label>
-            <DynamicKvEditor
-              v-model="mcpHeaders"
-              key-placeholder="Header 名"
-              value-placeholder="Header 值"
+            <label>配置内容 (JSON)</label>
+            <Textarea
+              v-model="jsonContent"
+              :autosize="{ minRows: 12, maxRows: 20 }"
+              :status="jsonError ? 'error' : 'default'"
+              placeholder='{ "type": "stdio", "command": "npx", "args": ["-y", "..."] }'
+              class="common-mcp-json-textarea"
             />
+            <div v-if="jsonError" class="common-mcp-json-error">{{ jsonError }}</div>
           </div>
         </template>
       </div>
