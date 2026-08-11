@@ -1,8 +1,9 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
-import { Card, Empty, Dialog, Button, MessagePlugin, Switch, Popconfirm, Space, Tag, Tooltip } from "tdesign-vue-next";
+import { Empty, Dialog, Button, MessagePlugin, Switch, Popconfirm, Space, Tag, Tooltip } from "tdesign-vue-next";
 import { DownloadIcon, DeleteIcon, FileExportIcon, FolderOpen1Icon } from "tdesign-icons-vue-next";
 import SkillInstallDialog from "../../components/SkillInstallDialog.vue";
+import SkillCard from "../../components/SkillCard.vue";
 import { formatLastUsed } from "../../utils/time";
 import "./styles/SkillView.css";
 
@@ -76,13 +77,6 @@ const openInstallWithUrl = (url) => {
 };
 
 defineExpose({ openInstallWithUrl });
-
-const copySkillName = (skillName) => {
-  try {
-    window.utools.copyText(skillName);
-    MessagePlugin.success("名称已复制");
-  } catch { MessagePlugin.error("复制失败"); }
-};
 
 const openDetail = (skill) => {
   selectedSkill.value = skill;
@@ -176,28 +170,59 @@ onMounted(() => setTimeout(() => loadSkills(), 50));
 
     <div v-else class="skill-list">
       <!-- 已启用 -->
-      <!-- 已启用 -->
-      <Card
+      <SkillCard
         v-for="skill in enabledSkills"
         :key="(skill.scope === 'project' ? skill.projectPath + '/' : '') + skill.name"
-        :bordered="true"
-        class="skill-card"
-        hover
+        :name="skill.name"
+        @detail="openDetail(skill)"
       >
-        <template #header>
-          <div class="skill-header-wrapper">
-            <div class="skill-header-left">
-              <Tooltip content="点击复制名称" placement="top">
-                <span class="skill-name-link" @click.stop="copySkillName(skill.name)">{{ skill.name }}</span>
+        <template #header-extra>
+          <Tooltip v-if="skill.scope === 'project'" :content="'项目: ' + skill.projectPath" placement="top">
+            <Tag size="small" variant="light" theme="success" class="project-tag" @click.stop="openProjectDir(skill.projectPath)">{{ skill.projectName }}</Tag>
+          </Tooltip>
+        </template>
+        <template #actions>
+          <Space size="small">
+            <Switch :value="true" @change="(val) => toggleSkill(skill, val)" />
+            <Tooltip v-if="skill.scope === 'project'" content="转移到用户目录" placement="top">
+              <Button size="small" theme="default" variant="text" @click.stop="moveToGlobal(skill)"><FileExportIcon /></Button>
+            </Tooltip>
+            <Popconfirm theme="danger" content="删除后不可恢复，确认删除？" @confirm="deleteSkill(skill)">
+              <Tooltip content="删除" placement="top">
+                <Button size="small" theme="danger" variant="text"><DeleteIcon /></Button>
               </Tooltip>
-              <Tooltip v-if="skill.scope === 'project'" :content="'项目: ' + skill.projectPath" placement="top">
-                <Tag size="small" variant="light" theme="success" class="project-tag" @click.stop="openProjectDir(skill.projectPath)">{{ skill.projectName }}</Tag>
-              </Tooltip>
-            </div>
+            </Popconfirm>
+          </Space>
+        </template>
+        <template #description>{{ parseFrontmatter(skill.frontmatter).description || '暂无描述' }}</template>
+        <template #meta>
+          <Tag size="small" variant="light" theme="primary">使用 {{ skill.usageCount }} 次</Tag>
+          <span class="skill-last-used">{{ formatLastUsed(skill.lastUsedAt) }}</span>
+        </template>
+      </SkillCard>
+
+      <!-- 已禁用分组 -->
+      <template v-if="disabledSkills.length > 0">
+        <div class="skill-section-divider">
+          <span class="skill-section-label">已禁用 ({{ disabledSkills.length }})</span>
+        </div>
+        <SkillCard
+          v-for="skill in disabledSkills"
+          :key="(skill.scope === 'project' ? skill.projectPath + '/' : '') + skill.name + '-disabled'"
+          :name="skill.name"
+          disabled
+          @detail="openDetail(skill)"
+        >
+          <template #header-extra>
+            <Tooltip v-if="skill.scope === 'project'" :content="'项目: ' + skill.projectPath" placement="top">
+              <Tag size="small" variant="light" theme="success" class="project-tag" @click.stop="openProjectDir(skill.projectPath)">{{ skill.projectName }}</Tag>
+            </Tooltip>
+          </template>
+          <template #actions>
             <Space size="small">
-              <Switch :value="true" @change="(val) => toggleSkill(skill, val)" />
+              <Switch :value="false" @change="(val) => toggleSkill(skill, val)" />
               <Tooltip v-if="skill.scope === 'project'" content="转移到用户目录" placement="top">
-                <Button size="small" theme="default" variant="text" @click.stop="moveToGlobal(skill)"><FileExportIcon /></Button>
+                <Button size="small" theme="default" variant="text" :disabled="true" @click.stop="moveToGlobal(skill)"><FileExportIcon /></Button>
               </Tooltip>
               <Popconfirm theme="danger" content="删除后不可恢复，确认删除？" @confirm="deleteSkill(skill)">
                 <Tooltip content="删除" placement="top">
@@ -205,60 +230,13 @@ onMounted(() => setTimeout(() => loadSkills(), 50));
                 </Tooltip>
               </Popconfirm>
             </Space>
-          </div>
-        </template>
-        <div class="skill-description" @click="openDetail(skill)">
-          {{ parseFrontmatter(skill.frontmatter).description || '暂无描述' }}
-        </div>
-        <div class="skill-stats">
-          <Tag size="small" variant="light" theme="primary">使用 {{ skill.usageCount }} 次</Tag>
-          <span class="skill-last-used">{{ formatLastUsed(skill.lastUsedAt) }}</span>
-        </div>
-      </Card>
-
-      <!-- 已禁用分组 -->
-      <template v-if="disabledSkills.length > 0">
-        <div class="skill-section-divider">
-          <span class="skill-section-label">已禁用 ({{ disabledSkills.length }})</span>
-        </div>
-        <Card
-          v-for="skill in disabledSkills"
-          :key="(skill.scope === 'project' ? skill.projectPath + '/' : '') + skill.name + '-disabled'"
-          :bordered="true"
-          class="skill-card skill-card-disabled"
-          hover
-        >
-          <template #header>
-            <div class="skill-header-wrapper">
-              <div class="skill-header-left">
-                <Tooltip content="点击复制名称" placement="top">
-                  <span class="skill-name-link" @click.stop="copySkillName(skill.name)">{{ skill.name }}</span>
-                </Tooltip>
-                <Tooltip v-if="skill.scope === 'project'" :content="'项目: ' + skill.projectPath" placement="top">
-                  <Tag size="small" variant="light" theme="success" class="project-tag" @click.stop="openProjectDir(skill.projectPath)">{{ skill.projectName }}</Tag>
-                </Tooltip>
-              </div>
-              <Space size="small">
-                <Switch :value="false" @change="(val) => toggleSkill(skill, val)" />
-                <Tooltip v-if="skill.scope === 'project'" content="转移到用户目录" placement="top">
-                  <Button size="small" theme="default" variant="text" :disabled="true" @click.stop="moveToGlobal(skill)"><FileExportIcon /></Button>
-                </Tooltip>
-                <Popconfirm theme="danger" content="删除后不可恢复，确认删除？" @confirm="deleteSkill(skill)">
-                  <Tooltip content="删除" placement="top">
-                    <Button size="small" theme="danger" variant="text"><DeleteIcon /></Button>
-                  </Tooltip>
-                </Popconfirm>
-              </Space>
-            </div>
           </template>
-          <div class="skill-description" @click="openDetail(skill)">
-            {{ parseFrontmatter(skill.frontmatter).description || '暂无描述' }}
-          </div>
-          <div class="skill-stats">
+          <template #description>{{ parseFrontmatter(skill.frontmatter).description || '暂无描述' }}</template>
+          <template #meta>
             <Tag size="small" variant="light" theme="primary">使用 {{ skill.usageCount }} 次</Tag>
             <span class="skill-last-used">{{ formatLastUsed(skill.lastUsedAt) }}</span>
-          </div>
-        </Card>
+          </template>
+        </SkillCard>
       </template>
     </div>
 

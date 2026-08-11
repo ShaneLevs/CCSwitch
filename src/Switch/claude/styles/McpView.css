@@ -42,39 +42,6 @@
   gap: 12px;
 }
 
-.mcp-card {
-  margin-bottom: 0;
-}
-
-.mcp-card-disabled {
-  opacity: 0.6;
-}
-
-.mcp-card .t-card__header {
-  padding: 10px 16px;
-}
-
-.mcp-title-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.mcp-title-name {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--td-text-color-primary);
-  cursor: pointer;
-}
-
-.mcp-title-name:hover {
-  text-decoration: underline;
-}
-
-.mcp-card .t-card__body {
-  padding: 8px 16px;
-}
-
 .mcp-info-row {
   display: flex;
   justify-content: space-between;

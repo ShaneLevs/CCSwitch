@@ -1,9 +1,10 @@
 <script setup>
 
 import { ref, onMounted } from "vue";
-import { Card, Empty, Button, Tag, Tooltip, Dialog, Popconfirm, Space, MessagePlugin } from "tdesign-vue-next";
+import { Empty, Button, Tag, Tooltip, Dialog, Popconfirm, Space, MessagePlugin } from "tdesign-vue-next";
 import { RefreshIcon, FolderOpen1Icon, DownloadIcon, DeleteIcon } from "tdesign-icons-vue-next";
 import SkillInstallDialog from "../../components/SkillInstallDialog.vue";
+import SkillCard from "../../components/SkillCard.vue";
 import "./styles/SkillView.css";
 
 const skills = ref([]);
@@ -104,15 +105,6 @@ const openSkillDir = (skill) => {
   }
 };
 
-const copySkillName = (name) => {
-  try {
-    navigator.clipboard.writeText(name);
-    MessagePlugin.success('已复制 Skill 名称');
-  } catch {
-    MessagePlugin.error('复制失败');
-  }
-};
-
 const deleteSkill = (skill) => {
   const result = window.services.deleteOpencodeSkill(skill.name);
   if (result.success) {
@@ -153,39 +145,29 @@ onMounted(loadSkills);
     </div>
 
     <div v-else class="skill-list">
-      <Card
+      <SkillCard
         v-for="skill in skills"
         :key="skill.name"
-        :bordered="true"
-        class="skill-card"
-        hover
+        :name="skill.name"
+        @detail="openDetail(skill)"
       >
-        <template #header>
-          <div class="skill-header-wrapper">
-            <div class="skill-header-left">
-              <Tooltip content="点击复制名称" placement="top">
-                <span class="skill-name-link" @click.stop="copySkillName(skill.name)">{{ skill.name }}</span>
+        <template #actions>
+          <Space size="small">
+            <Tooltip content="打开 Skill 文件夹" placement="top">
+              <Button size="small" theme="default" variant="text" @click.stop="openSkillDir(skill)"><FolderOpen1Icon /></Button>
+            </Tooltip>
+            <Popconfirm theme="danger" content="删除后不可恢复，确认删除？" @confirm="deleteSkill(skill)">
+              <Tooltip content="删除" placement="top">
+                <Button size="small" theme="danger" variant="text"><DeleteIcon /></Button>
               </Tooltip>
-            </div>
-            <Space size="small">
-              <Tooltip content="打开 Skill 文件夹" placement="top">
-                <Button size="small" theme="default" variant="text" @click.stop="openSkillDir(skill)"><FolderOpen1Icon /></Button>
-              </Tooltip>
-              <Popconfirm theme="danger" content="删除后不可恢复，确认删除？" @confirm="deleteSkill(skill)">
-                <Tooltip content="删除" placement="top">
-                  <Button size="small" theme="danger" variant="text"><DeleteIcon /></Button>
-                </Tooltip>
-              </Popconfirm>
-            </Space>
-          </div>
+            </Popconfirm>
+          </Space>
         </template>
-        <div class="skill-description" @click="openDetail(skill)">
-          {{ parseFrontmatter(skill.frontmatter).description || '暂无描述' }}
-        </div>
-        <div class="skill-stats">
+        <template #description>{{ parseFrontmatter(skill.frontmatter).description || '暂无描述' }}</template>
+        <template #meta>
           <Tag size="small" variant="light" theme="primary">{{ skill.fileCount }} 个文件</Tag>
-        </div>
-      </Card>
+        </template>
+      </SkillCard>
     </div>
 
     <!-- 详情弹窗 -->

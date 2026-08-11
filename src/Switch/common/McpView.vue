@@ -4,9 +4,10 @@ import { ref, onMounted } from "vue";
 import {
   Empty, Button, Tag, Space, Tooltip, MessagePlugin, Popconfirm,
 } from "tdesign-vue-next";
-import { RefreshIcon, EditIcon, AddIcon, DeleteIcon, ToolsIcon, MoveIcon, SwapIcon } from "tdesign-icons-vue-next";
+import { RefreshIcon, AddIcon, SwapIcon } from "tdesign-icons-vue-next";
 import McpToolDrawer from "../../components/McpToolDrawer.vue";
 import McpServerDialog from "../../components/McpServerDialog.vue";
+import McpServerCard from "../../components/McpServerCard.vue";
 import "./styles/McpView.css";
 
 // 通用 MCP 库：分「本地」与「云端」两部分
@@ -51,7 +52,6 @@ const showToolDrawer = ref(false);
 const toolServerName = ref('');
 const toolServerConfig = ref(null);
 
-const typeLabel = (config) => (config.type === 'http' || config.url) ? 'HTTP' : 'STDIO';
 const targetLabel = (t) => (t === 'local' ? '本地' : '云端');
 
 const loadServers = () => {
@@ -72,18 +72,6 @@ const loadServers = () => {
 const refresh = () => {
   loading.value = true;
   setTimeout(() => { loadServers(); loading.value = false; }, 50);
-};
-
-const formatArgs = (args) => {
-  if (!args || !Array.isArray(args)) return '';
-  return args.join(' ');
-};
-
-const copyName = (name) => {
-  try {
-    window.utools.copyText(name);
-    MessagePlugin.success("名称已复制");
-  } catch { MessagePlugin.error("复制失败"); }
 };
 
 const deleteServer = (srv, target) => {
@@ -178,63 +166,16 @@ onMounted(loadServers);
       </div>
 
       <div v-else class="common-mcp-list">
-        <div v-for="srv in localServers" :key="'local-' + srv.name" class="common-mcp-card">
-          <div class="common-mcp-card-header">
-            <div class="common-mcp-srv-name-wrap">
-              <Tooltip content="点击复制名称" placement="top">
-                <span class="common-mcp-srv-name" @click="copyName(srv.name)">{{ srv.name }}</span>
-              </Tooltip>
-              <Tag size="small" :theme="typeLabel(srv.config) === 'HTTP' ? 'primary' : 'success'" variant="light">
-                {{ typeLabel(srv.config) }}
-              </Tag>
-            </div>
-            <Space size="small">
-              <Tooltip content="查看工具" placement="top">
-                <Button size="small" variant="text" @click="openToolDrawer(srv)">
-                  <template #icon><ToolsIcon /></template>
-                </Button>
-              </Tooltip>
-              <Tooltip content="复制到云端" placement="top">
-                <Button size="small" variant="text" @click="copyToOtherSide(srv, 'local')">
-                  <template #icon><MoveIcon /></template>
-                </Button>
-              </Tooltip>
-              <Tooltip content="编辑" placement="top">
-                <Button size="small" variant="text" @click="openEditDialog(srv, 'local')">
-                  <template #icon><EditIcon /></template>
-                </Button>
-              </Tooltip>
-              <Popconfirm content="确定删除此 MCP 服务器？" @confirm="deleteServer(srv, 'local')">
-                <Button size="small" variant="text" theme="danger">
-                  <template #icon><DeleteIcon /></template>
-                </Button>
-              </Popconfirm>
-            </Space>
-          </div>
-
-          <div class="common-mcp-card-body">
-            <div v-if="typeLabel(srv.config) === 'STDIO'" class="common-mcp-info-row">
-              <span class="common-mcp-label">命令</span>
-              <span class="common-mcp-value mono">{{ srv.config.command }}</span>
-            </div>
-            <div v-if="srv.config.args?.length" class="common-mcp-info-row">
-              <span class="common-mcp-label">参数</span>
-              <span class="common-mcp-value mono">{{ formatArgs(srv.config.args) }}</span>
-            </div>
-            <div v-if="srv.config.url" class="common-mcp-info-row">
-              <span class="common-mcp-label">URL</span>
-              <span class="common-mcp-value mono">{{ srv.config.url }}</span>
-            </div>
-            <div v-if="Object.keys(srv.config.env || {}).length" class="common-mcp-info-row">
-              <span class="common-mcp-label">环境变量</span>
-              <span class="common-mcp-value mono">{{ Object.keys(srv.config.env).join(', ') }}</span>
-            </div>
-            <div v-if="Object.keys(srv.config.headers || {}).length" class="common-mcp-info-row">
-              <span class="common-mcp-label">请求头</span>
-              <span class="common-mcp-value mono">{{ Object.keys(srv.config.headers).join(', ') }}</span>
-            </div>
-          </div>
-        </div>
+        <McpServerCard
+          v-for="srv in localServers"
+          :key="'local-' + srv.name"
+          :srv="srv"
+          target="local"
+          @view-tools="openToolDrawer(srv)"
+          @copy="copyToOtherSide(srv, 'local')"
+          @edit="openEditDialog(srv, 'local')"
+          @delete="deleteServer(srv, 'local')"
+        />
       </div>
     </div>
 
@@ -266,63 +207,16 @@ onMounted(loadServers);
       </div>
 
       <div v-else class="common-mcp-list">
-        <div v-for="srv in cloudServers" :key="'cloud-' + srv.name" class="common-mcp-card">
-          <div class="common-mcp-card-header">
-            <div class="common-mcp-srv-name-wrap">
-              <Tooltip content="点击复制名称" placement="top">
-                <span class="common-mcp-srv-name" @click="copyName(srv.name)">{{ srv.name }}</span>
-              </Tooltip>
-              <Tag size="small" :theme="typeLabel(srv.config) === 'HTTP' ? 'primary' : 'success'" variant="light">
-                {{ typeLabel(srv.config) }}
-              </Tag>
-            </div>
-            <Space size="small">
-              <Tooltip content="查看工具" placement="top">
-                <Button size="small" variant="text" @click="openToolDrawer(srv)">
-                  <template #icon><ToolsIcon /></template>
-                </Button>
-              </Tooltip>
-              <Tooltip content="复制到本地" placement="top">
-                <Button size="small" variant="text" @click="copyToOtherSide(srv, 'cloud')">
-                  <template #icon><MoveIcon /></template>
-                </Button>
-              </Tooltip>
-              <Tooltip content="编辑" placement="top">
-                <Button size="small" variant="text" @click="openEditDialog(srv, 'cloud')">
-                  <template #icon><EditIcon /></template>
-                </Button>
-              </Tooltip>
-              <Popconfirm content="确定删除此 MCP 服务器？" @confirm="deleteServer(srv, 'cloud')">
-                <Button size="small" variant="text" theme="danger">
-                  <template #icon><DeleteIcon /></template>
-                </Button>
-              </Popconfirm>
-            </Space>
-          </div>
-
-          <div class="common-mcp-card-body">
-            <div v-if="typeLabel(srv.config) === 'STDIO'" class="common-mcp-info-row">
-              <span class="common-mcp-label">命令</span>
-              <span class="common-mcp-value mono">{{ srv.config.command }}</span>
-            </div>
-            <div v-if="srv.config.args?.length" class="common-mcp-info-row">
-              <span class="common-mcp-label">参数</span>
-              <span class="common-mcp-value mono">{{ formatArgs(srv.config.args) }}</span>
-            </div>
-            <div v-if="srv.config.url" class="common-mcp-info-row">
-              <span class="common-mcp-label">URL</span>
-              <span class="common-mcp-value mono">{{ srv.config.url }}</span>
-            </div>
-            <div v-if="Object.keys(srv.config.env || {}).length" class="common-mcp-info-row">
-              <span class="common-mcp-label">环境变量</span>
-              <span class="common-mcp-value mono">{{ Object.keys(srv.config.env).join(', ') }}</span>
-            </div>
-            <div v-if="Object.keys(srv.config.headers || {}).length" class="common-mcp-info-row">
-              <span class="common-mcp-label">请求头</span>
-              <span class="common-mcp-value mono">{{ Object.keys(srv.config.headers).join(', ') }}</span>
-            </div>
-          </div>
-        </div>
+        <McpServerCard
+          v-for="srv in cloudServers"
+          :key="'cloud-' + srv.name"
+          :srv="srv"
+          target="cloud"
+          @view-tools="openToolDrawer(srv)"
+          @copy="copyToOtherSide(srv, 'cloud')"
+          @edit="openEditDialog(srv, 'cloud')"
+          @delete="deleteServer(srv, 'cloud')"
+        />
       </div>
     </div>
 

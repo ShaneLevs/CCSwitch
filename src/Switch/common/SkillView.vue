@@ -6,6 +6,7 @@ import {
 } from "tdesign-vue-next";
 import { FolderOpenIcon, DownloadIcon } from "tdesign-icons-vue-next";
 import SkillInstallDialog from "../../components/SkillInstallDialog.vue";
+import SkillCard from "../../components/SkillCard.vue";
 import "./styles/SkillView.css";
 
 // 通用 Skill：读取 ~/.agents/skills 目录下的 Skill（SKILL.md 元数据），
@@ -70,18 +71,20 @@ onMounted(loadSkills);
     </div>
 
     <div v-else class="common-skill-list">
-      <div v-for="skill in skills" :key="skill.dirName" class="common-skill-card">
-        <div class="common-skill-card-main">
-          <div class="common-skill-card-title">
-            <span class="common-skill-name">{{ skill.name }}</span>
-            <Tag size="small" theme="success" variant="light">可用</Tag>
-          </div>
-          <div v-if="skill.description" class="common-skill-summary">{{ skill.description }}</div>
-          <div class="common-skill-meta">
-            <span class="common-skill-meta-item">目录: {{ skill.dirName }}</span>
-          </div>
-        </div>
-      </div>
+      <SkillCard
+        v-for="skill in skills"
+        :key="skill.dirName"
+        :name="skill.name"
+        :clickable="false"
+      >
+        <template #header-extra>
+          <Tag size="small" theme="success" variant="light">可用</Tag>
+        </template>
+        <template #description>{{ skill.description }}</template>
+        <template #meta>
+          <span class="common-skill-meta-item">目录: {{ skill.dirName }}</span>
+        </template>
+      </SkillCard>
     </div>
 
     <!-- 通用安装弹窗（SkillHub / 魔搭社区） -->

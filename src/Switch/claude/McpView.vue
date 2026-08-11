@@ -1,7 +1,6 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import {
-  Card,
   Button,
   MessagePlugin,
   Tag,
@@ -10,8 +9,6 @@ import {
   Popconfirm,
   Switch,
   Tooltip,
-  Collapse,
-  CollapsePanel,
 } from "tdesign-vue-next";
 import {
   AddIcon,
@@ -23,6 +20,7 @@ import {
 } from "tdesign-icons-vue-next";
 import McpToolDrawer from "../../components/McpToolDrawer.vue";
 import McpServerDialog from "../../components/McpServerDialog.vue";
+import McpServerCard from "../../components/McpServerCard.vue";
 import { formatLastUsed } from "../../utils/time";
 import "./styles/McpView.css";
 
@@ -130,14 +128,6 @@ const openClaudeMcpFile = () => {
   window.services.openClaudeMcpFile();
 };
 
-// 点击复制 MCP 名称
-const copyMcpName = (name) => {
-  try {
-    window.utools.copyText(name);
-    MessagePlugin.success("名称已复制");
-  } catch { MessagePlugin.error("复制失败"); }
-};
-
 // 获取类型标签
 const getTypeTag = (type) => {
   if (type === "http") return "HTTP";
@@ -239,23 +229,14 @@ onMounted(() => {
     </div>
 
     <div v-else class="mcp-list">
-      <Card
+      <McpServerCard
         v-for="server in mcpServerList"
         :key="server.name + '-' + (server.enabled ? 'on' : 'off')"
-        :bordered="true"
-        class="mcp-card"
-        :class="{ 'mcp-card-disabled': !server.enabled }"
+        :srv="server"
+        :disabled="!server.enabled"
+        :type-text="getTypeTag(server.config.type)"
+        :type-theme="getTypeTagTheme(server.config.type)"
       >
-        <template #title>
-          <div class="mcp-title-wrapper">
-            <Tooltip content="点击复制名称" placement="top">
-              <span class="mcp-title-name" @click.stop="copyMcpName(server.name)">{{ server.name }}</span>
-            </Tooltip>
-            <Tag size="small" :theme="getTypeTagTheme(server.config.type)" variant="light">
-              {{ getTypeTag(server.config.type) }}
-            </Tag>
-          </div>
-        </template>
         <template #actions>
           <Space>
             <Switch
@@ -299,16 +280,18 @@ onMounted(() => {
           </Space>
         </template>
 
-        <div class="mcp-info-row">
-          <div class="info-item config-summary">
-            {{ getConfigSummary(server.config) || '无详细配置' }}
+        <template #body>
+          <div class="mcp-info-row">
+            <div class="info-item config-summary">
+              {{ getConfigSummary(server.config) || '无详细配置' }}
+            </div>
+            <div v-if="mcpUsage[server.name]" class="mcp-stats">
+              <Tag size="small" variant="light" theme="primary">使用 {{ mcpUsage[server.name].usageCount }} 次</Tag>
+              <span class="mcp-last-used">{{ formatLastUsed(mcpUsage[server.name].lastUsedAt) }}</span>
+            </div>
           </div>
-          <div v-if="mcpUsage[server.name]" class="mcp-stats">
-            <Tag size="small" variant="light" theme="primary">使用 {{ mcpUsage[server.name].usageCount }} 次</Tag>
-            <span class="mcp-last-used">{{ formatLastUsed(mcpUsage[server.name].lastUsedAt) }}</span>
-          </div>
-        </div>
-      </Card>
+        </template>
+      </McpServerCard>
     </div>
 
     <McpServerDialog

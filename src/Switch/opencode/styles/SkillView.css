@@ -34,69 +34,6 @@
   gap: 12px;
 }
 
-.skill-card {
-  margin-bottom: 0;
-  cursor: pointer;
-  transition: box-shadow 0.2s;
-}
-
-.skill-card:hover {
-  box-shadow: var(--td-shadow-1);
-}
-
-.skill-card .t-card__header {
-  padding: 10px 16px 6px;
-  border-bottom: none;
-}
-
-.skill-header-wrapper {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-}
-
-.skill-header-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.skill-name-link {
-  color: var(--td-brand-color);
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.skill-name-link:hover {
-  text-decoration: underline;
-}
-
-.skill-card .t-card__body {
-  padding: 0 16px 10px;
-}
-
-.skill-description {
-  font-size: 13px;
-  color: var(--td-text-color-secondary);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-height: 20px;
-}
-
-.skill-stats {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-
 /* Detail dialog */
 .detail-dialog-header {
   display: flex;
