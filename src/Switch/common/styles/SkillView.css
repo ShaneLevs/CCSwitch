@@ -9,6 +9,12 @@
   margin-bottom: 12px;
 }
 
+.common-skill-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .common-skill-tip {
   font-size: 12px;
   color: var(--td-text-color-secondary);
@@ -103,3 +109,4 @@
   align-items: center;
   flex-shrink: 0;
 }
+

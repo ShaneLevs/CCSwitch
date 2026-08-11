@@ -45,6 +45,20 @@
       "cmds": ["通用配置"]
     },
     {
+      "code": "installCommonSkill",
+      "explain": "从 SkillHub/魔搭社区 安装通用 Skill（~/.agents/skills）",
+      "icon": "gen.svg",
+      "cmds": [
+        {
+          "type": "regex",
+          "label": "安装通用 Skill",
+          "match": "/^https:\\/\\/(www\\.)?(skillhub\\.(tencent\\.com|cn)\\/skills\\/[\\w-]+|modelscope\\.cn\\/skills\\/@[\\w-]+\\/[\\w-]+)$/",
+          "minLength": 30,
+          "maxLength": 200
+        }
+      ]
+    },
+    {
       "code": "installClaudeSkill",
       "explain": "从 SkillHub/魔搭社区 安装 Claude Code Skill",
       "cmds": [

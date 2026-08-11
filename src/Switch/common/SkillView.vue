@@ -2,12 +2,14 @@
 
 import { ref, onMounted } from "vue";
 import {
-  Empty, Button, Tag, Tooltip, Alert as TAlert,
+  Empty, Button, Tag, Tooltip,
 } from "tdesign-vue-next";
-import { FolderOpenIcon } from "tdesign-icons-vue-next";
+import { FolderOpenIcon, DownloadIcon } from "tdesign-icons-vue-next";
+import SkillInstallDialog from "../../components/SkillInstallDialog.vue";
 import "./styles/SkillView.css";
 
-// 通用 Skill：只读展示 ~/.agents/skills 目录下的 Skill（SKILL.md 元数据）
+// 通用 Skill：读取 ~/.agents/skills 目录下的 Skill（SKILL.md 元数据），
+// 支持从 SkillHub / 魔搭社区 通过链接安装（功能同 Claude Code，仅安装目录不同）
 
 const skills = ref([]);
 const loadError = ref("");
@@ -23,9 +25,20 @@ const loadSkills = () => {
   }
 };
 
-const openDir = () => {
-  try { window.services.openCommonSkillsDir(); } catch { /* ignore */ }
+// 通用安装弹窗（SkillHub / 魔搭社区）
+const installDialogRef = ref(null);
+const SKILL_INSTALL_CONFIG = {
+  getSkillsPath: 'getCommonSkillsPath',
+  installSkill: 'installCommonSkill',
+  installSkillFromModelScope: 'installCommonSkillFromModelScope',
+  completeSkillInstall: 'completeCommonSkillInstall',
+  cancelSkillInstall: 'cancelCommonSkillInstall',
 };
+const openInstallWithUrl = (url) => {
+  installDialogRef.value?.open(url);
+};
+
+defineExpose({ openInstallWithUrl });
 
 onMounted(loadSkills);
 </script>
@@ -34,13 +47,18 @@ onMounted(loadSkills);
   <div class="common-skill-container">
     <div class="common-skill-header">
       <span class="common-skill-tip">
-        通用 Skill — 读取 ~/.agents/skills 目录下的 Skill（只读，跨 agent 共享）
+        通用 Skill — 读取 ~/.agents/skills 目录下的 Skill（跨 agent 共享）
       </span>
-      <Tooltip content="打开 Skill 目录" placement="top">
-        <Button size="small" variant="outline" @click="openDir">
-          <template #icon><FolderOpenIcon /></template> 打开目录
+      <div class="common-skill-header-actions">
+        <Button size="small" theme="primary" @click="installDialogRef?.open()">
+          <template #icon><DownloadIcon /></template> 安装 Skill
         </Button>
-      </Tooltip>
+        <Tooltip content="打开 Skill 目录" placement="top">
+          <Button size="small" variant="outline" @click="installDialogRef?.openDir()">
+            <template #icon><FolderOpenIcon /></template> 打开目录
+          </Button>
+        </Tooltip>
+      </div>
     </div>
 
     <div v-if="loadError" class="common-skill-error">
@@ -48,7 +66,7 @@ onMounted(loadSkills);
     </div>
 
     <div v-if="skills.length === 0" class="common-skill-empty">
-      <Empty description="~/.agents/skills 下还没有 Skill，将 Skill 文件夹放入该目录后刷新即可" />
+      <Empty description="~/.agents/skills 下还没有 Skill，可点击右上角「安装 Skill」或手动放入该目录后刷新" />
     </div>
 
     <div v-else class="common-skill-list">
@@ -65,5 +83,13 @@ onMounted(loadSkills);
         </div>
       </div>
     </div>
+
+    <!-- 通用安装弹窗（SkillHub / 魔搭社区） -->
+    <SkillInstallDialog
+      ref="installDialogRef"
+      :service-config="SKILL_INSTALL_CONFIG"
+      manual-dir-label="~/.agents/skills"
+      @installed="loadSkills"
+    />
   </div>
 </template>

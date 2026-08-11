@@ -1,8 +1,8 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
-import { Card, Empty, Dialog, Input, Button, MessagePlugin, Loading, Switch, Popconfirm, Space, Tag, Tooltip } from "tdesign-vue-next";
+import { Card, Empty, Dialog, Button, MessagePlugin, Switch, Popconfirm, Space, Tag, Tooltip } from "tdesign-vue-next";
 import { DownloadIcon, DeleteIcon, FileExportIcon, FolderOpen1Icon } from "tdesign-icons-vue-next";
-import { useSkillInstall } from "../../composables/useSkillInstall";
+import SkillInstallDialog from "../../components/SkillInstallDialog.vue";
 import { formatLastUsed } from "../../utils/time";
 import "./styles/SkillView.css";
 
@@ -62,12 +62,20 @@ const loadSkills = () => {
   skills.value = window.services.getSkills();
 };
 
-const {
-  showInstallDialog, installUrl, isFetchingInfo, isInstalling,
-  installInfo, installProgress, pendingInstall, showOverwriteDialog,
-  openInstallDialog, openInstallWithUrl, openExternal, openSkillsDir,
-  confirmInstall, overwriteInstall, cancelInstall,
-} = useSkillInstall(loadSkills);
+// 通用安装弹窗（SkillHub / 魔搭社区），service 方法用 Claude 默认实现
+const installDialogRef = ref(null);
+const SKILL_INSTALL_CONFIG = {
+  getSkillsPath: 'getSkillsPath',
+  installSkill: 'installSkill',
+  installSkillFromModelScope: 'installSkillFromModelScope',
+  completeSkillInstall: 'completeSkillInstall',
+  cancelSkillInstall: 'cancelSkillInstall',
+};
+const openInstallWithUrl = (url) => {
+  installDialogRef.value?.open(url);
+};
+
+defineExpose({ openInstallWithUrl });
 
 const copySkillName = (skillName) => {
   try {
@@ -81,7 +89,6 @@ const openDetail = (skill) => {
   showDetailDialog.value = true;
 };
 
-defineExpose({ openInstallWithUrl });
 
 const toggleSkill = (skill, enabled) => {
   let result;
@@ -157,8 +164,8 @@ onMounted(() => setTimeout(() => loadSkills(), 50));
 <template>
   <div class="skill-container">
     <div class="section-header">
-      <span class="skill-tip">展示 <span class="hint-link" @click="openSkillsDir">~/.claude/skills</span> 及项目目录下的 SKILL</span>
-      <Button size="small" theme="primary" @click="openInstallDialog">
+      <span class="skill-tip">展示 <span class="hint-link" @click="installDialogRef?.openDir()">~/.claude/skills</span> 及项目目录下的 SKILL</span>
+      <Button size="small" theme="primary" @click="installDialogRef?.open()">
         <template #icon><DownloadIcon /></template> 安装 Skill
       </Button>
     </div>
@@ -288,37 +295,13 @@ onMounted(() => setTimeout(() => loadSkills(), 50));
       </div>
     </Dialog>
 
-    <!-- 安装弹窗 -->
-    <Dialog
-      v-model:visible="showInstallDialog"
-      header="安装 Skill"
-      width="500px"
-      :confirm-btn="{ content: '安装', loading: isInstalling, theme: 'primary', disabled: !installInfo }"
-      @confirm="confirmInstall"
-    >
-      <div class="install-form">
-        <div class="form-item"><label>Skill 链接</label><Input v-model="installUrl" placeholder="输入 Skill 详情页面链接" :disabled="isFetchingInfo || isInstalling" /></div>
-        <div class="install-hint">支持从 <span class="hint-link" @click="openExternal('https://skillhub.tencent.com/skills')">SkillHub</span> 或 <span class="hint-link" @click="openExternal('https://www.modelscope.cn/skills')">魔搭社区</span> 安装 Skill，复制其地址粘贴到上方输入框</div>
-        <div class="install-hint">手动安装请将 Skill 文件夹放到 <span class="hint-link" @click="openSkillsDir">~/.claude/skills</span> 目录下</div>
-        <div v-if="installInfo" class="install-info-card">
-          <div class="install-info-header">
-            <span class="install-info-name">{{ installInfo.displayName }}</span>
-          </div>
-          <div class="install-info-meta">
-            <span>作者: {{ installInfo.author }}</span><span>下载: {{ installInfo.downloads }}</span>
-            <Tag size="small" :theme="installInfo.source === 'skillhub' ? 'primary' : 'warning'" variant="light" class="install-info-source">{{ installInfo.source === 'skillhub' ? 'SkillHub' : '魔搭社区' }}</Tag>
-            <span class="install-info-version">v{{ installInfo.version }}</span>
-          </div>
-          <div class="install-info-summary">{{ installInfo.summary }}</div>
-          <div v-if="installProgress > 0 && installProgress < 100" class="install-progress"><Loading size="small" /><span>下载中... {{ installProgress }}%</span></div>
-        </div>
-      </div>
-    </Dialog>
-
-    <!-- 覆盖确认弹窗 -->
-    <Dialog v-model:visible="showOverwriteDialog" header="Skill 已存在" width="400px" :confirm-btn="{ content: '覆盖安装', theme: 'primary' }" :cancel-btn="{ content: '取消' }" @confirm="overwriteInstall" @close="cancelInstall">
-      <div class="overwrite-hint">Skill "{{ pendingInstall?.skillName }}" 已存在，是否覆盖安装？</div>
-    </Dialog>
+    <!-- 通用安装弹窗（SkillHub / 魔搭社区） -->
+    <SkillInstallDialog
+      ref="installDialogRef"
+      :service-config="SKILL_INSTALL_CONFIG"
+      manual-dir-label="~/.claude/skills"
+      @installed="loadSkills"
+    />
 
     <!-- 转移确认弹窗 -->
     <Dialog v-model:visible="showMoveDialog" header="转移到用户目录" width="400px" :confirm-btn="{ content: '确认转移', theme: 'primary' }" :cancel-btn="{ content: '取消' }" @confirm="confirmMoveToGlobal">

@@ -220,6 +220,12 @@ const openCommonSkillsDir = () => {
   window.utools.shellOpenPath(dir)
 }
 
+const getCommonSkillsPath = () => {
+  const dir = COMMON_SKILLS_DIR()
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
 module.exports = {
   COMMON_SKILLS_DIR,
   readCommonProviders, writeCommonProviders, getCommonProviderList,

@@ -49,6 +49,7 @@ const showSettings = ref(false);
 const activeTab = ref("config");
 const skillViewRef = ref(null);
 const ocSkillViewRef = ref(null);
+const commonSkillViewRef = ref(null);
 const piPluginViewRef = ref(null);
 // 记录哪些应用已被激活过，激活后保留组件不销毁，避免 v-show 导致热力图宽度计算为 0
 const activatedApps = ref(new Set(["claude"]));
@@ -204,6 +205,16 @@ onMounted(() => {
     setTimeout(() => {
       if (ocSkillViewRef.value) {
         ocSkillViewRef.value.openInstallWithUrl(props.payload);
+      }
+    }, 100);
+  } else if (props.route === "installCommonSkill" && props.payload) {
+    setActiveApp("common");
+    ensureAppActivated("common");
+    markTabVisited("common", "skill");
+    activeTab.value = "skill";
+    setTimeout(() => {
+      if (commonSkillViewRef.value) {
+        commonSkillViewRef.value.openInstallWithUrl(props.payload);
       }
     }, 100);
   } else if (props.route === "installPiExtension" && props.payload) {
@@ -464,6 +475,7 @@ onMounted(() => {
       <CommonSkillView
         v-if="isTabVisited('common', 'skill')"
         v-show="isCommon && activeTab === 'skill'"
+        ref="commonSkillViewRef"
       />
     </template>
 
