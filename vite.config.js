@@ -75,4 +75,9 @@ export default defineConfig({
     },
   ],
   base: './',
+  build: {
+    // uTools 以 file:// 加载单页插件，拆 chunk 会引入 ES module 跨文件加载风险；
+    // 主包体积主要来自 TDesign 全量组件 + 图标库，本地加载无性能瓶颈，故仅调高阈值
+    chunkSizeWarningLimit: 2200,
+  },
 })

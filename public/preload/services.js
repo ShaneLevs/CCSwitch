@@ -1339,7 +1339,6 @@ window.services = {
   readPiUsage: pi.readPiUsage,
   openPiDir: pi.openPiDir,
   openPiExtDir: pi.openPiExtDir,
-  isPiInstalled: pi.isPiInstalled,
   resolvePiPath: pi.resolvePiPath,
 
   // ==================== omp ====================
