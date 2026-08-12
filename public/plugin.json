@@ -9,6 +9,12 @@
   },
   "features": [
     {
+      "code": "commonConfig",
+      "explain": "通用配置（跨 agent 主数据）",
+      "icon": "gen.svg",
+      "cmds": ["通用配置"]
+    },
+    {
       "code": "claudeConfig",
       "explain": "Claude Code 配置管理工具",
       "icon": "claudecode.png",
@@ -37,12 +43,6 @@
       "explain": "Reasonix 配置管理工具",
       "icon": "reasonix.svg",
       "cmds": ["Reasonix配置"]
-    },
-    {
-      "code": "commonConfig",
-      "explain": "通用配置（跨 agent 主数据）",
-      "icon": "gen.svg",
-      "cmds": ["通用配置"]
     },
     {
       "code": "installCommonSkill",

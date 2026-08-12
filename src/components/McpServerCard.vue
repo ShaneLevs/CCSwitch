@@ -7,6 +7,7 @@ import { ToolsIcon, MoveIcon, EditIcon, DeleteIcon } from "tdesign-icons-vue-nex
 // 可通过插槽自定义：
 //   #actions —— 覆盖右侧操作按钮组（如 Claude 的 Switch+按钮组合）
 //   #body    —— 覆盖下方配置信息区（如 Claude 的 summary + 使用统计）
+//   #tags    —— 在类型标签后追加来源/状态标签（如 本地/云端）
 // props：
 //   srv        { name, config }
 //   target     local | cloud，决定「复制到另一端」按钮文案
@@ -47,6 +48,7 @@ const copyName = () => {
         <Tag size="small" :theme="typeTheme" variant="light">
           {{ typeLabel }}
         </Tag>
+        <slot name="tags" />
       </div>
       <div class="mcp-server-card-actions">
         <slot name="actions">

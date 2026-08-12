@@ -12,16 +12,28 @@ import DynamicKvEditor from "./DynamicKvEditor.vue";
 // props：
 //   headerPrefix          弹窗标题前缀（如「本地 · 」），默认空
 //   nameDisabledOnEdit    编辑时名称是否禁用（common 按名 upsert 需禁用；claude 支持改名）
+//   showTarget            是否显示「本地/云端」目标选择（common 合并列表用），默认 false
+//   targetOptions         目标选项 [{ value, label }]，默认 [本地, 云端]
+//   open(mode, name, config, target) 的 target 为初始选中目标
 
 const props = defineProps({
   headerPrefix: { type: String, default: "" },
   nameDisabledOnEdit: { type: Boolean, default: false },
+  showTarget: { type: Boolean, default: false },
+  targetOptions: {
+    type: Array,
+    default: () => [
+      { value: 'local', label: '本地' },
+      { value: 'cloud', label: '云端' },
+    ],
+  },
 });
 
 const emit = defineEmits(["save"]);
 
 const showDialog = ref(false);
 const dialogMode = ref('create'); // create | edit
+const dialogTarget = ref('local'); // 保存目标端（showTarget 时可选）
 const mcpName = ref('');
 const mcpType = ref('stdio');
 const mcpCommand = ref('');
@@ -95,8 +107,9 @@ const switchEditMode = (mode) => {
   }
 };
 
-const open = (mode, name, config) => {
+const open = (mode, name, config, target) => {
   dialogMode.value = mode === 'edit' ? 'edit' : 'create';
+  dialogTarget.value = target || 'local';
   mcpName.value = (mode === 'edit' && name) ? name : '';
   if (config && typeof config === 'object') {
     applyConfigToForm(config);
@@ -152,7 +165,7 @@ const submit = () => {
     if (config.type === 'http' && !config.url) { MessagePlugin.warning('请输入 HTTP URL'); return; }
     if (config.type === 'stdio' && !config.command) { MessagePlugin.warning('请输入启动命令'); return; }
   }
-  emit('save', { mode: dialogMode.value, name, config });
+  emit('save', { mode: dialogMode.value, name, config, target: dialogTarget.value });
 };
 
 defineExpose({ open, close });
@@ -165,6 +178,17 @@ defineExpose({ open, close });
     width="600px"
   >
     <div class="mcp-dialog-form">
+      <div v-if="showTarget" class="mcp-dialog-form-item">
+        <label>保存到</label>
+        <RadioGroup v-model="dialogTarget" variant="default-filled">
+          <RadioButton
+            v-for="opt in targetOptions"
+            :key="opt.value"
+            :value="opt.value"
+          >{{ opt.label }}</RadioButton>
+        </RadioGroup>
+      </div>
+
       <div class="mcp-dialog-form-item">
         <label>名称 <span class="mcp-dialog-required">*</span></label>
         <Input
