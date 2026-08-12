@@ -16,7 +16,6 @@ import {
   DeleteIcon,
   ToolsIcon,
   RefreshIcon,
-  MoveIcon,
 } from "tdesign-icons-vue-next";
 import McpToolDrawer from "../../components/McpToolDrawer.vue";
 import McpServerDialog from "../../components/McpServerDialog.vue";
@@ -63,29 +62,9 @@ const toolServerConfig = ref(null);
 // 加载 MCP 服务器列表
 const loadMcpServers = () => {
   mcpServerList.value = window.services.getAllMcpServersWithStatus();
-  detectLegacyMcp();
 };
 
-// 检测旧来源（~/.claude.json / ~/.claude/.mcp.json）的 MCP，用于显示迁移按钮
-const legacySources = ref([]);
-const detectLegacyMcp = () => {
-  legacySources.value = window.services.getLegacyMcpSources();
-};
-
-// 手动迁移旧来源 MCP 到 ~/.mcp.json
-const handleMigrate = () => {
-  const result = window.services.migrateMcpToUserFile();
-  if (result.success) {
-    MessagePlugin.success(result.migrated
-      ? `已迁移 ${result.migrated} 个 MCP 到 ~/.mcp.json`
-      : "旧来源中无待迁移的 MCP");
-    loadMcpServers();
-  } else {
-    MessagePlugin.error(result.error || "迁移失败");
-  }
-};
-
-// 手动刷新（迁移/外部修改后重新加载）
+// 手动刷新（外部修改后重新加载）
 const mcpLoading = ref(false);
 const handleRefresh = () => {
   mcpLoading.value = true;
@@ -123,7 +102,7 @@ const toggleMcpStatus = (server) => {
   }
 };
 
-// 打开 ~/.mcp.json 文件（不存在则自动创建）
+// 打开 ~/.claude.json 文件（不存在则自动创建）
 const openClaudeMcpFile = () => {
   window.services.openClaudeMcpFile();
 };
@@ -198,17 +177,8 @@ onMounted(() => {
 <template>
   <div class="mcp-container">
     <div class="section-header">
-      <span class="mcp-tip">仅展示 <span class="hint-link" @click="openClaudeMcpFile">~/.mcp.json</span> 内自定义的 MCP</span>
+      <span class="mcp-tip">仅展示 <span class="hint-link" @click="openClaudeMcpFile">~/.claude.json</span> 内自定义的 MCP</span>
       <Space size="8px">
-        <Tooltip
-          v-if="legacySources.length"
-          :content="`将 ${legacySources.join('、')} 中的 MCP 合并到 ~/.mcp.json，可被多数 agent 共同读取`"
-          placement="top"
-        >
-          <Button size="small" variant="outline" @click="handleMigrate">
-            <template #icon><MoveIcon /></template> 移至 ~/.mcp.json
-          </Button>
-        </Tooltip>
         <Button size="small" theme="primary" @click="openCreateDialog">
           <template #icon><AddIcon /></template> 添加 MCP
         </Button>

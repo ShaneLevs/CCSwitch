@@ -4,8 +4,6 @@ const zlib = require('node:zlib')
 
 const CLAUDE_SETTINGS_PATH = path.join(window.utools.getPath('home'), '.claude', 'settings.json')
 const CLAUDE_JSON_PATH = path.join(window.utools.getPath('home'), '.claude.json')
-const CLAUDE_MCP_PATH = path.join(window.utools.getPath('home'), '.mcp.json')
-const CLAUDE_DIR_MCP_PATH = path.join(window.utools.getPath('home'), '.claude', '.mcp.json')
 const CLAUDE_SKILLS_PATH = path.join(window.utools.getPath('home'), '.claude', 'skills')
 
 let _claudeSettingsCache = null
@@ -81,144 +79,38 @@ const getClaudeJsonPath = () => CLAUDE_JSON_PATH
 
 const getNativeId = () => window.utools.getNativeId()
 
-// ==================== Claude MCP (~/.mcp.json) ====================
-// MCP 配置存放在用户级 ~/.mcp.json（Claude Code 官方推荐格式，所有项目生效），
-// 不再写 ~/.claude.json；首次读取时自动迁移旧数据。
+// ==================== Claude MCP (~/.claude.json) ====================
+// MCP 配置只存放/读写 ~/.claude.json 顶层 mcpServers（Claude Code 官方位置，全局生效）。
 
-const readMcpJson = () => {
-  try {
-    if (!fs.existsSync(CLAUDE_MCP_PATH)) return null
-    return JSON.parse(fs.readFileSync(CLAUDE_MCP_PATH, { encoding: 'utf-8' }))
-  } catch (error) {
-    console.error('读取 Claude MCP 配置失败:', error)
-    return null
-  }
-}
-
-const writeMcpJson = (data) => {
-  try {
-    fs.writeFileSync(CLAUDE_MCP_PATH, JSON.stringify(data, null, 2), { encoding: 'utf-8' })
-    return true
-  } catch (error) {
-    console.error('写入 Claude MCP 配置失败:', error)
-    return false
-  }
-}
-
-const readClaudeDirMcp = () => {
-  try {
-    if (!fs.existsSync(CLAUDE_DIR_MCP_PATH)) return null
-    return JSON.parse(fs.readFileSync(CLAUDE_DIR_MCP_PATH, { encoding: 'utf-8' }))
-  } catch (error) {
-    console.error('读取 ~/.claude/.mcp.json 失败:', error)
-    return null
-  }
-}
-
-// 清空 ~/.claude/.mcp.json 中的 mcpServers；文件变空则删除
-const clearClaudeDirMcp = () => {
-  try {
-    if (!fs.existsSync(CLAUDE_DIR_MCP_PATH)) return
-    const data = readClaudeDirMcp() || {}
-    if (data.mcpServers) delete data.mcpServers
-    if (Object.keys(data).length) fs.writeFileSync(CLAUDE_DIR_MCP_PATH, JSON.stringify(data, null, 2))
-    else fs.unlinkSync(CLAUDE_DIR_MCP_PATH)
-  } catch (error) {
-    console.error('清理 ~/.claude/.mcp.json 失败:', error)
-  }
-}
-
-// 多来源合并读取（不做自动迁移），~/.mcp.json 优先级最高：
-//   1. ~/.claude/.mcp.json（旧）
-//   2. ~/.claude.json 顶层 mcpServers（旧，user scope）
-//   3. ~/.mcp.json（新，用户后续新增都写这里）
 const getMcpServers = () => {
-  const merged = {}
-  const claudeDir = readClaudeDirMcp()
-  if (claudeDir && claudeDir.mcpServers) Object.assign(merged, claudeDir.mcpServers)
-  const legacy = readClaudeJson()
-  if (legacy.mcpServers) Object.assign(merged, legacy.mcpServers)
-  const current = readMcpJson()
-  if (current && current.mcpServers) Object.assign(merged, current.mcpServers)
-  return merged
-}
-
-// 检测除 ~/.mcp.json 之外还有哪些旧来源配置了 MCP（用于显示迁移按钮）
-const getLegacyMcpSources = () => {
-  const sources = []
-  const legacy = readClaudeJson()
-  if (legacy.mcpServers && Object.keys(legacy.mcpServers).length) sources.push('~/.claude.json')
-  const claudeDir = readClaudeDirMcp()
-  if (claudeDir && claudeDir.mcpServers && Object.keys(claudeDir.mcpServers).length) sources.push('~/.claude/.mcp.json')
-  return sources
-}
-
-// 手动迁移：把旧来源的 MCP 合并写入 ~/.mcp.json（同名不覆盖已有），成功后清空旧来源
-const migrateMcpToUserFile = () => {
-  const target = readMcpJson() || { mcpServers: {} }
-  if (!target.mcpServers) target.mcpServers = {}
-  let migrated = 0
-  const collect = (src) => {
-    if (!src || !src.mcpServers) return
-    for (const [k, v] of Object.entries(src.mcpServers)) {
-      if (!(k in target.mcpServers)) { target.mcpServers[k] = v; migrated++ }
-    }
-  }
-  collect(readClaudeDirMcp())
-  const legacy = readClaudeJson()
-  collect(legacy)
-  if (!writeMcpJson(target)) return { success: false, error: '写入 ~/.mcp.json 失败' }
-  // 迁移成功后清空旧来源
-  if (legacy && legacy.mcpServers && Object.keys(legacy.mcpServers).length) {
-    delete legacy.mcpServers
-    writeClaudeJson(legacy)
-  }
-  clearClaudeDirMcp()
-  return { success: true, migrated }
+  const data = readClaudeJson()
+  return (data && data.mcpServers && typeof data.mcpServers === 'object') ? data.mcpServers : {}
 }
 
 const upsertMcpServer = (name, serverConfig) => {
-  // 新增/更新一律写入 ~/.mcp.json
-  const config = readMcpJson() || { mcpServers: {} }
-  if (!config.mcpServers) config.mcpServers = {}
+  const config = readClaudeJson() || {}
+  if (!config.mcpServers || typeof config.mcpServers !== 'object') config.mcpServers = {}
   config.mcpServers[name] = serverConfig
-  return writeMcpJson(config)
+  return writeClaudeJson(config)
 }
 
 const deleteMcpServer = (name) => {
-  // 从所有来源删除，保证合并列表中消失
-  const current = readMcpJson()
-  if (current && current.mcpServers && current.mcpServers[name]) {
-    delete current.mcpServers[name]
-    const ok = writeMcpJson(current)
-    if (!ok) return { success: false, error: '写入 ~/.mcp.json 失败' }
-    return { success: true }
-  }
-  const legacy = readClaudeJson()
-  if (legacy.mcpServers && legacy.mcpServers[name]) {
-    delete legacy.mcpServers[name]
-    writeClaudeJson(legacy)
-    return { success: true }
-  }
-  const claudeDir = readClaudeDirMcp()
-  if (claudeDir && claudeDir.mcpServers && claudeDir.mcpServers[name]) {
-    delete claudeDir.mcpServers[name]
-    if (Object.keys(claudeDir.mcpServers).length) fs.writeFileSync(CLAUDE_DIR_MCP_PATH, JSON.stringify(claudeDir, null, 2))
-    else clearClaudeDirMcp()
-    return { success: true }
-  }
-  return { success: false, error: 'MCP 配置不存在' }
+  const config = readClaudeJson() || {}
+  if (!config.mcpServers || !config.mcpServers[name]) return { success: false, error: 'MCP 配置不存在' }
+  delete config.mcpServers[name]
+  if (!writeClaudeJson(config)) return { success: false, error: '写入 ~/.claude.json 失败' }
+  return { success: true }
 }
 
-const getClaudeMcpPath = () => CLAUDE_MCP_PATH
+const getClaudeMcpPath = () => CLAUDE_JSON_PATH
 
-// 打开 ~/.mcp.json（不存在则先创建空配置）
+// 打开 ~/.claude.json（不存在则先创建空配置）
 const openClaudeMcpFile = () => {
   try {
-    if (!fs.existsSync(CLAUDE_MCP_PATH)) writeMcpJson({ mcpServers: {} })
-    window.utools.shellOpenPath(CLAUDE_MCP_PATH)
+    if (!fs.existsSync(CLAUDE_JSON_PATH)) writeClaudeJson({ mcpServers: {} })
+    window.utools.shellOpenPath(CLAUDE_JSON_PATH)
   } catch (error) {
-    console.error('打开 Claude MCP 配置失败:', error)
+    console.error('打开 ~/.claude.json 失败:', error)
   }
 }
 
@@ -345,12 +237,10 @@ const getUsageCache = () => {
 }
 
 module.exports = {
-  CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_MCP_PATH, CLAUDE_DIR_MCP_PATH, CLAUDE_SKILLS_PATH,
+  CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_SKILLS_PATH,
   readClaudeSettings, writeClaudeSettings, getClaudeSettingsPath,
   readClaudeJson, writeClaudeJson, getClaudeJsonPath,
   getNativeId, getMcpServers, upsertMcpServer, deleteMcpServer,
-  readMcpJson, writeMcpJson,
-  getLegacyMcpSources, migrateMcpToUserFile,
   getClaudeMcpPath, openClaudeMcpFile,
   exportConfigsToFile, importConfigsFromFile,
   compressConfigs, decompressConfigs,
