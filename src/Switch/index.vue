@@ -30,8 +30,6 @@ import ReasonixConfigView from "./reasonix/ConfigView.vue";
 import CommonConfigView from "./common/ConfigView.vue";
 import CommonMcpView from "./common/McpView.vue";
 import CommonSkillView from "./common/SkillView.vue";
-import wavingDark from "../assets/waving-dark.gif";
-import wavingLight from "../assets/waving-light.gif";
 import { useAppContext } from "../composables/useAppContext";
 import { useDarkBackground } from "../composables/useDarkBackground";
 
@@ -81,23 +79,6 @@ markTabVisited(activeApp.value, activeTab.value);
 watch([activeTab, activeApp], () => {
   markTabVisited(activeApp.value, activeTab.value);
 });
-
-const wavingKey = ref(0);
-const showWaving = ref(true);
-const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-const wavingSrc = isDark ? wavingDark : wavingLight;
-
-setTimeout(() => {
-  showWaving.value = false;
-}, 3000);
-
-const triggerWaving = () => {
-  showWaving.value = true;
-  wavingKey.value++;
-  setTimeout(() => {
-    showWaving.value = false;
-  }, 3000);
-};
 
 const appLabel = computed(() => {
   if (isClaude.value) return "Claude Code";
@@ -238,21 +219,7 @@ onMounted(() => {
   >
     <div class="header">
       <div class="header-left">
-        <img
-          v-if="showWaving && isClaude"
-          :key="wavingKey"
-          :src="wavingSrc"
-          alt="logo"
-          class="logo"
-          @click="triggerWaving"
-        />
-        <img
-          v-else-if="isClaude"
-          src="/logo.png"
-          alt="logo"
-          class="logo"
-          @click="triggerWaving"
-        />
+        <img v-if="isClaude" src="/logo.png" alt="logo" class="logo" />
         <img
           v-else-if="isOpenCode"
           src="/icon-opencode.png"
