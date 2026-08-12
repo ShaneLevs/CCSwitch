@@ -272,8 +272,9 @@ const handleSaveModel = async () => {
     const finalId = newModelId.value.trim() || editingModelId.value;
     // ID 有变化：删除旧模型，添加新模型
     if (finalId !== editingModelId.value) {
-      window.services.deleteCommonModel(editModelProvider.value, editingModelId.value);
-      window.services.addCommonModel(editModelProvider.value, {
+      const okDel = window.services.deleteCommonModel(editModelProvider.value, editingModelId.value);
+      if (!okDel) throw new Error('写入通用库失败，请重试');
+      const okAdd = window.services.addCommonModel(editModelProvider.value, {
         id: finalId,
         name: editModelForm.value.name.trim() || finalId,
         contextWindow: Number(editModelForm.value.contextWindow) || 0,
@@ -283,8 +284,9 @@ const handleSaveModel = async () => {
         cost: editModelForm.value.cost,
         compat: compatObj,
       });
+      if (!okAdd) throw new Error('写入通用库失败，请重试');
     } else {
-      window.services.updateCommonModel(editModelProvider.value, editingModelId.value, {
+      const ok = window.services.updateCommonModel(editModelProvider.value, editingModelId.value, {
         name: editModelForm.value.name.trim() || editingModelId.value,
         contextWindow: Number(editModelForm.value.contextWindow) || 0,
         maxTokens: Number(editModelForm.value.maxTokens) || 0,
@@ -293,6 +295,7 @@ const handleSaveModel = async () => {
         cost: editModelForm.value.cost,
         compat: compatObj,
       });
+      if (!ok) throw new Error('写入通用库失败，请重试');
     }
     MessagePlugin.success('模型已更新');
     editModelDialog.value = false;
@@ -310,7 +313,7 @@ const handleAddModel = async () => {
     (addModelForm.value.compat || []).forEach(({ key, value }) => {
       if (key && key.trim()) compatObj[key.trim()] = value;
     });
-    window.services.addCommonModel(addModelProvider.value, {
+    const ok = window.services.addCommonModel(addModelProvider.value, {
       id,
       name: addModelForm.value.name.trim() || id,
       contextWindow: Number(addModelForm.value.contextWindow) || 0,
@@ -320,6 +323,7 @@ const handleAddModel = async () => {
       cost: addModelForm.value.cost,
       compat: compatObj,
     });
+    if (!ok) throw new Error('写入通用库失败，请重试');
     MessagePlugin.success(`模型 ${id} 已添加`);
     addModelDialog.value = false;
     loadProviders();
@@ -330,7 +334,8 @@ const handleAddModel = async () => {
 
 const handleDeleteModel = async (providerName, modelId) => {
   try {
-    window.services.deleteCommonModel(providerName, modelId);
+    const ok = window.services.deleteCommonModel(providerName, modelId);
+    if (!ok) throw new Error('写入通用库失败，请重试');
     MessagePlugin.success(`模型 ${modelId} 已删除`);
     loadProviders();
   } catch (e) {
@@ -562,6 +567,7 @@ onMounted(refresh);
             filterable
             clearable
             placeholder="输入或从下拉选择模型"
+            :popup-props="{ overlayStyle: { maxHeight: '280px', overflowY: 'auto' } }"
             @select="onModelIdSelect"
           />
           <div v-if="autoModelsLoading" class="common-form-hint">正在自动拉取模型列表…</div>

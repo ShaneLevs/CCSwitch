@@ -21,16 +21,40 @@ const readDoc = (docId, fallback) => {
   return fallback
 }
 
+// 递归查找不可 JSON 序列化的字段（函数/Symbol），用于诊断克隆失败
+const findNonJsonFields = (obj, path = '$', found = []) => {
+  if (obj === null || obj === undefined) return found
+  const t = typeof obj
+  if (t === 'function' || t === 'symbol') { found.push(`${path} (${t})`); return found }
+  if (t !== 'object') return found
+  if (Array.isArray(obj)) {
+    obj.forEach((v, i) => findNonJsonFields(v, `${path}[${i}]`, found))
+  } else {
+    for (const k of Object.keys(obj)) findNonJsonFields(obj[k], `${path}.${k}`, found)
+  }
+  return found
+}
+
 const writeDoc = (docId, data) => {
   try {
     const doc = { _id: docId, data, updatedAt: Date.now() }
     const existing = window.utools.db.get(docId)
     if (existing) doc._rev = existing._rev
-    window.utools.db.put(doc)
+    try {
+      window.utools.db.put(doc)
+    } catch (e) {
+      // uTools 内部结构化克隆失败（数据里混入了函数/Symbol 等非 JSON 内容，
+      // 常见于历史异常数据）→ 定位异常字段并净化（丢弃）后重试，保证写入成功
+      const nonJson = findNonJsonFields(doc)
+      console.error(`写入通用配置(${docId})克隆失败:`, e, '非 JSON 字段:', nonJson)
+      const clean = JSON.parse(JSON.stringify(doc))
+      window.utools.db.put(clean)
+    }
     return true
   } catch (e) {
     console.error(`写入通用配置(${docId})失败:`, e)
-    return false
+    // 抛出带原始错误信息的异常，让上层 UI 能显示具体失败原因
+    throw new Error(`写入 uTools DB 失败: ${(e && e.message) || e}`)
   }
 }
 
