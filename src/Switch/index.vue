@@ -219,7 +219,7 @@ onMounted(() => {
   >
     <div class="header">
       <div class="header-left">
-        <img v-if="isClaude" src="/logo.png" alt="logo" class="logo" />
+        <img v-if="isClaude" src="/claudecode.png" alt="logo" class="logo" />
         <img
           v-else-if="isOpenCode"
           src="/icon-opencode.png"

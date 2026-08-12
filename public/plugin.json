@@ -11,7 +11,7 @@
     {
       "code": "claudeConfig",
       "explain": "Claude Code 配置管理工具",
-      "icon": "logo.png",
+      "icon": "claudecode.png",
       "cmds": ["Claude Code配置"]
     },
     {

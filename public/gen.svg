@@ -1,1 +1,21 @@
-<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg t="1786367487978" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="18462" xmlns:xlink="http://www.w3.org/1999/xlink" width="256" height="256"><path d="M512 1024c282.752 0 512-229.248 512-512S794.752 0 512 0 0 229.248 0 512s229.248 512 512 512z" fill="#1F50DB" p-id="18463"></path><path d="M824.917333 654.208L512 839.125333l-312.874667-184.917333v-156.416L512 682.666667l312.917333-184.874667v156.416z" fill="#468EFA" p-id="18464"></path><path d="M199.125333 497.792L512 312.874667l312.917333 184.917333L512 682.666667l-312.874667-184.874667z" fill="#6EC2FA" p-id="18465"></path><path d="M512 312.874667l-312.874667 184.917333V341.333333L512 156.458667 824.917333 341.333333v156.458667L512 312.874667z" fill="#C2EBFF" p-id="18466"></path></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="rainbow" gradientUnits="userSpaceOnUse" x1="16.5" y1="16.5" x2="81.75" y2="81.75">
+      <stop offset="0" stop-color="#FF3B30"/>
+      <stop offset="0.1429" stop-color="#FF3B30"/>
+      <stop offset="0.1429" stop-color="#FF9500"/>
+      <stop offset="0.2857" stop-color="#FF9500"/>
+      <stop offset="0.2857" stop-color="#FFCC00"/>
+      <stop offset="0.4286" stop-color="#FFCC00"/>
+      <stop offset="0.4286" stop-color="#34C759"/>
+      <stop offset="0.5714" stop-color="#34C759"/>
+      <stop offset="0.5714" stop-color="#007AFF"/>
+      <stop offset="0.7143" stop-color="#007AFF"/>
+      <stop offset="0.7143" stop-color="#5856D6"/>
+      <stop offset="0.8571" stop-color="#5856D6"/>
+      <stop offset="0.8571" stop-color="#AF52DE"/>
+      <stop offset="1" stop-color="#AF52DE"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#rainbow)" fill-rule="evenodd" d="M12.5 20.5 H87 V45.5 H99.5 V58 H87 V71 H81 V83 H75 V71.5 H68.5 V83 H62.5 V71.5 H37 V83 H31 V71.5 H24.5 V83 H18.5 V71.5 H12.5 V58.5 H0 V45.5 H12.5 Z M25 34 H30.5 V45 H25 Z M69 34 H74.5 V45 H69 Z"/>
+</svg>
