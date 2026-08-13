@@ -1,25 +1,26 @@
 # CCConfig
 
-多应用 AI 配置管理工具 — 一款 [uTools](https://u.tools/) 插件，支持 **Claude Code**、**OpenCode CLI**、**Pi Agent**、**omp**、**Reasonix** 五个 AI 工具的 API 配置切换、MCP/Skill/Plugin 管理以及使用统计分析。
+多应用 AI 配置管理工具 — 一款 [uTools](https://u.tools/) 插件，支持 **Claude Code**、**OpenCode CLI**、**Pi Agent**、**omp**、**Reasonix** 五个 AI 工具的 API 配置切换、MCP/Skill/Plugin 管理以及使用统计分析，另含「**通用配置**」应用（跨 agent 供应商/模型主数据 + 通用 MCP + 通用 Skill）。
 
 ## 功能特性
 
-- **五应用切换** — Claude Code / OpenCode CLI / Pi Agent / omp / Reasonix 独立配置，一键切换
+- **应用切换** — Claude Code / OpenCode CLI / Pi Agent / omp / Reasonix + 通用配置，各自独立配置，一键切换
 - **配置管理** — 读取、保存、切换各应用的 API 配置：
   - Claude：`~/.claude/settings.json`（7 个托管 env 字段 + 可变额外字段）
-  - OpenCode CLI：`~/.config/opencode.json` / `opencode.jsonc`（json5/jsonc 解析）
+  - OpenCode CLI：`~/.config/opencode.json` / `opencode.jsonc`（json5/jsonc 解析，优先 `.json`，不存在自动检测 `.jsonc`）
   - Pi Agent：`~/.pi/agent/settings.json` + `models.json`
   - omp：`~/.omp/agent/models.yml` 供应商/模型 + `config.yml` modelRoles
   - Reasonix：`~/.reasonix/config.toml`（smol-toml 读写，保留未知扩展字段）+ `~/.reasonix/.env` 密钥管理
+- **通用配置（跨 agent 主数据）** — 供应商/模型主数据库（uTools DB 加密存储），支持 OpenAI Chat Completions / OpenAI Responses / Anthropic Messages / Google Generative AI 四类协议；MCP 本地（`~/.mcp.json`）与云端（uTools DB）双存储、合并为单一列表管理；Skill 存放于 `~/.agents/skills`（跨 agent 共享），支持链接安装与 `.disabled` 启停
 - **MCP 配置** — 管理各应用的 MCP Server，支持实时工具发现画布
-  - Claude MCP 已迁移到官方推荐格式 `~/.mcp.json`（用户级，所有项目生效），首次读取自动合并旧来源数据并支持一键迁移
-- **Skill 管理** — 从 SkillHub / 魔搭社区一键安装 Skill（Claude Code / OpenCode CLI），支持全局与项目级 Skill 启用/禁用
-- **Plugin / Extension 管理** — Claude Marketplace 仓库 + 插件生命周期、OpenCode CLI plugin 数组、Pi Extension (npm/git)
+  - Claude MCP 读写 `~/.claude.json` 顶层 `mcpServers`（Claude Code 官方位置，单一来源，全局生效）
+- **Skill 管理** — 从 SkillHub / 魔搭社区一键安装 Skill（通用 / Claude Code / OpenCode CLI），支持全局与项目级 Skill 启用/禁用（`.disabled` 目录机制）
+- **Plugin / Extension 管理** — Claude Marketplace 仓库 + 插件生命周期、OpenCode CLI plugin 数组、Pi Extension (npm/git + pi.dev 包市场浏览)
 - **使用统计** — Token 用量、模型分布、GitHub 风格贡献墙热力图：
   - Claude：DB 缓存加速二次打开（`file_count:max_mtime` 签名校验），热力图历史持久化，JSONL 读取失败时从历史兜底重建
   - OpenCode CLI：SQLite（opencode.db）原生 `node:sqlite` 读取，Electron 沙箱下子进程回退
   - Pi Agent：JSONL sessions 解析聚合
-- **模型 CRUD** — Pi / omp / Reasonix 供应商与模型增删改，模型 ID 可编辑，Pi 支持从 `/models` API 自动拉取模型列表、设置默认模型自动切换供应商
+- **模型 CRUD** — Pi / omp / Reasonix / 通用 供应商与模型增删改，模型 ID 可编辑，Pi 支持从 `/models` API 自动拉取模型列表、设置默认模型自动切换供应商
 - **批量编辑** — 配置聚合组头部 hover 显示批量编辑按钮，一键批量修改聚合组 URL + Key
 - **导入导出** — 支持 JSON 文件方式或压缩加密字符串方式
 - **密钥加密** — API Key 使用 AES-256-CBC 加密存储到 uTools 数据库
@@ -56,12 +57,13 @@ npm run build
 
 | 关键词 | 功能 |
 |--------|------|
+| `通用配置` | 打开通用配置（跨 agent 供应商/模型主数据、MCP、Skill） |
 | `Claude Code配置` | 打开 Claude Code 配置管理 |
 | `OpenCode配置` | 打开 OpenCode CLI 配置管理 |
 | `Pi Agents配置` | 打开 Pi Agent 配置管理 |
 | `omp配置` | 打开 omp 配置管理 |
 | `Reasonix配置` | 打开 Reasonix 配置管理 |
-| 粘贴 SkillHub / 魔搭链接 | 自动进入 Claude Code / OpenCode CLI Skill 安装 |
+| 粘贴 SkillHub / 魔搭链接 | 自动进入 Skill 安装（通用 / Claude Code / OpenCode CLI） |
 | `pi install <包名>` | 自动进入 Pi Extension 安装 |
 
 ## 技术栈
@@ -70,10 +72,11 @@ npm run build
 - [Vite](https://vitejs.dev/) + esbuild（preload 打包）
 - [TDesign Vue Next](https://tdesign.tencent.com/vue-next)
 - [uTools API](https://u.tools/docs/developer/api.html)
-- [json5](https://github.com/json5/json5)（OpenCode jsonc 配置解析）
+- [json5](https://github.com/json5/json5)（OpenCode json/jsonc 配置解析）
 - [js-yaml](https://github.com/nodeca/js-yaml)（omp models.yml / config.yml 读写）
 - [smol-toml](https://github.com/squirrelchat/smol-toml)（Reasonix config.toml 读写）
 - [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk)（MCP 工具发现）
+- [ogl](https://github.com/oframe/ogl)（深色背景特效 WebGL 渲染）
 
 ## 项目结构
 
@@ -83,16 +86,21 @@ src/
 ├── App.vue                    # 根组件：uTools 路由分发 + 深色模式背景特效渲染
 ├── constants.js               # 托管 env 字段 + 环境变量预设
 ├── main.css / theme.css       # 全局样式与主题变量
-├── components/
+├── components/                # 跨应用共享组件
 │   ├── ApiKeyInput.vue        # 密码输入框（可见性切换）
 │   ├── DynamicKvEditor.vue    # 可复用 K/V 编辑器（自动补全）
 │   ├── PresetCustomInput.vue  # 预设 + 自定义输入
+│   ├── McpServerCard.vue      # 通用 MCP 卡片（#tags 插槽，本地/云端 tag）
+│   ├── McpServerDialog.vue    # 通用 MCP 添加/编辑弹窗（表单 ↔ JSON 切换，可选 showTarget）
+│   ├── McpToolDrawer.vue      # MCP 工具发现抽屉
+│   ├── SkillCard.vue          # 通用 Skill 卡片
+│   ├── SkillInstallDialog.vue # Skill 链接安装弹窗
 │   ├── PrismaticBurst.vue     # 深色背景特效：棱镜光谱爆裂
 │   ├── FaultyTerminal.vue     # 深色背景特效：故障像素终端
 │   ├── Aurora.vue             # 深色背景特效：流动极光
 │   └── Galaxy.vue             # 深色背景特效：星河漫游
 ├── composables/
-│   ├── useAppContext.js       # 五应用切换状态（Claude / OpenCode / Pi / omp / Reasonix）
+│   ├── useAppContext.js       # 应用切换状态（Claude / OpenCode / Pi / omp / Reasonix / 通用）
 │   ├── useConfigColumns.js    # 双列可拖拽瀑布流布局
 │   ├── useConfigImportExport.js  # 压缩字符串导入导出
 │   ├── useConfigSwitch.js     # 应用配置到 settings.json
@@ -101,48 +109,59 @@ src/
 │   └── useSkillInstall.js     # SkillHub / ModelScope 安装流程
 ├── utils/
 │   └── time.js                # 时间格式化工具
-└── Switch/
-    ├── index.vue              # 主界面（五应用切换 + 各应用 Tab 栏 + 设置弹窗）
+└── Switch/                    # 每个应用一个子目录（views + styles）
+    ├── index.vue              # 主界面（应用切换 + 各应用 Tab 栏 + 设置弹窗）
     ├── shared/
-    │   └── ContributionGrid.vue  # GitHub 风格贡献墙热力图
+    │   ├── ContributionGrid.vue  # GitHub 风格贡献墙热力图
+    │   └── styles/
     ├── claude/                # Claude Code 视图
     │   ├── ConfigView.vue     # 配置 CRUD + 双列布局
-    │   ├── McpView.vue        # MCP 管理（~/.mcp.json + 旧来源迁移）
+    │   ├── McpView.vue        # MCP 管理（读写 ~/.claude.json 顶层 mcpServers）
     │   ├── SkillView.vue      # Skill 管理（全局/项目级）
     │   ├── PluginView.vue     # Marketplace 仓库 + 插件生命周期
     │   ├── UsageView.vue      # 使用统计（DB 缓存 + 热力图历史合并）
     │   └── styles/
     ├── opencode/              # OpenCode CLI 视图
-    │   ├── ConfigView.vue     # provider CRUD + models.dev 预设
+    │   ├── ConfigView.vue     # Provider CRUD（Provider Collapse + 卡片内模型管理）
     │   ├── McpView.vue        # MCP 管理（LOCAL/REMOTE）
     │   ├── SkillView.vue      # Skill 管理
     │   ├── PluginView.vue     # plugin 数组管理
-    │   ├── UsageView.vue      # 使用统计（opencode.db SQLite）
+    │   ├── UsageView.vue      # 使用统计（opencode.db SQLite + JSON 兜底）
     │   └── styles/
     ├── pi/                    # Pi Agent 视图
-    │   ├── ConfigView.vue     # 供应商/模型 CRUD + 自动拉取
+    │   ├── ConfigView.vue     # 供应商/模型 CRUD + 自动拉取 + 默认模型自动切换供应商
     │   ├── McpView.vue        # MCP（来自扩展）
     │   ├── SkillView.vue      # Skill（来自扩展）
-    │   ├── PluginView.vue     # Extension（npm/git）
+    │   ├── PluginView.vue     # Extension（npm/git + pi.dev 市场浏览）
     │   ├── UsageView.vue      # 使用统计（JSONL sessions）
     │   └── styles/
     ├── omp/                   # omp 视图
     │   ├── ConfigView.vue     # modelRoles + 供应商/模型 CRUD
     │   └── styles/
-    └── reasonix/              # Reasonix 视图
-        ├── ConfigView.vue     # 供应商/模型/默认模型 + .env 密钥管理
+    ├── reasonix/              # Reasonix 视图
+    │   ├── ConfigView.vue     # 供应商/模型/默认模型 + .env 密钥管理
+    │   └── styles/
+    └── common/                # 通用配置（跨 agent 主数据）
+        ├── ConfigView.vue     # 供应商/模型主数据库 CRUD（四协议）
+        ├── McpView.vue        # MCP：本地 ~/.mcp.json + 云端 DB 合并单一列表
+        ├── SkillView.vue      # Skill：只读扫描 ~/.agents/skills + 链接安装 + .disabled 启停
         └── styles/
 public/
 ├── plugin.json                # uTools 插件配置（关键词/特性）
-├── logo.png / icon-opencode.png / icon-pi.png / omp-icon.svg / reasonix.svg
+├── logo.png                   # 插件主 logo（45° 彩虹星芒）
+├── gen.svg                    # 通用配置功能图标
+├── claudecode.png             # Claude Code 专属图标
+├── icon-opencode.png / icon-pi.png / omp-icon.svg / reasonix.svg
 └── preload/
     ├── services.js            # 服务入口 → window.services
+    ├── package.json           # Preload 依赖清单（json5 / js-yaml / smol-toml）
     └── services/
-        ├── config.js          # Claude settings/claude.json I/O + ~/.mcp.json 读写与迁移
+        ├── config.js          # Claude settings.json / ~/.claude.json I/O（含顶层 mcpServers）、压缩、持久化
+        ├── common.js          # 通用配置：供应商/模型主数据 + 本地/云端 MCP + ~/.agents/skills Skill
         ├── crypto.js          # AES-256-CBC 加密 + 替换加密
-        ├── mcp.js             # MCP 管理 + SDK 工具发现（STDIO/HTTP/SSE）
+        ├── mcp.js             # MCP 启停 + SDK 工具发现（STDIO/HTTP/SSE）
         ├── plugins.js         # Claude 插件 Marketplace / 组件发现
-        ├── opencode.js        # OpenCode CLI 配置 CRUD（json5/jsonc）+ models.dev 预设 + SQLite 统计
+        ├── opencode.js        # OpenCode CLI 配置 CRUD（json5/jsonc）+ SQLite/JSON 统计
         ├── pi.js              # Pi Agent 供应商/模型/扩展 CRUD + /models API 自动拉取
         ├── omp.js             # omp modelRoles + models.yml providers CRUD（js-yaml）
         ├── reasonix.js        # Reasonix config.toml + .env 读写（smol-toml）
@@ -154,15 +173,21 @@ public/
 ```
 Claude:
   ~/.claude/settings.json  ←→  uTools DB（AES-256-CBC 加密）
-  ~/.mcp.json（MCP，官方推荐格式，用户级）←→ 自动合并旧来源（~/.claude/.mcp.json、~/.claude.json 顶层 mcpServers）+ 一键迁移
+  ~/.claude.json 顶层 mcpServers（MCP，官方位置，单一来源，全局生效）←→ uTools DB（禁用状态）
   ~/.claude/skills/（全局）+ 项目级 .claude/skills/ + .disabled 目录
   ~/.claude/projects/**/*.jsonl  →  使用统计：
       signature = file_count:max_mtime 校验 → DB 缓存命中秒开
       热力图历史持久化（ccswitch_heatmap_*），全量解析后与历史按日期合并
       JSONL 读取失败时 readPersistedUsage 从历史兜底重建统计
 
+通用配置（跨 agent 主数据）:
+  供应商/模型主数据 → uTools DB（ccswitch_common_providers，API Key 加密）
+  通用 MCP → uTools DB（ccswitch_common_mcp）+ 本地 ~/.mcp.json 双存储，按名称合并单一列表，本地/云端 tag 标注，支持双端复制/移除
+  通用 Skill → 只读扫描 ~/.agents/skills（SKILL.md 元数据），启停 = 物理移动目录到 .disabled/（同 Claude Code 机制）
+  协议类型：OpenAI Chat Completions / OpenAI Responses / Anthropic Messages / Google Generative AI
+
 OpenCode CLI:
-  ~/.config/opencode.json / opencode.jsonc (json5/jsonc)  ←→  uTools DB
+  ~/.config/opencode.json / opencode.jsonc (json5/jsonc，优先 .json)  ←→  uTools DB
   使用统计：
     数据目录（全平台）：~/.local/share/opencode/opencode.db
     回退候选：%LOCALAPPDATA%\opencode\ → ~/AppData/Local/opencode\ → storage/*.json
