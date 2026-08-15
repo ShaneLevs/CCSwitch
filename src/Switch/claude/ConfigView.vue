@@ -31,10 +31,14 @@ import { useConfigColumns } from "../../composables/useConfigColumns";
 import { useConfigImportExport } from "../../composables/useConfigImportExport";
 import { useConfigSwitch } from "../../composables/useConfigSwitch";
 import { useExtraFields } from "../../composables/useExtraFields";
+import { managedFields } from "../../constants";
 import "./styles/ConfigView.css";
 
 const strip1m = (v) => (v || '').replace(/\[1m\]$/i, '');
 const has1m = (v) => /\[1m\]$/i.test(v || '');
+
+// OpenCode Go 预设：baseUrl 固定，模型候选由 /v1/models 实时获取（不写死）
+const OPENCODE_GO_BASE_URL = "https://opencode.ai/zen/go";
 
 const effortLevelClass = (level) => level ? `effort-${level}` : '';
 
@@ -42,6 +46,7 @@ const DB_PREFIX = "ccswitch_config_";
 
 const currentConfig = ref({
   key: "",
+  authVar: "ANTHROPIC_AUTH_TOKEN",
   baseUrl: "",
   model: "",
   defaultHaikuModel: "",
@@ -62,6 +67,7 @@ const batchKey = ref("");
 const formData = ref({
   name: "",
   key: "",
+  authVar: "ANTHROPIC_AUTH_TOKEN",
   baseUrl: "",
   model: "",
   model1m: false,
@@ -75,6 +81,36 @@ const formData = ref({
   subagentModel1m: false,
   extraFields: [],
 });
+
+// OpenCode Go 预设：模型候选由 /v1/models 实时获取
+const opencodeGoModels = ref([]);
+const opencodeGoLoading = ref(false);
+let _goModelsFetching = false;
+const loadOpencodeGoModels = async () => {
+  if (_goModelsFetching) return;
+  _goModelsFetching = true;
+  opencodeGoLoading.value = true;
+  try {
+    const ids = await window.services.fetchOpencodeGoModels();
+    opencodeGoModels.value = ids.map(id => ({ label: id, value: id }));
+    MessagePlugin.success(`已获取 ${ids.length} 个 OpenCode Go 模型`);
+  } catch (error) {
+    opencodeGoModels.value = [];
+    MessagePlugin.error(`获取 OpenCode Go 模型失败: ${error.message}`);
+  } finally {
+    _goModelsFetching = false;
+    opencodeGoLoading.value = false;
+  }
+};
+// URL 为 OpenCode Go 时自动切认证方式并实时获取模型候选
+const syncOpencodeGoFromUrl = (url) => {
+  const clean = (url || '').trim().replace(/\/+$/, '');
+  if (clean === OPENCODE_GO_BASE_URL) {
+    formData.value.authVar = 'ANTHROPIC_API_KEY';
+    loadOpencodeGoModels();
+  }
+};
+watch(() => formData.value.baseUrl, syncOpencodeGoFromUrl);
 
 // 当用户手动在输入框输入 [1m] 时，同步勾选复选框并自动清除输入中的 [1m]
 // 输入框为空时，同步取消勾选 1m
@@ -113,8 +149,13 @@ const hasModelFields = computed(() =>
 const loadCurrentConfig = () => {
   const settings = window.services.readClaudeSettings();
   if (settings?.env) {
+    // 镜像 Claude Code 优先级：AUTH_TOKEN 优先，为空才读 API_KEY
+    const authToken = settings.env.ANTHROPIC_AUTH_TOKEN || "";
+    const apiKey = settings.env.ANTHROPIC_API_KEY || "";
+    const authVar = authToken ? 'ANTHROPIC_AUTH_TOKEN' : (apiKey ? 'ANTHROPIC_API_KEY' : 'ANTHROPIC_AUTH_TOKEN');
     currentConfig.value = {
-      key: settings.env.ANTHROPIC_AUTH_TOKEN || "",
+      key: authToken || apiKey,
+      authVar,
       baseUrl: settings.env.ANTHROPIC_BASE_URL || "",
       model: settings.env.ANTHROPIC_MODEL || "",
       defaultHaikuModel: settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL || "",
@@ -143,6 +184,7 @@ const loadSavedConfigs = () => {
           defaultSonnetModel: d.defaultSonnetModel || "",
           defaultOpusModel: d.defaultOpusModel || "",
           subagentModel: d.subagentModel || "",
+          authVar: d.authVar || 'ANTHROPIC_AUTH_TOKEN',
           extraFields: d.extraFields || [],
           updatedAt: d.updatedAt,
         };
@@ -153,6 +195,7 @@ const loadSavedConfigs = () => {
         id: d._id,
         name: d.name,
         key: window.services.decryptKey(d.key),
+        authVar: d.authVar || 'ANTHROPIC_AUTH_TOKEN',
         baseUrl: d.baseUrl,
         model: d.model,
         defaultHaikuModel: d.defaultHaikuModel || "",
@@ -194,6 +237,7 @@ const openCreateDialog = () => {
   formData.value = {
     name: "",
     key: "",
+    authVar: "ANTHROPIC_AUTH_TOKEN",
     baseUrl: "",
     ...configModelsToForm({}),
     extraFields: [],
@@ -210,6 +254,7 @@ const openEditDialog = (config) => {
   formData.value = {
     name: config.name,
     key: config.key,
+    authVar: config.authVar || 'ANTHROPIC_AUTH_TOKEN',
     baseUrl: config.baseUrl,
     ...configModelsToForm(config),
     extraFields: fields,
@@ -220,6 +265,7 @@ const openEditDialog = (config) => {
 
 const fillCurrentConfig = () => {
   formData.value.key = currentConfig.value.key;
+  formData.value.authVar = currentConfig.value.authVar || 'ANTHROPIC_AUTH_TOKEN';
   formData.value.baseUrl = currentConfig.value.baseUrl;
   Object.assign(formData.value, configModelsToForm(currentConfig.value));
 };
@@ -284,6 +330,7 @@ const saveConfig = () => {
     _id: id,
     name: formData.value.name.trim(),
     key: window.services.encryptKey(formData.value.key.trim()),
+    authVar: formData.value.authVar || 'ANTHROPIC_AUTH_TOKEN',
     baseUrl: formData.value.baseUrl.trim(),
     model: buildModelValue('model', formData.value.model1m),
     defaultHaikuModel: buildModelValue('defaultHaikuModel', formData.value.defaultHaikuModel1m),
@@ -381,14 +428,17 @@ const checkFirstOpen = () => {
 
   const settings = window.services.readClaudeSettings();
   const token = settings?.env?.ANTHROPIC_AUTH_TOKEN;
+  const apiKey = settings?.env?.ANTHROPIC_API_KEY;
   const url = settings?.env?.ANTHROPIC_BASE_URL;
 
-  if (token && url) {
+  if ((token || apiKey) && url) {
     const now = Date.now();
+    const authVar = token ? 'ANTHROPIC_AUTH_TOKEN' : 'ANTHROPIC_API_KEY';
     const doc = {
       _id: DB_PREFIX + now,
       name: 'default',
-      key: window.services.encryptKey(token),
+      key: window.services.encryptKey(token || apiKey),
+      authVar,
       baseUrl: url,
       model: settings.env.ANTHROPIC_MODEL || '',
       defaultHaikuModel: settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL || '',
@@ -415,7 +465,7 @@ const showClearDialog = ref(false);
 
 const clearConfirmContent = computed(() => {
   const items = [];
-  if (currentConfig.value.key) items.push('Token (ANTHROPIC_AUTH_TOKEN)');
+  if (currentConfig.value.key) items.push(`Token (${currentConfig.value.authVar || 'ANTHROPIC_AUTH_TOKEN'})`);
   if (currentConfig.value.baseUrl) items.push('URL (ANTHROPIC_BASE_URL)');
   if (currentConfig.value.model) items.push('默认模型 (ANTHROPIC_MODEL)');
   if (currentConfig.value.defaultHaikuModel) items.push('Haiku 模型');
@@ -429,10 +479,7 @@ const confirmClearConfig = () => {
   const settings = window.services.readClaudeSettings();
   if (!settings?.env) return;
 
-  const managedFieldsList = ['ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL',
-    'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL',
-    'ANTHROPIC_DEFAULT_OPUS_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL'];
-  managedFieldsList.forEach(key => delete settings.env[key]);
+  managedFields.forEach(key => delete settings.env[key]);
 
   if (window.services.writeClaudeSettings(settings)) {
     MessagePlugin.success('已清除配置');
@@ -453,7 +500,7 @@ const reloadFromSettings = () => {
   const settings = window.services.readClaudeSettings() || {};
   const env = settings.env || {};
   const managedKeys = [
-    'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL',
+    'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL',
     'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL',
     'ANTHROPIC_DEFAULT_OPUS_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL',
   ];
@@ -627,15 +674,21 @@ onMounted(() => { loadCurrentConfig(); checkFirstOpen(); loadSavedConfigs(); loa
       <div v-if="dialogTab === 'basic'" class="form">
         <div class="form-item"><label>名称 <span class="required">*</span></label><Input v-model="formData.name" placeholder="方便分辨的名字" /></div>
         <div class="form-item"><label>URL <span class="required">*</span></label><Input v-model="formData.baseUrl" placeholder="ANTHROPIC_BASE_URL" /></div>
-        <div class="form-item"><label>TOKEN <span class="required">*</span></label><Input v-model="formData.key" type="password" placeholder="ANTHROPIC_AUTH_TOKEN" /></div>
+        <div class="form-item"><label>认证方式</label>
+          <RadioGroup v-model="formData.authVar" variant="default-filled" size="small" class="auth-var-group">
+            <RadioButton value="ANTHROPIC_AUTH_TOKEN">AUTH_TOKEN</RadioButton>
+            <RadioButton value="ANTHROPIC_API_KEY">API_KEY</RadioButton>
+          </RadioGroup>
+        </div>
+        <div class="form-item"><label>TOKEN <span class="required">*</span></label><Input v-model="formData.key" type="password" :placeholder="formData.authVar || 'ANTHROPIC_AUTH_TOKEN'" /></div>
         <div class="form-hint">设置默认对话模型，留空则跟随系统默认</div>
-        <div class="form-item"><label>MODEL</label><Input v-model="formData.model" placeholder="ANTHROPIC_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.model1m" size="small" :disabled="!formData.model" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
+        <div class="form-item"><label>MODEL</label><AutoComplete v-model="formData.model" :options="opencodeGoModels.length ? opencodeGoModels : null" filterable placeholder="ANTHROPIC_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.model1m" size="small" :disabled="!formData.model" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
         <div class="form-hint">分别指定各层级模型版本，留空则使用系统默认分配</div>
-        <div class="form-item"><label>HAIKU</label><Input v-model="formData.defaultHaikuModel" placeholder="ANTHROPIC_DEFAULT_HAIKU_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultHaikuModel1m" size="small" :disabled="!formData.defaultHaikuModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
-        <div class="form-item"><label>SONNET</label><Input v-model="formData.defaultSonnetModel" placeholder="ANTHROPIC_DEFAULT_SONNET_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultSonnetModel1m" size="small" :disabled="!formData.defaultSonnetModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
-        <div class="form-item"><label>OPUS</label><Input v-model="formData.defaultOpusModel" placeholder="ANTHROPIC_DEFAULT_OPUS_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultOpusModel1m" size="small" :disabled="!formData.defaultOpusModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
+        <div class="form-item"><label>HAIKU</label><AutoComplete v-model="formData.defaultHaikuModel" :options="opencodeGoModels.length ? opencodeGoModels : null" filterable placeholder="ANTHROPIC_DEFAULT_HAIKU_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultHaikuModel1m" size="small" :disabled="!formData.defaultHaikuModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
+        <div class="form-item"><label>SONNET</label><AutoComplete v-model="formData.defaultSonnetModel" :options="opencodeGoModels.length ? opencodeGoModels : null" filterable placeholder="ANTHROPIC_DEFAULT_SONNET_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultSonnetModel1m" size="small" :disabled="!formData.defaultSonnetModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
+        <div class="form-item"><label>OPUS</label><AutoComplete v-model="formData.defaultOpusModel" :options="opencodeGoModels.length ? opencodeGoModels : null" filterable placeholder="ANTHROPIC_DEFAULT_OPUS_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultOpusModel1m" size="small" :disabled="!formData.defaultOpusModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
         <div class="form-hint">设置子代理（工具调用、后台任务等）使用的模型</div>
-        <div class="form-item"><label>SUBAGENT</label><Input v-model="formData.subagentModel" placeholder="CLAUDE_CODE_SUBAGENT_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.subagentModel1m" size="small" :disabled="!formData.subagentModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></Input></div>
+        <div class="form-item"><label>SUBAGENT</label><AutoComplete v-model="formData.subagentModel" :options="opencodeGoModels.length ? opencodeGoModels : null" filterable placeholder="CLAUDE_CODE_SUBAGENT_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.subagentModel1m" size="small" :disabled="!formData.subagentModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
       </div>
       <div v-else class="extra-fields-dialog">
         <div class="extra-fields-hint">
@@ -726,7 +779,7 @@ onMounted(() => { loadCurrentConfig(); checkFirstOpen(); loadSavedConfigs(); loa
     <Dialog v-model:visible="showPreviewDialog" header="配置详情" width="560px" :footer="false">
       <div v-if="previewConfig" class="preview-content">
         <div class="preview-item"><span class="preview-label">配置名称</span><span class="preview-value">{{ previewConfig.name }}</span></div>
-        <div class="preview-item"><span class="preview-label">AUTH_TOKEN</span><span class="preview-value">{{ maskKey(previewConfig.key) || "未设置" }}</span></div>
+        <div class="preview-item"><span class="preview-label">{{ previewConfig.authVar || 'ANTHROPIC_AUTH_TOKEN' }}</span><span class="preview-value">{{ maskKey(previewConfig.key) || "未设置" }}</span></div>
         <div class="preview-item"><span class="preview-label">BASE_URL</span><span class="preview-value">{{ previewConfig.baseUrl || "未设置" }}</span></div>
         <div class="preview-item"><span class="preview-label">MODEL</span><span class="preview-value">{{ previewConfig.model || "未设置" }}</span></div>
         <div v-if="previewConfig.defaultHaikuModel || previewConfig.defaultSonnetModel || previewConfig.defaultOpusModel" class="preview-divider"></div>
@@ -817,7 +870,7 @@ onMounted(() => { loadCurrentConfig(); checkFirstOpen(); loadSavedConfigs(); loa
     <Dialog v-model:visible="showBatchEditDialog" header="批量编辑此组" width="560px" @confirm="saveBatchEdit">
       <div class="form">
         <div class="form-item"><label>URL <span class="required">*</span></label><Input v-model="batchUrl" placeholder="ANTHROPIC_BASE_URL" /></div>
-        <div class="form-item"><label>TOKEN <span class="required">*</span></label><Input v-model="batchKey" type="password" placeholder="ANTHROPIC_AUTH_TOKEN" /></div>
+        <div class="form-item"><label>KEY <span class="required">*</span></label><Input v-model="batchKey" type="password" placeholder="认证 Key" /></div>
       </div>
       <div class="batch-edit-hint">将更新本组共 {{ batchEditGroup?.configs.length }} 个配置的 URL 与 Key。</div>
     </Dialog>

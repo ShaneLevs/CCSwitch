@@ -16,8 +16,12 @@ export function useConfigSwitch(currentConfig, loadCurrentConfig) {
       window.services.saveOverriddenEnv(baseExtras);
     }
 
-    // 2. 设置核心字段
-    settings.env.ANTHROPIC_AUTH_TOKEN = config.key;
+    // 2. 设置核心字段：按认证方式写对应变量，两者互斥（只保留一个）
+    const authVar = config.authVar || 'ANTHROPIC_AUTH_TOKEN';
+    ['ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_API_KEY'].forEach(v => {
+      if (v !== authVar) delete settings.env[v];
+    });
+    settings.env[authVar] = config.key;
     settings.env.ANTHROPIC_BASE_URL = config.baseUrl;
 
     const modelFields = [
@@ -50,8 +54,9 @@ export function useConfigSwitch(currentConfig, loadCurrentConfig) {
       if (k) mergedExtras[k] = v;
     });
 
-    // 5. 写入合并后的字段
+    // 5. 写入合并后的字段（托管字段除外，避免 DB 残留的 auth 变量覆盖互斥逻辑）
     Object.entries(mergedExtras).forEach(([k, v]) => {
+      if (managedFields.includes(k)) return;
       settings.env[k] = v;
     });
 
@@ -72,6 +77,7 @@ export function useConfigSwitch(currentConfig, loadCurrentConfig) {
 
   const isCurrentConfig = (config) =>
     config.key === currentConfig.value.key &&
+    (config.authVar || 'ANTHROPIC_AUTH_TOKEN') === (currentConfig.value.authVar || 'ANTHROPIC_AUTH_TOKEN') &&
     config.baseUrl === currentConfig.value.baseUrl &&
     (config.model || "") === (currentConfig.value.model || "") &&
     (config.defaultHaikuModel || "") === (currentConfig.value.defaultHaikuModel || "") &&
