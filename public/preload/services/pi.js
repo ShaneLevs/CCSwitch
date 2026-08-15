@@ -101,20 +101,124 @@ const writeJson = (filePath, data) => {
   });
 };
 
+// ==================== 执行环境（uTools PATH 精简兜底） ====================
+
+// uTools 从 Dock/Finder 启动时子进程 PATH 很精简（如 /usr/bin:/bin:/usr/sbin:/sbin），
+// 而 pi 入口脚本 shebang 是 #!/usr/bin/env node，内部还会调 bun/npm 装包管理器。
+// 这里把常见 bin 目录补进 PATH，保证 env node / env bun / env npm 都能解析到。
+
+const getExtraPathDirs = () => {
+  const home = require("os").homedir();
+  const dirs = [
+    path.join(home, ".bun", "bin"),
+    "/usr/local/bin",
+    "/opt/homebrew/bin",
+    path.join(home, ".npm-global", "bin"),
+    path.join(home, ".local", "bin"),
+    path.join(home, ".volta", "bin"),
+    path.join(home, ".fnm", "aliases", "default", "bin"),
+    path.join(home, ".asdf", "shims"),
+    path.join(home, ".local", "share", "mise", "shims"),
+    path.join(home, ".nix-profile", "bin"),
+  ];
+  // nvm 各版本 node
+  try {
+    const nvmRoot = path.join(home, ".nvm", "versions", "node");
+    if (fs.existsSync(nvmRoot)) {
+      for (const v of fs.readdirSync(nvmRoot))
+        dirs.push(path.join(nvmRoot, v, "bin"));
+    }
+  } catch {
+    /* ignore */
+  }
+  return dirs;
+};
+
+const buildPiEnv = () => {
+  const env = { ...process.env };
+  delete env.CLAUDECODE;
+  const extra = getExtraPathDirs().filter((d) => {
+    try {
+      return fs.existsSync(d);
+    } catch {
+      return false;
+    }
+  });
+  if (extra.length) env.PATH = [...extra, env.PATH || ""].join(path.delimiter);
+  return env;
+};
+
+// 查找解释器绝对路径（node / bun），用于绕过 shebang 的 env 解析
+const resolveInterpreter = (name) => {
+  const home = require("os").homedir();
+  const candidates =
+    name === "bun"
+      ? [
+          path.join(home, ".bun", "bin", "bun"),
+          "/usr/local/bin/bun",
+          "/opt/homebrew/bin/bun",
+        ]
+      : [
+          "/usr/local/bin/node",
+          "/opt/homebrew/bin/node",
+          path.join(home, ".volta", "bin", "node"),
+          path.join(home, ".fnm", "aliases", "default", "bin", "node"),
+        ];
+  if (name === "node") {
+    try {
+      const nvmRoot = path.join(home, ".nvm", "versions", "node");
+      if (fs.existsSync(nvmRoot)) {
+        const vers = fs.readdirSync(nvmRoot).sort();
+        for (const v of vers)
+          candidates.push(path.join(nvmRoot, v, "bin", "node"));
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  for (const c of candidates) {
+    try {
+      if (fs.existsSync(c)) return c;
+    } catch {
+      /* ignore */
+    }
+  }
+  return "";
+};
+
+// 解析 pi 真实入口：symlink 指向 node/bun 脚本时，直接以解释器绝对路径启动，
+// 避免精简 PATH 下 #!/usr/bin/env node 找不到解释器（env: node: No such file or directory）
+const resolvePiInvocation = (piBin) => {
+  if (piBin.includes("|")) return piBin;
+  try {
+    const real = fs.realpathSync(piBin);
+    if (!real || real === piBin) return piBin;
+    const head = fs.readFileSync(real, { encoding: "utf-8" }).slice(0, 200);
+    const m = head.match(/^#!\s*(?:\/usr\/bin\/env(?:\s+-S)?\s+)?(\S+)/);
+    if (!m) return piBin;
+    const interp = m[1];
+    if (interp.startsWith("/")) return `${interp}|${real}`;
+    const exe = resolveInterpreter(interp);
+    if (!exe) return piBin;
+    return `${exe}|${real}`;
+  } catch {
+    return piBin;
+  }
+};
+
 const runPiCmd = (args, timeout) =>
   new Promise((resolve) => {
-    const piBin = resolvePiPath();
-    const env = { ...process.env };
-    delete env.CLAUDECODE;
+    const env = buildPiEnv();
     const ms = timeout || PI_CMD_TIMEOUT.default;
+    const invocation = resolvePiInvocation(resolvePiPath());
 
     let command, spawnArgs;
-    if (piBin.includes("|")) {
-      const [nodeExe, cliPath] = piBin.split("|");
-      command = nodeExe;
+    if (invocation.includes("|")) {
+      const [exe, cliPath] = invocation.split("|");
+      command = exe;
       spawnArgs = [cliPath, ...args];
     } else {
-      command = piBin;
+      command = invocation;
       spawnArgs = args;
     }
 
@@ -928,6 +1032,7 @@ const isPiInstalled = () => {
       encoding: "utf-8",
       timeout: 8000,
       shell: true,
+      env: buildPiEnv(),
     });
     return !!out.trim();
   } catch {
