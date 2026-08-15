@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const zlib = require('node:zlib')
+const https = require('node:https')
 
 const CLAUDE_SETTINGS_PATH = path.join(window.utools.getPath('home'), '.claude', 'settings.json')
 const CLAUDE_JSON_PATH = path.join(window.utools.getPath('home'), '.claude.json')
@@ -236,6 +237,41 @@ const getUsageCache = () => {
   }
 }
 
+// GET https://opencode.ai/zen/go/v1/models —— OpenCode Go 可用模型列表（实时获取，不写死）
+const fetchOpencodeGoModels = (timeout = 10_000) => new Promise((resolve, reject) => {
+  const req = https.get({
+    hostname: 'opencode.ai',
+    port: 443,
+    path: '/zen/go/v1/models',
+    headers: { 'accept': 'application/json' },
+    timeout,
+  }, (res) => {
+    const ct = (res.headers['content-type'] || '').toLowerCase()
+    if (res.statusCode < 200 || res.statusCode >= 300 || (ct && !ct.includes('json'))) {
+      res.resume()
+      return reject(new Error(`HTTP ${res.statusCode}${ct ? ` (${ct.split(';')[0]})` : ''}`))
+    }
+    let data = ''
+    res.on('data', c => data += c)
+    res.on('end', () => {
+      try {
+        const parsed = JSON.parse(data)
+        const list = parsed.data || parsed.models || parsed
+        if (!Array.isArray(list)) return reject(new Error('响应格式错误'))
+        const ids = list.map(m => {
+          const item = typeof m === 'string' ? { id: m } : (m || {})
+          return item.id || item.name || ''
+        }).filter(Boolean)
+        resolve([...new Set(ids)])
+      } catch (error) {
+        reject(new Error(`解析模型列表失败: ${error.message}`))
+      }
+    })
+  })
+  req.on('error', reject)
+  req.on('timeout', () => { req.destroy(); reject(new Error('请求超时')) })
+})
+
 module.exports = {
   CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_SKILLS_PATH,
   readClaudeSettings, writeClaudeSettings, getClaudeSettingsPath,
@@ -246,4 +282,5 @@ module.exports = {
   compressConfigs, decompressConfigs,
   saveOverriddenEnv, getOverriddenEnv, saveHeatmapHistory, getHeatmapHistory,
   saveUsageCache, getUsageCache,
+  fetchOpencodeGoModels,
 }

@@ -149,6 +149,8 @@
 .form-item-vertical { display: flex; flex-direction: column; gap: 8px; }
 .form-item-vertical label { font-size: 14px; color: var(--td-text-color-primary); }
 .form-hint { font-size: 12px; color: var(--td-text-color-placeholder); padding-left: 92px; margin-top: -10px; margin-bottom: -10px; }
+.form-preset-row { display: flex; align-items: center; gap: 8px; padding-left: 92px; margin-top: -6px; }
+.form-preset-tip { font-size: 12px; color: var(--td-text-color-placeholder); }
 .form-item .required { color: var(--td-error-color); }
 .model-1m-checkbox { font-size: 12px; white-space: nowrap; --td-brand-color: var(--td-success-color); margin-right: -4px; max-width: 50px; }
 .model-1m-checkbox .t-checkbox__label { font-size: 12px; font-family: monospace; padding-left: 2px; }

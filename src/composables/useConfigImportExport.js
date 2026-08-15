@@ -13,6 +13,7 @@ export function useConfigImportExport(savedConfigs, loadSavedConfigs) {
       cfg[`n${idx}`] = c.name;
       if (keyDict.has(c.key)) { cfg[`k${idx}`] = `k${keyDict.get(c.key)}`; } else { cfg[`k${idx}`] = c.key; keyDict.set(c.key, idx); }
       if (urlDict.has(c.baseUrl)) { cfg[`u${idx}`] = `u${urlDict.get(c.baseUrl)}`; } else { cfg[`u${idx}`] = c.baseUrl; urlDict.set(c.baseUrl, idx); }
+      if (c.authVar && c.authVar !== 'ANTHROPIC_AUTH_TOKEN') cfg[`a${idx}`] = c.authVar;
       if (c.model) cfg[`m${idx}`] = c.model;
       if (c.defaultHaikuModel) cfg[`h${idx}`] = c.defaultHaikuModel;
       if (c.defaultSonnetModel) cfg[`s${idx}`] = c.defaultSonnetModel;
@@ -41,6 +42,7 @@ export function useConfigImportExport(savedConfigs, loadSavedConfigs) {
       configs.push({
         name: raw[`n${idx}`],
         key,
+        authVar: raw[`a${idx}`] || 'ANTHROPIC_AUTH_TOKEN',
         baseUrl: url,
         model: raw[`m${idx}`],
         defaultHaikuModel: raw[`h${idx}`],
@@ -58,6 +60,7 @@ export function useConfigImportExport(savedConfigs, loadSavedConfigs) {
         _id: DB_PREFIX + Date.now() + "_" + Math.random().toString(36).substr(2, 9),
         name: c.name.trim(),
         key: window.services.encryptKey(c.key),
+        authVar: c.authVar || 'ANTHROPIC_AUTH_TOKEN',
         baseUrl: c.baseUrl?.trim() || "",
         model: c.model?.trim() || "",
         defaultHaikuModel: c.defaultHaikuModel?.trim() || "",
