@@ -1328,6 +1328,7 @@ window.services = {
   installPiExtension: pi.installPiExtension,
   uninstallPiExtension: pi.uninstallPiExtension,
   fetchPiDevPackages: pi.fetchPiDevPackages,
+  fetchPiDevPackage: pi.fetchPiDevPackage,
   isPiInstalled: pi.isPiInstalled,
   getPiSkills: pi.getPiSkills,
   getPiMcpServers: pi.getPiMcpServers,

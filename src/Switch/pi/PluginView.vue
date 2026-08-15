@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import {
-  Card, Empty, Button, Dialog, Input, MessagePlugin, Space, Tag, Popconfirm, Tooltip, Select, Alert, RadioGroup, RadioButton,
+  Card, Empty, Button, Dialog, Input, MessagePlugin, Tag, Popconfirm, Tooltip, Select, Alert, RadioGroup, RadioButton, Pagination,
 } from "tdesign-vue-next";
 import { AddIcon, DeleteIcon, RefreshIcon, LinkIcon, SearchIcon, DownloadIcon } from "tdesign-icons-vue-next";
 import "./styles/PluginView.css";
@@ -168,8 +168,11 @@ const openMarket = async () => {
 };
 
 const marketSearch = () => loadMarket(1);
-const marketGoPage = (page) => {
+// TDesign Pagination 翻页：先更新 current 再加载
+const onMarketPageChange = (info) => {
+  const page = (info && info.current) || info;
   if (page < 1 || page > marketLastPage.value || page === marketPage.value) return;
+  marketPage.value = page;
   loadMarket(page);
 };
 
@@ -210,13 +213,83 @@ const installFromMarket = async (pkg) => {
   }
 };
 
+// ==================== 包详情弹窗 ====================
+
+const detailVisible = ref(false);
+const detailLoading = ref(false);
+const detailError = ref("");
+const detail = ref(null);
+const detailName = ref("");
+
+const openPackageDetail = async (pkg) => {
+  detail.value = null;
+  detailError.value = "";
+  detailName.value = (pkg && pkg.name) || "";
+  detailLoading.value = true;
+  detailVisible.value = true;
+  try {
+    detail.value = await window.services.fetchPiDevPackage(detailName.value);
+  } catch (e) {
+    detailError.value =
+      (e && (e.message || e.stack || String(e))) || "加载包详情失败";
+  } finally {
+    detailLoading.value = false;
+  }
+};
+
+const retryDetail = () => {
+  if (detailName.value) openPackageDetail({ name: detailName.value });
+};
+
+const openExternal = (url) => {
+  try {
+    window.utools?.shellOpenExternal(url);
+  } catch {
+    /* ignore */
+  }
+};
+
+const copyInstallCmd = () => {
+  if (detail.value && detail.value.install) {
+    window.utools.copyText(detail.value.install);
+    MessagePlugin.success("已复制安装命令");
+  }
+};
+
+const installFromDetail = async () => {
+  if (!detail.value || installingName.value) return;
+  const pkg = detail.value;
+  installingName.value = pkg.name;
+  try {
+    const result = await window.services.installPiExtension(`npm:${pkg.name}`);
+    if (result.success) {
+      MessagePlugin.success(`${pkg.name} 安装完成`);
+      refreshInstalledNames();
+      loadPlugins();
+    } else {
+      MessagePlugin.error("安装失败: " + (result.message || "未知错误"));
+    }
+  } catch (e) {
+    MessagePlugin.error("安装失败: " + (e.stderr || e.message || "未知错误"));
+  } finally {
+    installingName.value = "";
+  }
+};
+
+// README 内链接：拦截点击，用系统浏览器打开
+const onReadmeClick = (e) => {
+  const a = e.target && e.target.closest ? e.target.closest("a") : null;
+  if (a && a.href && /^https?:/i.test(a.href)) {
+    e.preventDefault();
+    openExternal(a.href);
+  }
+};
+
 const resourceBadges = [
   { key: "extensions", label: "扩展", color: "#1890ff" },
   { key: "skills", label: "Skills", color: "#f5222d" },
   { key: "mcpServers", label: "MCP", color: "#13c2c2" },
 ];
-
-const formatSource = (src) => src ? src.replace(/^npm:/, '') : '';
 
 onMounted(() => {
   setTimeout(() => { loadPlugins(); loading.value = false; }, 50);
@@ -232,23 +305,7 @@ defineExpose({ installFromUrl });
 
 <template>
   <div class="pi-plugin-container">
-    <div class="pi-plugin-header">
-      <div class="pi-plugin-header-left">
-        <span class="pi-plugin-tip">
-          Pi Agent 扩展（pi install npm:package）
-          <span class="pi-plugin-dir-link" @click="window.services.openPiDir()">~/.pi/agent</span>
-        </span>
-      </div>
-      <div class="pi-plugin-actions">
-        <Tooltip content="刷新" placement="top">
-          <Button size="small" variant="outline" :loading="loading" @click="refresh">
-            <template #icon><RefreshIcon /></template>
-          </Button>
-        </Tooltip>
-      </div>
-    </div>
-
-    <!-- 子标签栏（右侧固定：添加扩展） -->
+    <!-- 子标签栏（右侧：已安装 → 添加扩展 + 刷新；浏览市场 → 搜索/筛选） -->
     <div class="pi-plugin-tabs">
       <div class="pi-plugin-tabs-left">
         <RadioGroup v-model="activeTab" size="small" variant="default-filled">
@@ -259,9 +316,36 @@ defineExpose({ installFromUrl });
         <span v-if="activeTab === 'browse'" class="pi-section-count">共 {{ marketTotal }} 个包</span>
       </div>
       <div class="pi-plugin-tabs-right">
-        <Button size="small" variant="outline" @click="openAddDialog">
-          <template #icon><AddIcon /></template> 添加扩展
-        </Button>
+        <template v-if="activeTab === 'installed'">
+          <Button size="small" variant="outline" @click="openAddDialog">
+            <template #icon><AddIcon /></template> 添加扩展
+          </Button>
+          <Tooltip content="刷新" placement="top">
+            <Button size="small" variant="outline" :loading="loading" @click="refresh">
+              <template #icon><RefreshIcon /></template>
+            </Button>
+          </Tooltip>
+        </template>
+        <template v-else>
+          <Input
+            v-model="marketName"
+            placeholder="搜索包名 / 描述 / 作者..."
+            clearable
+            size="small"
+            class="pi-market-search"
+            @enter="marketSearch"
+            @clear="marketSearch"
+          >
+            <template #prefixIcon><SearchIcon /></template>
+          </Input>
+          <Select v-model="marketType" :options="MARKET_TYPE_OPTIONS" size="small" class="pi-market-select" @change="marketSearch" />
+          <Select v-model="marketSort" :options="MARKET_SORT_OPTIONS" size="small" class="pi-market-select" @change="marketSearch" />
+          <Tooltip content="刷新" placement="top">
+            <Button size="small" variant="outline" :loading="marketLoading" @click="marketSearch">
+              <template #icon><RefreshIcon /></template>
+            </Button>
+          </Tooltip>
+        </template>
       </div>
     </div>
 
@@ -274,26 +358,7 @@ defineExpose({ installFromUrl });
         message="未检测到 pi 命令，可能未安装 Pi Agent。仅可浏览市场，无法安装扩展。"
       />
 
-      <!-- 工具栏：搜索 + 类型筛选 + 排序，一行 -->
-      <div class="pi-market-toolbar">
-        <Input
-          v-model="marketName"
-          placeholder="搜索包名 / 描述 / 作者..."
-          clearable
-          class="pi-market-search"
-          @enter="marketSearch"
-          @clear="marketSearch"
-        >
-          <template #prefixIcon><SearchIcon /></template>
-        </Input>
-        <Select v-model="marketType" :options="MARKET_TYPE_OPTIONS" class="pi-market-select" @change="marketSearch" />
-        <Select v-model="marketSort" :options="MARKET_SORT_OPTIONS" class="pi-market-select" @change="marketSearch" />
-        <Tooltip content="刷新" placement="top">
-          <Button size="small" variant="outline" :loading="marketLoading" @click="marketSearch">
-            <template #icon><RefreshIcon /></template>
-          </Button>
-        </Tooltip>
-      </div>
+      <!-- 工具栏已并入上方子标签栏右侧：搜索 + 类型筛选 + 排序 + 刷新 -->
 
       <div v-if="marketError" class="pi-market-error">
         {{ marketError }}
@@ -307,12 +372,16 @@ defineExpose({ installFromUrl });
       </div>
 
       <div v-else class="pi-market-list">
-        <div v-for="pkg in marketItems" :key="pkg.name" class="pi-market-item">
+        <div
+          v-for="pkg in marketItems"
+          :key="pkg.name"
+          class="pi-market-item"
+          @click="openPackageDetail(pkg)"
+        >
           <div class="pi-market-item-main">
             <div class="pi-market-item-head">
               <span class="pi-market-name mono">{{ pkg.name }}</span>
               <Tag v-for="t in pkg.types" :key="t" size="small" variant="light" class="pi-market-type">{{ t }}</Tag>
-              <Tag v-if="installedNames.has(pkg.name)" size="small" theme="success" variant="light">已安装</Tag>
             </div>
             <p v-if="pkg.description" class="pi-market-desc">{{ pkg.description }}</p>
             <div class="pi-market-meta">
@@ -328,26 +397,26 @@ defineExpose({ installFromUrl });
               theme="primary"
               :loading="installingName === pkg.name"
               :disabled="!piInstalled || !!installingName"
-              @click="installFromMarket(pkg)"
+              @click.stop="installFromMarket(pkg)"
             >
               <template #icon><DownloadIcon /></template> 安装
             </Button>
-            <Button v-else size="small" variant="outline" disabled>已安装</Button>
-            <Space size="4px" style="margin-top:4px;">
-              <Button v-if="pkg.npm" size="small" variant="text" @click="window.utools?.shellOpenExternal(pkg.npm)">npm</Button>
-              <Button v-if="pkg.repo" size="small" variant="text" @click="window.utools?.shellOpenExternal(pkg.repo)">repo</Button>
-            </Space>
+            <Button v-else size="small" variant="outline" disabled @click.stop>已安装</Button>
           </div>
         </div>
       </div>
 
-      <!-- 分页 -->
+      <!-- 分页：TDesign Pagination，固定底部常驻（列表区内部滚动） -->
       <div v-if="marketTotal > 0" class="pi-market-footer">
-        <span class="pi-market-count">第 {{ marketPage }} / {{ marketLastPage }} 页</span>
-        <Space size="small">
-          <Button size="small" variant="outline" :disabled="marketPage <= 1 || marketLoading" @click="marketGoPage(marketPage - 1)">上一页</Button>
-          <Button size="small" variant="outline" :disabled="marketPage >= marketLastPage || marketLoading" @click="marketGoPage(marketPage + 1)">下一页</Button>
-        </Space>
+        <Pagination
+          :current="marketPage"
+          :total="marketTotal"
+          :page-size="50"
+          :show-jumper="true"
+          :show-page-size="false"
+          size="small"
+          @change="onMarketPageChange"
+        />
       </div>
       </div>
     </template>
@@ -366,8 +435,8 @@ defineExpose({ installFromUrl });
 
     <div v-else class="pi-plugin-list">
       <Card v-for="p in plugins" :key="p.source" :bordered="true">
-        <template #header>
-          <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="pi-plugin-card-row">
+          <div class="pi-plugin-card-main">
             <div class="pi-plugin-card-header">
               <span class="pi-plugin-name mono">{{ p.name }}</span>
               <Tag v-if="p.version" size="small" variant="light">{{ p.version }}</Tag>
@@ -377,26 +446,20 @@ defineExpose({ installFromUrl });
                 :style="{ background: badge.color + '18', color: badge.color, borderColor: badge.color + '40' }"
               >{{ badge.label }} {{ p.resources[badge.key].length }}</Tag>
             </div>
-            <Space size="small">
-              <Popconfirm content="确定卸载此扩展？" @confirm="handleRemove(p.source)">
-                <Button
-                  size="small"
-                  variant="text"
-                  theme="danger"
-                  :loading="deletingSource === p.source"
-                  :disabled="!!deletingSource"
-                >
-                  <template #icon><DeleteIcon /></template>
-                </Button>
-              </Popconfirm>
-            </Space>
+            <p v-if="p.description" class="pi-plugin-desc">{{ p.description }}</p>
           </div>
-        </template>
-        <div class="pi-plugin-card-body">
-          <p v-if="p.description" class="pi-plugin-desc">{{ p.description }}</p>
-          <div class="pi-plugin-info-row">
-            <span class="pi-plugin-label">来源</span>
-            <span class="pi-plugin-value mono">{{ formatSource(p.source) }}</span>
+          <div class="pi-plugin-card-side">
+            <Popconfirm content="确定卸载此扩展？" @confirm="handleRemove(p.source)">
+              <Button
+                size="small"
+                variant="text"
+                theme="danger"
+                :loading="deletingSource === p.source"
+                :disabled="!!deletingSource"
+              >
+                <template #icon><DeleteIcon /></template>
+              </Button>
+            </Popconfirm>
           </div>
         </div>
       </Card>
@@ -430,6 +493,88 @@ defineExpose({ installFromUrl });
           <Button theme="primary" :loading="installing" @click="handleAdd">{{ installing ? '安装中...' : '安装' }}</Button>
         </div>
       </template>
+    </Dialog>
+
+    <!-- ==================== 包详情弹窗 ==================== -->
+    <Dialog
+      v-model:visible="detailVisible"
+      :header="detail ? detail.name : (detailName || '包详情')"
+      width="720px"
+      :confirm-btn="null"
+      :cancel-btn="null"
+      :close-on-overlay-click="true"
+    >
+      <div v-if="detailLoading" class="pi-detail-loading">加载中...</div>
+
+      <div v-else-if="detailError" class="pi-detail-error">
+        <span>{{ detailError }}</span>
+        <Button size="small" variant="outline" @click="retryDetail">重试</Button>
+      </div>
+
+      <div v-else-if="detail" class="pi-detail">
+        <div class="pi-detail-head">
+          <span class="pi-detail-name mono">{{ detail.name }}</span>
+          <Tag v-for="t in detail.types" :key="t" size="small" variant="light">{{ t }}</Tag>
+          <Tag v-if="installedNames.has(detail.name)" size="small" theme="success" variant="light">已安装</Tag>
+        </div>
+        <p v-if="detail.description" class="pi-detail-desc">{{ detail.description }}</p>
+
+        <div class="pi-detail-meta">
+          <div v-if="detail.version" class="pi-detail-meta-item">
+            <span>版本</span><b>{{ detail.version }}</b>
+          </div>
+          <div v-if="detail.published" class="pi-detail-meta-item">
+            <span>发布</span><b>{{ detail.published }}</b>
+          </div>
+          <div v-if="detail.downloads" class="pi-detail-meta-item">
+            <span>下载</span><b>{{ detail.downloads }}</b>
+          </div>
+          <div v-if="detail.author" class="pi-detail-meta-item">
+            <span>作者</span><b>@{{ detail.author }}</b>
+          </div>
+          <div v-if="detail.license" class="pi-detail-meta-item">
+            <span>许可证</span><b>{{ detail.license }}</b>
+          </div>
+          <div v-if="detail.size" class="pi-detail-meta-item">
+            <span>大小</span><b>{{ detail.size }}</b>
+          </div>
+          <div v-if="detail.dependencies" class="pi-detail-meta-item">
+            <span>依赖</span><b>{{ detail.dependencies }}</b>
+          </div>
+        </div>
+
+        <div v-if="detail.install" class="pi-detail-install">
+          <code class="mono">{{ detail.install }}</code>
+          <Button size="small" variant="outline" @click="copyInstallCmd">复制</Button>
+        </div>
+
+        <div class="pi-detail-actions">
+          <Button
+            v-if="!installedNames.has(detail.name)"
+            size="small"
+            theme="primary"
+            :loading="installingName === detail.name"
+            :disabled="!piInstalled || !!installingName"
+            @click="installFromDetail"
+          >
+            <template #icon><DownloadIcon /></template> 安装
+          </Button>
+          <Button v-else size="small" variant="outline" disabled>已安装</Button>
+          <Button v-if="detail.npm" size="small" variant="outline" @click="openExternal(detail.npm)">npm</Button>
+          <Button v-if="detail.repo" size="small" variant="outline" @click="openExternal(detail.repo)">repo</Button>
+          <Button v-if="detail.home" size="small" variant="outline" @click="openExternal(detail.home)">home</Button>
+        </div>
+
+        <div v-if="detail.manifest" class="pi-detail-manifest">
+          <div class="pi-detail-manifest-title">PI MANIFEST JSON</div>
+          <pre class="mono">{{ JSON.stringify(detail.manifest, null, 2) }}</pre>
+        </div>
+
+        <div v-if="detail.readme" class="pi-detail-readme" @click="onReadmeClick">
+          <div class="pi-detail-readme-title">README</div>
+          <div class="pi-detail-readme-body rich-text" v-html="detail.readme"></div>
+        </div>
+      </div>
     </Dialog>
   </div>
 </template>

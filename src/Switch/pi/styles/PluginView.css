@@ -4,25 +4,6 @@
   gap: 12px;
   padding-top: 0;
 }
-.pi-plugin-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0;
-}
-.pi-plugin-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.pi-plugin-tip {
-  font-size: 12px;
-  color: var(--td-text-color-secondary);
-}
-.pi-plugin-actions {
-  display: flex;
-  gap: 8px;
-}
 .pi-plugin-tabs {
   display: flex;
   align-items: center;
@@ -37,7 +18,9 @@
 .pi-plugin-tabs-right {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .pi-section-count {
   font-size: 12px;
@@ -52,6 +35,24 @@
   flex-direction: column;
   gap: 8px;
 }
+/* 已安装卡片：主体在左、删除按钮固定最右 */
+.pi-plugin-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 10px;
+}
+.pi-plugin-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pi-plugin-card-side {
+  flex-shrink: 0;
+}
 .pi-plugin-card-header {
   display: flex;
   align-items: center;
@@ -63,25 +64,6 @@
   font-size: 14px;
   color: var(--td-text-color-primary);
 }
-.pi-plugin-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.pi-plugin-info-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-.pi-plugin-label {
-  color: var(--td-text-color-placeholder);
-  min-width: 80px;
-}
-.pi-plugin-value {
-  color: var(--td-text-color-primary);
-  word-break: break-all;
-}
 .pi-plugin-desc {
   font-size: 13px;
   color: var(--td-text-color-secondary);
@@ -91,16 +73,6 @@
   font-family: "Courier New", Courier, monospace;
   font-size: 12px;
 }
-.pi-plugin-dir-link {
-  font-family: "Courier New", Courier, monospace;
-  font-size: 12px;
-  color: var(--td-brand-color);
-  cursor: pointer;
-  margin-left: 4px;
-}
-.pi-plugin-dir-link:hover {
-  text-decoration: underline;
-}
 
 /* ==================== 包市场（pi.dev/packages） ==================== */
 .pi-market {
@@ -108,24 +80,21 @@
   flex-direction: column;
   gap: 12px;
 }
-/* 市场区：flex 纵向布局，列表内部滚动、底部分页固定，高度随页面自适应 */
+/* 市场区：固定高度 flex 纵向布局（不能 flex:1，否则 height 被 flex-basis 覆盖、整页滚动），
+   列表区内部滚动、底部分页常驻；高度 = 视口 - 上方(容器padding+header+tabs+间距) - 下方padding */
 .pi-market-wrap {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  height: calc(100vh - 150px);
-  min-height: 260px;
+  height: calc(100vh - 108px);
+  min-height: 200px;
 }
-.pi-market-toolbar {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
+/* 搜索/筛选并入子标签栏右侧：搜索框占满剩余宽度，窄窗口可收缩 */
 .pi-market-search {
   flex: 1;
+  min-width: 120px;
 }
 .pi-market-select {
-  width: 140px;
+  width: 120px;
   flex-shrink: 0;
 }
 .pi-market-error {
@@ -151,9 +120,10 @@
   flex: 1;
 }
 .pi-market-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  align-content: start;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -165,10 +135,12 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
-  padding: 12px 14px;
+  padding: 16px 14px 12px;
   background: var(--td-bg-color-container);
   border: 1px solid var(--td-component-border);
   border-radius: var(--cc-radius-card);
+  cursor: pointer;
+  transition: border-color 0.2s;
 }
 .pi-market-item:hover {
   border-color: var(--td-brand-color);
@@ -218,14 +190,214 @@
   gap: 4px;
   flex-shrink: 0;
 }
+/* 底部常驻分页；分页器主色用绿色主题（同复选框） */
 .pi-market-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  padding-top: 8px;
+  padding-top: 12px;
+  margin-top: 4px;
   flex-shrink: 0;
 }
-.pi-market-count {
-  font-size: 12px;
+.pi-market-footer .t-pagination {
+  --td-brand-color: var(--td-success-color);
+  --td-brand-color-hover: var(--td-success-color-6);
+  --td-brand-color-active: var(--td-success-color-6);
+}
+
+/* ==================== 包详情弹窗 ==================== */
+.pi-detail-loading {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--td-text-color-placeholder);
+  font-size: 13px;
+}
+.pi-detail-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 0;
+  color: var(--td-error-color);
+  font-size: 13px;
+}
+.pi-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.pi-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pi-detail-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--td-text-color-primary);
+}
+.pi-detail-desc {
+  font-size: 13px;
   color: var(--td-text-color-secondary);
+  margin: 0;
+}
+.pi-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--td-bg-color-container-hover);
+  border-radius: var(--cc-radius-card);
+}
+.pi-detail-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+.pi-detail-meta-item span {
+  color: var(--td-text-color-placeholder);
+}
+.pi-detail-meta-item b {
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+  word-break: break-all;
+}
+.pi-detail-install {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pi-detail-install code {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  background: var(--td-bg-color-container-hover);
+  border: 1px solid var(--td-component-border);
+  border-radius: 6px;
+  color: var(--td-text-color-primary);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.pi-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pi-detail-manifest {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pi-detail-manifest-title,
+.pi-detail-readme-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--td-text-color-primary);
+}
+.pi-detail-manifest pre {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--td-bg-color-container-hover);
+  border: 1px solid var(--td-component-border);
+  border-radius: 6px;
+  color: var(--td-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.pi-detail-readme {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pi-detail-readme-body {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--td-text-color-primary);
+  overflow-wrap: break-word;
+}
+.pi-detail-readme-body h1,
+.pi-detail-readme-body h2,
+.pi-detail-readme-body h3,
+.pi-detail-readme-body h4 {
+  margin: 14px 0 8px;
+  line-height: 1.4;
+}
+.pi-detail-readme-body h1 {
+  font-size: 17px;
+}
+.pi-detail-readme-body h2 {
+  font-size: 15px;
+}
+.pi-detail-readme-body h3,
+.pi-detail-readme-body h4 {
+  font-size: 14px;
+}
+.pi-detail-readme-body p {
+  margin: 8px 0;
+}
+.pi-detail-readme-body a {
+  color: var(--td-brand-color);
+}
+.pi-detail-readme-body code {
+  padding: 1px 4px;
+  background: var(--td-bg-color-container-hover);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: "Courier New", Courier, monospace;
+}
+.pi-detail-readme-body pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  background: var(--td-bg-color-container-hover);
+  border: 1px solid var(--td-component-border);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.pi-detail-readme-body pre code {
+  background: none;
+  padding: 0;
+}
+.pi-detail-readme-body ul,
+.pi-detail-readme-body ol {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+.pi-detail-readme-body li {
+  margin: 3px 0;
+}
+.pi-detail-readme-body blockquote {
+  margin: 8px 0;
+  padding: 4px 12px;
+  border-left: 3px solid var(--td-brand-color);
+  color: var(--td-text-color-secondary);
+}
+.pi-detail-readme-body table {
+  margin: 8px 0;
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.pi-detail-readme-body th,
+.pi-detail-readme-body td {
+  border: 1px solid var(--td-component-border);
+  padding: 6px 10px;
+  text-align: left;
+}
+.pi-detail-readme-body th {
+  background: var(--td-bg-color-container-hover);
+}
+.pi-detail-readme-body hr {
+  border: none;
+  border-top: 1px solid var(--td-component-border);
+  margin: 12px 0;
 }
