@@ -61,16 +61,35 @@ const handleAdd = async () => {
 };
 
 const handleRemove = async (source) => {
+  if (deletingSource.value) return;
+  deletingSource.value = source;
+  let msg = null;
   try {
+    msg = await MessagePlugin.loading({
+      content: `正在卸载 ${source.replace(/^npm:/, "")} ...`,
+      duration: 0,
+    });
     const result = await window.services.uninstallPiExtension(source);
+    try {
+      msg.close();
+    } catch {
+      /* 消息可能已自动关闭 */
+    }
     if (result.success) {
-      MessagePlugin.success(result.message || "扩展已卸载");
+      MessagePlugin.success((result.message || "").trim() || "扩展已卸载");
       loadPlugins();
     } else {
       MessagePlugin.error("卸载失败: " + (result.message || "未知错误"));
     }
   } catch (e) {
+    try {
+      msg && msg.close();
+    } catch {
+      /* ignore */
+    }
     MessagePlugin.error("卸载失败: " + (e.stderr || e.message || "未知错误"));
+  } finally {
+    deletingSource.value = "";
   }
 };
 
@@ -93,11 +112,20 @@ const marketSort = ref("downloads");
 const installedNames = ref(new Set());
 const piInstalled = ref(true);
 const installingName = ref("");
+const deletingSource = ref("");
 
 const MARKET_SORT_OPTIONS = [
   { label: "下载量最多", value: "downloads" },
   { label: "最近发布", value: "recent" },
   { label: "名称 A-Z", value: "name" },
+];
+
+const MARKET_TYPE_OPTIONS = [
+  { label: "全部类型", value: "" },
+  { label: "extension", value: "extension" },
+  { label: "skill", value: "skill" },
+  { label: "theme", value: "theme" },
+  { label: "prompt", value: "prompt" },
 ];
 
 const refreshInstalledNames = () => {
@@ -220,25 +248,33 @@ defineExpose({ installFromUrl });
       </div>
     </div>
 
-    <!-- 子标签栏 -->
+    <!-- 子标签栏（右侧固定：添加扩展） -->
     <div class="pi-plugin-tabs">
-      <RadioGroup v-model="activeTab" size="small" variant="default-filled">
-        <RadioButton value="installed">已安装</RadioButton>
-        <RadioButton value="browse" @click="openMarket">浏览市场</RadioButton>
-      </RadioGroup>
-      <span v-if="activeTab === 'installed'" class="pi-section-count">共 {{ plugins.length }} 个扩展</span>
-      <span v-if="activeTab === 'browse'" class="pi-section-count">共 {{ marketTotal }} 个包</span>
+      <div class="pi-plugin-tabs-left">
+        <RadioGroup v-model="activeTab" size="small" variant="default-filled">
+          <RadioButton value="installed">已安装</RadioButton>
+          <RadioButton value="browse" @click="openMarket">浏览市场</RadioButton>
+        </RadioGroup>
+        <span v-if="activeTab === 'installed'" class="pi-section-count">共 {{ plugins.length }} 个扩展</span>
+        <span v-if="activeTab === 'browse'" class="pi-section-count">共 {{ marketTotal }} 个包</span>
+      </div>
+      <div class="pi-plugin-tabs-right">
+        <Button size="small" variant="outline" @click="openAddDialog">
+          <template #icon><AddIcon /></template> 添加扩展
+        </Button>
+      </div>
     </div>
 
     <!-- ==================== 浏览市场（pi.dev/packages） ==================== -->
     <template v-if="activeTab === 'browse'">
+      <div class="pi-market-wrap">
       <Alert
         v-if="!piInstalled"
         theme="warning"
         message="未检测到 pi 命令，可能未安装 Pi Agent。仅可浏览市场，无法安装扩展。"
       />
 
-      <!-- 工具栏 -->
+      <!-- 工具栏：搜索 + 类型筛选 + 排序，一行 -->
       <div class="pi-market-toolbar">
         <Input
           v-model="marketName"
@@ -250,22 +286,7 @@ defineExpose({ installFromUrl });
         >
           <template #prefixIcon><SearchIcon /></template>
         </Input>
-        <div class="pi-market-filters">
-          <Button
-            size="small"
-            :theme="marketType === '' ? 'primary' : 'default'"
-            :variant="marketType === '' ? 'base' : 'outline'"
-            @click="marketType = ''; marketSearch()"
-          >全部</Button>
-          <Button
-            v-for="t in ['extension', 'skill', 'theme', 'prompt']"
-            :key="t"
-            size="small"
-            :theme="marketType === t ? 'primary' : 'default'"
-            :variant="marketType === t ? 'base' : 'outline'"
-            @click="marketType = t; marketSearch()"
-          >{{ t }}</Button>
-        </div>
+        <Select v-model="marketType" :options="MARKET_TYPE_OPTIONS" class="pi-market-select" @change="marketSearch" />
         <Select v-model="marketSort" :options="MARKET_SORT_OPTIONS" class="pi-market-select" @change="marketSearch" />
         <Tooltip content="刷新" placement="top">
           <Button size="small" variant="outline" :loading="marketLoading" @click="marketSearch">
@@ -328,16 +349,11 @@ defineExpose({ installFromUrl });
           <Button size="small" variant="outline" :disabled="marketPage >= marketLastPage || marketLoading" @click="marketGoPage(marketPage + 1)">下一页</Button>
         </Space>
       </div>
+      </div>
     </template>
 
     <!-- ==================== 已安装 ==================== -->
     <template v-else>
-      <div class="pi-plugin-installed-header">
-        <Button size="small" variant="outline" @click="openAddDialog">
-          <template #icon><AddIcon /></template> 添加扩展
-        </Button>
-      </div>
-
       <div v-if="plugins.length === 0" class="pi-plugin-empty">
         <Empty description="暂无已安装的 Pi 扩展">
           <template #action>
@@ -363,7 +379,13 @@ defineExpose({ installFromUrl });
             </div>
             <Space size="small">
               <Popconfirm content="确定卸载此扩展？" @confirm="handleRemove(p.source)">
-                <Button size="small" variant="text" theme="danger">
+                <Button
+                  size="small"
+                  variant="text"
+                  theme="danger"
+                  :loading="deletingSource === p.source"
+                  :disabled="!!deletingSource"
+                >
                   <template #icon><DeleteIcon /></template>
                 </Button>
               </Popconfirm>

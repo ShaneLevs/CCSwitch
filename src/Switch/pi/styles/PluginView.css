@@ -4,9 +4,9 @@
 .pi-plugin-tip { font-size: 12px; color: var(--td-text-color-secondary); }
 .pi-plugin-actions { display: flex; gap: 8px; }
 .pi-plugin-tabs { display: flex; align-items: center; justify-content: space-between; padding-bottom: 4px; }
+.pi-plugin-tabs-left { display: flex; align-items: center; gap: 12px; }
+.pi-plugin-tabs-right { display: flex; align-items: center; gap: 8px; }
 .pi-section-count { font-size: 12px; color: var(--td-text-color-secondary); }
-.pi-plugin-installed-header { display: flex; justify-content: flex-end; }
-.pi-market-filters { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
 .pi-plugin-empty { margin-top: 40px; }
 .pi-plugin-list { display: flex; flex-direction: column; gap: 8px; }
@@ -23,13 +23,15 @@
 
 /* ==================== 包市场（pi.dev/packages） ==================== */
 .pi-market { display: flex; flex-direction: column; gap: 12px; }
+/* 市场区：flex 纵向布局，列表内部滚动、底部分页固定，高度随页面自适应 */
+.pi-market-wrap { display: flex; flex-direction: column; flex: 1; height: calc(100vh - 150px); min-height: 260px; }
 .pi-market-toolbar { display: flex; gap: 8px; align-items: center; }
 .pi-market-search { flex: 1; }
-.pi-market-select { width: 140px; }
-.pi-market-error { text-align: center; padding: 24px 0; color: var(--td-error-color); font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.pi-market-loading { text-align: center; padding: 24px 0; color: var(--td-text-color-placeholder); font-size: 13px; }
-.pi-market-empty { padding: 24px 0; }
-.pi-market-list { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.pi-market-select { width: 140px; flex-shrink: 0; }
+.pi-market-error { text-align: center; padding: 24px 0; color: var(--td-error-color); font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; }
+.pi-market-loading { text-align: center; padding: 24px 0; color: var(--td-text-color-placeholder); font-size: 13px; flex: 1; }
+.pi-market-empty { padding: 24px 0; flex: 1; }
+.pi-market-list { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; margin-top: 2px; }
 .pi-market-item {
   display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
   padding: 12px 14px;
@@ -48,5 +50,5 @@
 }
 .pi-market-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--td-text-color-placeholder); }
 .pi-market-item-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
-.pi-market-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 4px; }
+.pi-market-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 8px; flex-shrink: 0; }
 .pi-market-count { font-size: 12px; color: var(--td-text-color-secondary); }
