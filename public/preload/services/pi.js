@@ -429,7 +429,10 @@ const parsePiDevPackagesHtml = (html) => {
 const getPiExtensions = () => {
   const settings = readPiSettings()
   const packages = settings.packages || []
-  return packages.map(src => {
+  return packages.map(entry => {
+    // pi 新版 packages 条目可能是对象（{ source, extensions: ['+index.ts'] }，含扩展启停状态），兼容纯字符串旧格式
+    const src = typeof entry === 'string' ? entry : (entry && entry.source) || ''
+    if (!src) return null
     const pkgDir = path.join(PI_NPM_DIR(), ...src.replace('npm:', '').split('/'))
     const name = src.replace('npm:', '')
     let version = '', description = ''
@@ -439,7 +442,29 @@ const getPiExtensions = () => {
     } catch { /* ignore */ }
 
     // pi config resource introspection
-    let resources = { extensions: [], skills: [], mcpServers: [] }
+    const resources = { extensions: [], skills: [], mcpServers: [] }
+
+    // 扩展列表：优先用 pi 自身记录的清单（带 +/− 启停前缀）；其次 package.json 的 pi.extensions 字段；最后扫常见目录
+    const rawExts = (typeof entry === 'object' && Array.isArray(entry.extensions)) ? entry.extensions : null
+    if (rawExts) {
+      resources.extensions = rawExts.map(e => String(e).replace(/^[+-]/, '')).filter(Boolean)
+    } else {
+      const declared = readJson(path.join(pkgDir, 'package.json'))?.pi?.extensions
+      if (Array.isArray(declared) && declared.length) {
+        resources.extensions = declared.map(e => String(e).replace(/^\.?\//, '')).filter(Boolean)
+      } else {
+        for (const sub of ['pi', 'extensions']) {
+          const extDir = path.join(pkgDir, sub)
+          if (!fs.existsSync(extDir)) continue
+          try {
+            resources.extensions = fs.readdirSync(extDir)
+              .filter(f => f.endsWith('.js') || f.endsWith('.ts') || f.endsWith('.mjs'))
+          } catch { /* ignore */ }
+          if (resources.extensions.length) break
+        }
+      }
+    }
+
     const claudePlugin = readJson(path.join(pkgDir, '.claude-plugin', 'plugin.json'))
     if (claudePlugin?.mcpServers) {
       resources.mcpServers = Object.keys(claudePlugin.mcpServers)
@@ -454,16 +479,8 @@ const getPiExtensions = () => {
       } catch { /* ignore */ }
     }
 
-    const extDir = path.join(pkgDir, 'pi')
-    if (fs.existsSync(extDir)) {
-      try {
-        resources.extensions = fs.readdirSync(extDir)
-          .filter(f => f.endsWith('.js') || f.endsWith('.ts') || f.endsWith('.mjs'))
-      } catch { /* ignore */ }
-    }
-
     return { name, source: src, version, description, resources, enabled: true }
-  })
+  }).filter(Boolean)
 }
 
 const installPiExtension = async (source) => {
