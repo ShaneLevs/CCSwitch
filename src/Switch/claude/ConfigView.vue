@@ -85,7 +85,10 @@ const formData = ref({
 // OpenCode Go 预设：模型候选由 /v1/models 实时获取
 const opencodeGoModels = ref([]);
 const opencodeGoLoading = ref(false);
+let _goModelsFetching = false;
 const loadOpencodeGoModels = async () => {
+  if (_goModelsFetching) return;
+  _goModelsFetching = true;
   opencodeGoLoading.value = true;
   try {
     const ids = await window.services.fetchOpencodeGoModels();
@@ -95,15 +98,19 @@ const loadOpencodeGoModels = async () => {
     opencodeGoModels.value = [];
     MessagePlugin.error(`获取 OpenCode Go 模型失败: ${error.message}`);
   } finally {
+    _goModelsFetching = false;
     opencodeGoLoading.value = false;
   }
 };
-const applyOpencodeGoPreset = () => {
-  formData.value.baseUrl = OPENCODE_GO_BASE_URL;
-  formData.value.authVar = 'ANTHROPIC_API_KEY';
-  loadOpencodeGoModels();
-  MessagePlugin.success('已应用 OpenCode Go 预设，请填写 Key 并选择模型');
+// URL 为 OpenCode Go 时自动切认证方式并实时获取模型候选
+const syncOpencodeGoFromUrl = (url) => {
+  const clean = (url || '').trim().replace(/\/+$/, '');
+  if (clean === OPENCODE_GO_BASE_URL) {
+    formData.value.authVar = 'ANTHROPIC_API_KEY';
+    loadOpencodeGoModels();
+  }
 };
+watch(() => formData.value.baseUrl, syncOpencodeGoFromUrl);
 
 // 当用户手动在输入框输入 [1m] 时，同步勾选复选框并自动清除输入中的 [1m]
 // 输入框为空时，同步取消勾选 1m
@@ -665,14 +672,10 @@ onMounted(() => { loadCurrentConfig(); checkFirstOpen(); loadSavedConfigs(); loa
         </RadioGroup>
       </div>
       <div v-if="dialogTab === 'basic'" class="form">
-        <div class="form-preset-row">
-          <Button size="small" theme="primary" variant="outline" @click="applyOpencodeGoPreset"><template #icon><PlayIcon /></template> OpenCode Go 预设</Button>
-          <span class="form-preset-tip">一键填充请求地址与认证方式，模型名实时获取</span>
-        </div>
         <div class="form-item"><label>名称 <span class="required">*</span></label><Input v-model="formData.name" placeholder="方便分辨的名字" /></div>
         <div class="form-item"><label>URL <span class="required">*</span></label><Input v-model="formData.baseUrl" placeholder="ANTHROPIC_BASE_URL" /></div>
         <div class="form-item"><label>认证方式</label>
-          <RadioGroup v-model="formData.authVar" variant="default-filled" size="small">
+          <RadioGroup v-model="formData.authVar" variant="default-filled" size="small" class="auth-var-group">
             <RadioButton value="ANTHROPIC_AUTH_TOKEN">AUTH_TOKEN</RadioButton>
             <RadioButton value="ANTHROPIC_API_KEY">API_KEY</RadioButton>
           </RadioGroup>
