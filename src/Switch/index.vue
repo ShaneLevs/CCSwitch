@@ -186,15 +186,19 @@ const initVisibleAgents = () => {
 };
 initVisibleAgents();
 
-const toggleAgentVisibility = (app, val) => {
-  // 取消当前活跃 agent 禁止；显示总是允许（入口路由进入隐藏 agent 时自动显示）
-  if (!val && app === activeApp.value) return;
-  const prev = visibleAgents.value[app];
-  visibleAgents.value[app] = val;
-  try { saveVisibleAgents(); } catch (e) {
-    visibleAgents.value[app] = prev; // 写库失败回滚
-    console.error("保存可见 agent 失败", e);
+// checkbox 点击：v-model 已更新状态，这里只做禁用兜底 + 持久化
+const onAgentToggle = (app, val) => {
+  if (!val && app === activeApp.value) {
+    visibleAgents.value[app] = true; // 禁止取消当前活跃，恢复勾选
+    return;
   }
+  try { saveVisibleAgents(); } catch (e) { console.error("保存可见 agent 失败", e); }
+};
+
+// 程序调用（入口路由进入隐藏 agent 时自动显示）
+const toggleAgentVisibility = (app, val) => {
+  visibleAgents.value[app] = val;
+  try { saveVisibleAgents(); } catch (e) { console.error("保存可见 agent 失败", e); }
 };
 
 // 拖拽排序：调整 agentOrder 并持久化
@@ -618,20 +622,24 @@ onMounted(() => {
               v-for="(app, idx) in agentOrder"
               :key="app"
               class="agent-visibility-item"
-              draggable="true"
-              @dragstart="onAgentDragStart(idx)"
               @dragover.prevent
               @drop="onAgentDrop(idx)"
-              @dragend="onAgentDragEnd"
             >
-              <img :src="AGENT_META[app].icon" class="agent-visibility-icon" alt="" />
+              <img
+                :src="AGENT_META[app].icon"
+                class="agent-visibility-icon"
+                draggable="true"
+                @dragstart="onAgentDragStart(idx)"
+                @dragend="onAgentDragEnd"
+                alt=""
+              />
               <span class="agent-visibility-name">{{ AGENT_META[app].name }}</span>
               <span v-if="app === activeApp" class="agent-visibility-tag">当前</span>
               <Checkbox
-                :checked="!!(visibleAgents && visibleAgents[app])"
+                v-model="visibleAgents[app]"
                 :disabled="app === activeApp"
                 class="agent-visibility-checkbox"
-                @change="(val) => toggleAgentVisibility(app, val)"
+                @change="(val) => onAgentToggle(app, val)"
               />
             </div>
           </div>
@@ -808,14 +816,16 @@ onMounted(() => {
   gap: 8px;
   padding: 6px 8px;
   border-radius: var(--td-radius-default);
-  cursor: grab;
   user-select: none;
-}
-.agent-visibility-item:active {
-  cursor: grabbing;
 }
 .agent-visibility-item:hover {
   background: var(--td-bg-color-container-hover);
+}
+.agent-visibility-icon {
+  cursor: grab;
+}
+.agent-visibility-icon:active {
+  cursor: grabbing;
 }
 .agent-visibility-icon {
   width: 22px;
