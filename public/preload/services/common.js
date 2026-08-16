@@ -241,23 +241,6 @@ const copyCommonMcpServer = (name, target) => {
   }
 }
 
-// 批量同步：direction 'toLocal'（云端→本地）| 'toCloud'（本地→云端）
-// 并集合并：源端覆盖目标端同名配置，目标端独有配置保留，不丢数据
-const syncCommonMcp = (direction) => {
-  const local = readLocalMcpDoc()
-  const cloud = readCommonMcpDoc()
-  if (direction === 'toLocal') {
-    for (const [k, v] of Object.entries(cloud.mcpServers)) {
-      local.mcpServers[k] = JSON.parse(JSON.stringify(v))
-    }
-    return { total: Object.keys(cloud.mcpServers).length, written: writeLocalMcpDoc(local) }
-  } else {
-    for (const [k, v] of Object.entries(local.mcpServers)) {
-      cloud.mcpServers[k] = JSON.parse(JSON.stringify(v))
-    }
-    return { total: Object.keys(local.mcpServers).length, written: writeDoc(DOC_MCP, { mcpServers: cloud.mcpServers }) }
-  }
-}
 
 // ==================== Skill 启停（.disabled 文件夹方式，同 Claude Code） ====================
 // 通用 Skill 存放在 ~/.agents/skills（跨 Agent 共享）。
@@ -420,7 +403,7 @@ module.exports = {
   addCommonModel, updateCommonModel, deleteCommonModel,
   getCommonMcpServers, upsertCommonMcpServer, deleteCommonMcpServer, writeCommonMcpServers,
   getLocalMcpServers, upsertLocalMcpServer, deleteLocalMcpServer, writeLocalMcpServers,
-  copyCommonMcpServer, syncCommonMcp,
+  copyCommonMcpServer,
   readCommonSkills, openCommonSkillsDir, getCommonSkillsPath,
   setCommonSkillEnabled, deleteCommonSkill,
 }

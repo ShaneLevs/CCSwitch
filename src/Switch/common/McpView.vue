@@ -4,9 +4,10 @@ import { ref, computed, onMounted } from "vue";
 import {
   Empty, Button, Tag, Space, Tooltip, MessagePlugin, Popconfirm,
   Dropdown, DropdownMenu, DropdownItem, DialogPlugin,
+  RadioGroup, RadioButton,
 } from "tdesign-vue-next";
 import {
-  RefreshIcon, AddIcon, SwapIcon, MoreIcon, ToolsIcon, EditIcon, DeleteIcon,
+  RefreshIcon, AddIcon, MoreIcon, ToolsIcon, EditIcon, DeleteIcon,
 } from "tdesign-icons-vue-next";
 import McpToolDrawer from "../../components/McpToolDrawer.vue";
 import McpServerDialog from "../../components/McpServerDialog.vue";
@@ -15,10 +16,22 @@ import "./styles/McpView.css";
 
 // 通用 MCP 库：本地 (~/.mcp.json) 与云端 (uTools DB) 合并为单一列表
 //   - 每条卡片用 tag 标注来源（本地 / 云端，可同时存在）
-//   - 删除 = 两端同时删除；更多菜单支持单端复制（云端↔本地）与单端移除
+//   - 顶部按钮组可按 全部/本地/云端 快速筛选
+//   - 删除 = 两端同时删除；三点菜单按归属差异化：仅本地→「本地到云端」、
+//     仅云端→「云端到本地」、双端→「移除本地/移除云端」
 //   - 添加/编辑弹窗内可选择保存目标端
 
 const loading = ref(false);
+
+// 来源筛选：all | local | cloud
+const filterType = ref('all');
+
+// 筛选后的展示列表
+const filteredServers = computed(() => {
+  if (filterType.value === 'local') return mergedServers.value.filter((s) => s.hasLocal);
+  if (filterType.value === 'cloud') return mergedServers.value.filter((s) => s.hasCloud);
+  return mergedServers.value;
+});
 
 // 两个存储端
 const localServers = ref([]);
@@ -134,12 +147,17 @@ const removeSide = (item, side) => {
   }
 };
 const confirmRemoveSide = (item, side) => {
-  DialogPlugin.confirm({
+  // TDesign v1.20.3 的 DialogPlugin.confirm 不会在 onConfirm 后自动关闭，
+  // 需用返回的实例手动 destroy（否则弹窗会一直挂着）
+  const dialog = DialogPlugin.confirm({
     header: '移除确认',
     body: `确定移除「${item.name}」的${targetLabel(side)}副本吗？（${targetLabel(side === 'local' ? 'cloud' : 'local')}端保留）`,
     confirmBtn: '移除',
     cancelBtn: '取消',
-    onConfirm: () => removeSide(item, side),
+    onConfirm: () => {
+      removeSide(item, side);
+      dialog.destroy();
+    },
   });
 };
 
@@ -152,21 +170,6 @@ const copyFrom = (item, source) => {
     loadServers();
   } catch (e) {
     MessagePlugin.error('复制失败: ' + e.message);
-  }
-};
-
-// 批量同步：direction 'toLocal'（云端→本地）| 'toCloud'（本地→云端）
-const syncAll = (direction) => {
-  try {
-    const result = window.services.syncCommonMcp(direction);
-    if (result.written) {
-      MessagePlugin.success(`已同步 ${result.total} 个服务器到${targetLabel(direction === 'toLocal' ? 'local' : 'cloud')}`);
-    } else {
-      MessagePlugin.error('同步失败');
-    }
-    loadServers();
-  } catch (e) {
-    MessagePlugin.error('同步失败: ' + e.message);
   }
 };
 
@@ -197,26 +200,15 @@ onMounted(loadServers);
   <div class="common-mcp-container">
     <div class="common-mcp-header">
       <div class="common-mcp-tip">
-        通用 MCP 服务器库 — 本地 (~/.mcp.json) 与云端 (DB) 合并展示
-        <span class="common-mcp-count">{{ mergedServers.length }} 个</span>
+        <RadioGroup v-model="filterType" variant="default-filled" size="small" class="common-mcp-filter">
+          <RadioButton value="all">全部</RadioButton>
+          <RadioButton value="local">本地</RadioButton>
+          <RadioButton value="cloud">云端</RadioButton>
+        </RadioGroup>
+        <span>通用 MCP 服务器库 — 本地 (~/.mcp.json) 与云端 (DB) 合并展示</span>
+        <span class="common-mcp-count">{{ filteredServers.length }} 个</span>
       </div>
       <div class="common-mcp-actions">
-        <Popconfirm
-          content="将云端全部服务器合并到本地（同名覆盖），确定？"
-          @confirm="syncAll('toLocal')"
-        >
-          <Button size="small" variant="outline">
-            <template #icon><SwapIcon /></template> 云端 → 本地
-          </Button>
-        </Popconfirm>
-        <Popconfirm
-          content="将本地全部服务器合并到云端（同名覆盖），确定？"
-          @confirm="syncAll('toCloud')"
-        >
-          <Button size="small" variant="outline">
-            <template #icon><SwapIcon /></template> 本地 → 云端
-          </Button>
-        </Popconfirm>
         <Button size="small" theme="primary" @click="openCreateDialog">
           <template #icon><AddIcon /></template> 添加
         </Button>
@@ -228,13 +220,13 @@ onMounted(loadServers);
       </div>
     </div>
 
-    <div v-if="mergedServers.length === 0" class="common-mcp-empty">
-      <Empty description="还没有 MCP 服务器，点击右上角「添加」创建" />
+    <div v-if="filteredServers.length === 0" class="common-mcp-empty">
+      <Empty :description="mergedServers.length === 0 ? '还没有 MCP 服务器，点击右上角「添加」创建' : '当前筛选条件下没有 MCP 服务器'" />
     </div>
 
     <div v-else class="common-mcp-list">
       <McpServerCard
-        v-for="item in mergedServers"
+        v-for="item in filteredServers"
         :key="item.name"
         :srv="{ name: item.name, config: item.config }"
         :target="item.hasLocal ? 'local' : 'cloud'"
@@ -263,22 +255,21 @@ onMounted(loadServers);
               </Button>
               <template #dropdown>
                 <DropdownMenu>
+                  <!-- 仅本地：本地 → 云端 -->
                   <DropdownItem
-                    :disabled="!item.hasCloud"
-                    @click="copyFrom(item, 'cloud')"
-                  >云端 → 本地</DropdownItem>
-                  <DropdownItem
-                    :disabled="!item.hasLocal"
+                    v-if="item.hasLocal && !item.hasCloud"
                     @click="copyFrom(item, 'local')"
-                  >本地 → 云端</DropdownItem>
+                  >本地到云端</DropdownItem>
+                  <!-- 仅云端：云端 → 本地 -->
                   <DropdownItem
-                    v-if="item.hasLocal"
-                    @click="confirmRemoveSide(item, 'local')"
-                  >移除本地</DropdownItem>
-                  <DropdownItem
-                    v-if="item.hasCloud"
-                    @click="confirmRemoveSide(item, 'cloud')"
-                  >移除云端</DropdownItem>
+                    v-if="item.hasCloud && !item.hasLocal"
+                    @click="copyFrom(item, 'cloud')"
+                  >云端到本地</DropdownItem>
+                  <!-- 同时存在两端：移除单端 -->
+                  <template v-if="item.hasLocal && item.hasCloud">
+                    <DropdownItem @click="confirmRemoveSide(item, 'local')">移除本地</DropdownItem>
+                    <DropdownItem @click="confirmRemoveSide(item, 'cloud')">移除云端</DropdownItem>
+                  </template>
                 </DropdownMenu>
               </template>
             </Dropdown>

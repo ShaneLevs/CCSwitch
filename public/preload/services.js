@@ -529,7 +529,7 @@ window.services = {
     const encodedPath = skillPath.replace(/@/g, '%40')
     const zipUrl = `https://www.modelscope.cn/skills/${encodedPath}/archive/zip/master.zip`
     const tempDir = path.join(window.utools.getPath('temp'), 'ccswitch-skill-install')
-    const safeName = skillPath.replace(/[\/@]/g, '-')
+    const safeName = skillPath.replace(/[/@]/g, '-')
     const zipPath = path.join(tempDir, `${safeName}.zip`)
     const extractDir = path.join(tempDir, safeName)
 
@@ -661,7 +661,7 @@ window.services = {
     const encodedPath = skillPath.replace(/@/g, '%40')
     const zipUrl = `https://www.modelscope.cn/skills/${encodedPath}/archive/zip/master.zip`
     const tempDir = path.join(window.utools.getPath('temp'), 'ccswitch-skill-install')
-    const safeName = skillPath.replace(/[\/@]/g, '-')
+    const safeName = skillPath.replace(/[/@]/g, '-')
     const zipPath = path.join(tempDir, `${safeName}.zip`)
     const extractDir = path.join(tempDir, safeName)
 
@@ -794,7 +794,7 @@ window.services = {
     const encodedPath = skillPath.replace(/@/g, '%40')
     const zipUrl = `https://www.modelscope.cn/skills/${encodedPath}/archive/zip/master.zip`
     const tempDir = path.join(window.utools.getPath('temp'), 'ccswitch-skill-install')
-    const safeName = skillPath.replace(/[\/@]/g, '-')
+    const safeName = skillPath.replace(/[/@]/g, '-')
     const zipPath = path.join(tempDir, `${safeName}.zip`)
     const extractDir = path.join(tempDir, safeName)
 
@@ -924,7 +924,7 @@ window.services = {
       const relativePath = path.relative(projectsDir, filePath)
       const folderName = relativePath.split(path.sep)[0] || 'unknown'
       const projectPath = projectPathMap.get(folderName) || 'unknown'
-      const projectName = projectPath !== 'unknown' ? path.basename(projectPath) : 'unknown'
+      const projectName = projectPath === 'unknown' ? 'unknown' : path.basename(projectPath)
 
       const content = fs.readFileSync(filePath, { encoding: 'utf-8' })
       const lines = content.split('\n').filter(line => line.trim())
@@ -1039,9 +1039,9 @@ window.services = {
     const projectMap = new Map()
     messageRecords.forEach(record => {
       const projectPathKey = record.projectPath || 'unknown'
-      const projectDisplayName = projectPathKey !== 'unknown' ? path.basename(projectPathKey) : 'unknown'
+      const projectDisplayName = projectPathKey === 'unknown' ? 'unknown' : path.basename(projectPathKey)
       if (!projectMap.has(projectPathKey)) {
-        const exists = projectPathKey !== 'unknown' ? fs.existsSync(projectPathKey) : false
+        const exists = projectPathKey === 'unknown' ? false : fs.existsSync(projectPathKey)
         projectMap.set(projectPathKey, { name: projectDisplayName, path: projectPathKey, exists, sessions: new Set(), tokens: 0, inputTokens: 0, outputTokens: 0 })
       }
       const stat = projectMap.get(projectPathKey)
@@ -1382,7 +1382,6 @@ window.services = {
   deleteLocalMcpServer: common.deleteLocalMcpServer,
   writeLocalMcpServers: common.writeLocalMcpServers,
   copyCommonMcpServer: common.copyCommonMcpServer,
-  syncCommonMcp: common.syncCommonMcp,
   readCommonSkills: common.readCommonSkills,
   openCommonSkillsDir: common.openCommonSkillsDir,
   getCommonSkillsPath: common.getCommonSkillsPath,
