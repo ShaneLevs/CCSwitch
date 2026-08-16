@@ -97,6 +97,12 @@
   width: 120px;
   flex-shrink: 0;
 }
+/* 刷新按钮与搜索框/Select 等高对齐 */
+.pi-market-refresh-btn {
+  height: var(--td-comp-size-xs);
+  box-sizing: border-box;
+  align-self: stretch;
+}
 .pi-market-error {
   text-align: center;
   padding: 24px 0;
