@@ -158,10 +158,14 @@ const visibleAgents = ref(null);
 const agentOrder = ref([...AGENT_ORDER]);
 let dragAgentIndex = null;
 const saveVisibleAgents = () => {
-  const existing = window.utools.db.get(VISIBLE_AGENTS_DB);
-  const doc = { _id: VISIBLE_AGENTS_DB, visible: { ...visibleAgents.value }, order: agentOrder.value };
+  let existing = null;
+  try { existing = window.utools.db.get(VISIBLE_AGENTS_DB); } catch (e) { /* ignore */ }
+  const doc = { _id: VISIBLE_AGENTS_DB, visible: { ...visibleAgents.value }, order: [...agentOrder.value] };
   if (existing) doc._rev = existing._rev;
-  window.utools.db.put(doc);
+  try {
+    const res = window.utools.db.put(doc);
+    if (!res || !res.ok) console.error("保存可见 agent 失败", res);
+  } catch (e) { console.error("保存可见 agent 失败", e); }
 };
 const initVisibleAgents = () => {
   let doc = null;
@@ -187,20 +191,21 @@ const initVisibleAgents = () => {
 };
 initVisibleAgents();
 
-// checkbox 点击：显式更新状态并持久化（不依赖 v-model 的更新顺序）
+// 自动持久化：勾选或排序变化即保存（不依赖组件 change 事件，deep 监听可见状态与顺序）
+watch([visibleAgents, agentOrder], () => {
+  saveVisibleAgents();
+}, { deep: true });
+
+// checkbox 点击：只做禁用兜底，勾选状态由 v-model 更新，watch 自动持久化
 const onAgentToggle = (app, val) => {
   if (!val && app === activeApp.value) {
     visibleAgents.value[app] = true; // 禁止取消当前活跃，恢复勾选
-    return;
   }
-  visibleAgents.value[app] = val;
-  try { saveVisibleAgents(); } catch (e) { console.error("保存可见 agent 失败", e); }
 };
 
-// 程序调用（入口路由进入隐藏 agent 时自动显示）
+// 程序调用（入口路由进入隐藏 agent 时自动显示），watch 自动持久化
 const toggleAgentVisibility = (app, val) => {
   visibleAgents.value[app] = val;
-  try { saveVisibleAgents(); } catch (e) { console.error("保存可见 agent 失败", e); }
 };
 
 // 拖拽排序：调整 agentOrder 并持久化
@@ -210,8 +215,7 @@ const onAgentDrop = (idx) => {
   const order = [...agentOrder.value];
   const [moved] = order.splice(dragAgentIndex, 1);
   order.splice(idx, 0, moved);
-  agentOrder.value = order;
-  try { saveVisibleAgents(); } catch (e) { console.error("保存 agent 顺序失败", e); }
+  agentOrder.value = order; // watch 自动持久化
   dragAgentIndex = null;
 };
 const onAgentDragEnd = () => { dragAgentIndex = null; };
