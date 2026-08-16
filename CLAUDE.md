@@ -142,6 +142,7 @@ public/
   - 通用 MCP → uTools DB `ccswitch_common_mcp`（格式同 ~/.mcp.json 的 `{ mcpServers }`）与本地 `~/.mcp.json` 双存储；McpView 按名称合并为单一列表，卡片标「本地/云端」tag，支持双端复制/移除，同名配置不同时显示警告
   - 通用 Skill → 只读扫描 `~/.agents/skills`（SKILL.md 元数据）；启停 = 物理移动目录到 `.disabled/`（与 Claude Code 机制一致）
   - `writeDoc` 捕获 uTools 结构化克隆失败：递归定位函数/Symbol 等非 JSON 字段并净化（丢弃）后重试写入（兼容历史脏数据）；失败时抛带原始错误信息的异常供 UI 展示
+  - **模型下发到 Agent**（`services/dispatch.js`）：把主数据的 provider + model 写入各 agent 模型配置——Claude → `~/.claude/settings.json` env（ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_MODEL，互斥删 API_KEY）；OpenCode → `opencode.json` provider[id]（options.baseURL/apiKey + models[id]）；Pi → `models.json` providers[name]（可选默认 provider/model）；omp → `models.yml` providers[name]（无默认概念）；Reasonix → `config.toml` providers[] + `.env` key（可选 `default_model`）。每个目标独立 try/catch，单个失败不影响其他目标
 - **OpenCode Config**: `~/.config/opencode.json` / `opencode.jsonc`（json5/jsonc 解析，优先 `.json`，不存在自动检测 `.jsonc`）↔ uTools DB
 - **OpenCode Usage**:
   - 数据目录（Windows/macOS/Linux 通用 XDG 风格）：`~/.local/share/opencode/opencode.db`
@@ -186,6 +187,7 @@ All Node.js-sensitive operations (file I/O, network requests, child process exec
 13. **通用配置主数据**: 跨 agent 供应商/模型主数据库（四协议），API Key 加密存 uTools DB，MCP/Skill 双端管理
 14. **刷新按钮**: 所有配置页面工具栏统一刷新按钮（纯图标，置于按钮组最右）
 15. **深色背景特效**: 可配置的动态背景（棱镜光谱爆裂 / 故障像素终端 / 流动极光 / 星河漫游，ogl WebGL）
+16. **模型下发到 Agent**: 通用配置页选中主数据 provider + 模型，一键写入 5 个 agent（Claude / OpenCode / Pi / omp / Reasonix）的模型配置，支持设为默认模型（Pi / Reasonix）
 
 ## Managed Env Fields (constants.js)
 

@@ -73,3 +73,10 @@
 .hint-link { cursor: pointer; text-decoration: underline; color: var(--td-brand-color); }
 .hint-link:hover { opacity: 0.8; }
 .mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }
+/* 下发到 Agent 弹窗 */
+.common-dispatch-agents { display: flex; flex-direction: column; gap: 8px; }
+.common-dispatch-agent { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+.common-dispatch-checkbox { --td-brand-color: var(--td-success-color); }
+.common-dispatch-agent-hint { font-size: 12px; color: var(--td-text-color-placeholder); line-height: 1.5; padding-top: 1px; }
+.common-dispatch-default { cursor: pointer; }
+

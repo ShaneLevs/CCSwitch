@@ -1,11 +1,11 @@
 <script setup>
 
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import {
   Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin, Popconfirm, Alert as TAlert, Select, Switch, CheckboxGroup, Checkbox, Collapse, CollapsePanel, AutoComplete,
 } from "tdesign-vue-next";
 import {
-  RefreshIcon, EditIcon, AddIcon, DeleteIcon,
+  RefreshIcon, EditIcon, AddIcon, DeleteIcon, SendIcon,
 } from "tdesign-icons-vue-next";
 import ApiKeyInput from "../../components/ApiKeyInput.vue";
 import DynamicKvEditor from "../../components/DynamicKvEditor.vue";
@@ -343,6 +343,82 @@ const handleDeleteModel = async (providerName, modelId) => {
   }
 };
 
+// ==================== 下发到 Agent（主数据 → 各 agent 模型配置） ====================
+
+const AGENT_DISPATCH_OPTIONS = [
+  { label: "Claude Code", value: "claude", hint: "写入 ~/.claude/settings.json，ANTHROPIC_MODEL 即默认模型（建议 anthropic-messages 协议）" },
+  { label: "OpenCode CLI", value: "opencode", hint: "写入 opencode.json 的 provider[id] 与模型列表" },
+  { label: "Pi Agent", value: "pi", hint: "写入 models.json 的供应商与模型（可设默认）" },
+  { label: "omp", value: "omp", hint: "写入 models.yml 的供应商与模型（默认模型需在 omp 配置页配置 modelRoles）" },
+  { label: "Reasonix", value: "reasonix", hint: "写入 config.toml 的供应商与模型（可设默认）" },
+];
+
+const dispatchDialog = ref(false);
+const dispatchSubmitting = ref(false);
+const dispatchProviderName = ref("");
+const dispatchModelId = ref("");
+const dispatchProviderNameOverride = ref("");
+const dispatchTargets = ref([]);
+const dispatchSetDefault = ref(false);
+
+const dispatchProviderOptions = computed(() =>
+  providers.value.map(p => ({ label: p.name, value: p.name }))
+);
+const dispatchSelectedProvider = computed(() =>
+  providers.value.find(p => p.name === dispatchProviderName.value)
+);
+const dispatchModelOptions = computed(() =>
+  (dispatchSelectedProvider.value?.models || []).map(m => ({
+    label: `${m.name || m.id}${m.contextWindow ? `（${formatNumber(m.contextWindow)} ctx）` : ""}`,
+    value: m.id,
+  }))
+);
+const dispatchSelectedModel = computed(() =>
+  dispatchSelectedProvider.value?.models.find(m => m.id === dispatchModelId.value)
+);
+
+watch(dispatchProviderName, () => { dispatchModelId.value = ""; });
+
+const openDispatchDialog = (providerName = "", modelId = "") => {
+  dispatchProviderName.value = providerName || providers.value[0]?.name || "";
+  dispatchModelId.value = modelId || "";
+  dispatchProviderNameOverride.value = providerName || "";
+  dispatchTargets.value = [];
+  dispatchSetDefault.value = false;
+  dispatchDialog.value = true;
+};
+
+const handleDispatch = async () => {
+  const provider = dispatchSelectedProvider.value;
+  const model = dispatchSelectedModel.value;
+  if (!provider) return MessagePlugin.warning("请选择供应商");
+  if (!model) return MessagePlugin.warning("请选择模型");
+  if (dispatchTargets.value.length === 0) return MessagePlugin.warning("请选择目标 agent");
+  const targets = dispatchTargets.value.map(app => ({
+    app,
+    providerName: dispatchProviderNameOverride.value.trim() || provider.name,
+    setDefault: dispatchSetDefault.value,
+  }));
+  dispatchSubmitting.value = true;
+  try {
+    const results = await window.services.dispatchCommonModel(provider, model, targets);
+    const ok = results.filter(r => r.ok).length;
+    results.forEach(r => {
+      const label = (AGENT_DISPATCH_OPTIONS.find(o => o.value === r.app) || {}).label || r.app;
+      if (r.ok) MessagePlugin.success(`${label}: ${r.message}`);
+      else MessagePlugin.error(`${label}: ${r.message}`);
+    });
+    dispatchDialog.value = false;
+    if (ok === results.length) MessagePlugin.success(`下发完成：${ok}/${results.length} 成功`);
+    else if (ok > 0) MessagePlugin.warning(`下发完成：${ok}/${results.length} 成功，部分失败`);
+    else MessagePlugin.error(`下发失败：${results.length} 个目标全部失败`);
+  } catch (e) {
+    MessagePlugin.error("下发失败: " + e.message);
+  } finally {
+    dispatchSubmitting.value = false;
+  }
+};
+
 const formatNumber = (n) => {
   if (!n) return '默认';
   if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
@@ -365,6 +441,11 @@ onMounted(refresh);
         通用供应商与模型库（存 uTools DB）— 维护一份主数据，后续可下发到各 agent
       </span>
       <div class="common-config-actions">
+        <Tooltip content="把通用库的供应商与模型写入各 agent 的模型配置" placement="top">
+          <Button size="small" variant="outline" @click="openDispatchDialog()">
+            <template #icon><SendIcon /></template> 下发到 Agent
+          </Button>
+        </Tooltip>
         <Tooltip content="添加供应商" placement="top">
           <Button size="small" variant="outline" @click="openAddProviderDialog">
             <template #icon><AddIcon /></template> 添加供应商
@@ -446,6 +527,11 @@ onMounted(refresh);
                 </span>
               </div>
               <div class="common-model-actions" @click.stop>
+                <Tooltip content="下发到 Agent" placement="top">
+                  <Button size="small" variant="text" @click="openDispatchDialog(prov.name, m.id)">
+                    <template #icon><SendIcon /></template>
+                  </Button>
+                </Tooltip>
                 <Tooltip content="编辑模型" placement="top">
                   <Button size="small" variant="text" @click="openEditModelDialog(prov.name, m)">
                     <template #icon><EditIcon /></template>
@@ -729,6 +815,47 @@ onMounted(refresh);
             </div>
           </CollapsePanel>
         </Collapse>
+      </div>
+    </Dialog>
+
+    <!-- 下发到 Agent 弹窗：选中主数据 provider + model，写入 5 个 agent 的模型配置 -->
+    <Dialog
+      v-model:visible="dispatchDialog"
+      header="下发模型到 Agent"
+      width="560px"
+      :confirm-btn="{ content: '下发', theme: 'primary', loading: dispatchSubmitting }"
+      @confirm="handleDispatch"
+    >
+      <div class="common-edit-form">
+        <div class="common-form-item">
+          <label>供应商 <span class="common-form-required">*</span></label>
+          <Select v-model="dispatchProviderName" :options="dispatchProviderOptions" placeholder="选择供应商" />
+        </div>
+        <div class="common-form-item">
+          <label>模型 <span class="common-form-required">*</span></label>
+          <Select v-model="dispatchModelId" :options="dispatchModelOptions" placeholder="选择模型" />
+        </div>
+        <div class="common-form-item">
+          <label>目标供应商名（可选，默认与主数据一致；OpenCode 作为 provider id）</label>
+          <Input v-model="dispatchProviderNameOverride" placeholder="留空使用主数据供应商名" />
+        </div>
+        <div class="common-form-item">
+          <label>目标 Agent <span class="common-form-required">*</span></label>
+          <CheckboxGroup v-model="dispatchTargets" class="common-dispatch-agents">
+            <label v-for="opt in AGENT_DISPATCH_OPTIONS" :key="opt.value" class="common-dispatch-agent">
+              <Checkbox :value="opt.value" class="common-dispatch-checkbox">{{ opt.label }}</Checkbox>
+              <span class="common-dispatch-agent-hint">{{ opt.hint }}</span>
+            </label>
+          </CheckboxGroup>
+        </div>
+        <div class="common-form-item">
+          <label class="common-dispatch-default">
+            <Checkbox v-model="dispatchSetDefault" class="common-dispatch-checkbox">设为默认模型</Checkbox>
+          </label>
+          <div class="common-form-hint">
+            生效范围：Pi → defaultProvider/defaultModel；Reasonix → default_model；Claude 的模型配置即默认模型（恒生效）；OpenCode / omp 无默认模型概念，自动忽略
+          </div>
+        </div>
       </div>
     </Dialog>
   </div>

@@ -11,6 +11,7 @@ const pi = require('./services/pi')
 const omp = require('./services/omp')
 const reasonix = require('./services/reasonix')
 const common = require('./services/common')
+const dispatch = require('./services/dispatch')
 
 const {
   CLAUDE_SETTINGS_PATH, CLAUDE_JSON_PATH, CLAUDE_SKILLS_PATH,
@@ -1387,6 +1388,8 @@ window.services = {
   getCommonSkillsPath: common.getCommonSkillsPath,
   setCommonSkillEnabled: common.setCommonSkillEnabled,
   deleteCommonSkill: common.deleteCommonSkill,
+  // 通用库 provider + model → 各 Agent 模型配置下发
+  dispatchCommonModel: dispatch.dispatchCommonModel,
 
   getReasonixConfigPath: reasonix.getReasonixConfigPath,
   readReasonixConfig: reasonix.readReasonixConfig,
