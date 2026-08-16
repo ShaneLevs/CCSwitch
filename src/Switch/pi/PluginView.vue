@@ -341,7 +341,7 @@ defineExpose({ installFromUrl });
           <Select v-model="marketType" :options="MARKET_TYPE_OPTIONS" size="small" class="pi-market-select" @change="marketSearch" />
           <Select v-model="marketSort" :options="MARKET_SORT_OPTIONS" size="small" class="pi-market-select" @change="marketSearch" />
           <Tooltip content="刷新" placement="top">
-            <Button size="small" variant="outline" :loading="marketLoading" @click="marketSearch">
+            <Button size="small" variant="outline" :loading="marketLoading" @click="marketSearch" class="pi-market-refresh-btn">
               <template #icon><RefreshIcon /></template>
             </Button>
           </Tooltip>

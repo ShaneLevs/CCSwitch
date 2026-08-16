@@ -149,6 +149,10 @@
 .form-item-vertical { display: flex; flex-direction: column; gap: 8px; }
 .form-item-vertical label { font-size: 14px; color: var(--td-text-color-primary); }
 .form-hint { font-size: 12px; color: var(--td-text-color-placeholder); padding-left: 92px; margin-top: -10px; margin-bottom: -10px; }
+.auth-var-group { flex: 1; }
+.auth-var-group .t-radio-button { flex: 1; justify-content: center; white-space: nowrap; }
+.auth-var-group .t-radio-button__label { justify-content: center; }
+.auth-var-group .t-radio-button + .t-radio-button { margin-left: 8px; }
 .form-item .required { color: var(--td-error-color); }
 .model-1m-checkbox { font-size: 12px; white-space: nowrap; --td-brand-color: var(--td-success-color); margin-right: -4px; max-width: 50px; }
 .model-1m-checkbox .t-checkbox__label { font-size: 12px; font-family: monospace; padding-left: 2px; }

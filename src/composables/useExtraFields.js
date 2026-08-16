@@ -137,7 +137,8 @@ export function useExtraFields(loadCurrentConfig, savedConfigs, isCurrentConfig)
     mergedFields.forEach(field => {
       const key = field.key.trim();
       const value = field.value.trim();
-      if (key) {
+      // 托管字段（如认证变量）由切换逻辑管理，不写入全局 extras，避免破坏互斥
+      if (key && !managedFields.includes(key)) {
         globalExtras[key] = value;
         if (!fixedFieldKeyOptions.includes(key)) userKeys.push(key);
       }

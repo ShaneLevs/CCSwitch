@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from "vue";
-import { Button, Dropdown, Dialog, Switch } from "tdesign-vue-next";
+import { Button, Dropdown, Dialog, Switch, Checkbox, Divider } from "tdesign-vue-next";
 import {
   ChartIcon,
   DashboardIcon,
@@ -10,6 +10,7 @@ import {
   AppIcon,
   SettingIcon,
 } from "tdesign-icons-vue-next";
+import { GripVertical } from "@lucide/vue";
 import ConfigView from "./claude/ConfigView.vue";
 import UsageView from "./claude/UsageView.vue";
 import McpView from "./claude/McpView.vue";
@@ -139,14 +140,96 @@ const switchApp = (app) => {
   }
 };
 
-const appDropdownOptions = [
-  { content: "通用", value: "common" },
-  { content: "Claude Code", value: "claude" },
-  { content: "OpenCode CLI", value: "opencode" },
-  { content: "Pi Agent", value: "pi" },
-  { content: "omp", value: "omp" },
-  { content: "Reasonix", value: "reasonix" },
-];
+// ==================== Agent 显示管理 ====================
+
+const VISIBLE_AGENTS_DB = "ccswitch_visible_agents";
+const AGENT_ORDER = ["claude", "opencode", "pi", "omp", "reasonix"];
+const AGENT_META = {
+  claude: { name: "Claude Code", icon: "/claudecode.png" },
+  opencode: { name: "OpenCode CLI", icon: "/icon-opencode.png" },
+  pi: { name: "Pi Agent", icon: "/icon-pi.png" },
+  omp: { name: "omp", icon: "/omp-icon.svg" },
+  reasonix: { name: "Reasonix", icon: "/reasonix.svg" },
+};
+
+// 可见 agent：有记录用记录（缺键按有数据兜底），无记录用「前三个 + 有数据的」并写库；检测结果只在首次参与，之后不覆盖用户选择
+const visibleAgents = ref(null);
+// agent 显示顺序（可拖拽排序），默认 AGENT_ORDER
+const agentOrder = ref([...AGENT_ORDER]);
+let dragAgentIndex = null;
+const saveVisibleAgents = () => {
+  let existing = null;
+  try { existing = window.utools.db.get(VISIBLE_AGENTS_DB); } catch (e) { /* ignore */ }
+  const doc = { _id: VISIBLE_AGENTS_DB, visible: { ...visibleAgents.value }, order: [...agentOrder.value] };
+  if (existing) doc._rev = existing._rev;
+  try {
+    const res = window.utools.db.put(doc);
+    if (!res || !res.ok) console.error("保存可见 agent 失败", res);
+  } catch (e) { console.error("保存可见 agent 失败", e); }
+};
+const initVisibleAgents = () => {
+  let doc = null;
+  try { doc = window.utools.db.get(VISIBLE_AGENTS_DB); } catch (e) { /* ignore */ }
+  const stored = doc?.visible || null;
+  const storedOrder = doc?.order || null;
+  if (Array.isArray(storedOrder) && storedOrder.length) {
+    agentOrder.value = storedOrder.filter(a => AGENT_ORDER.includes(a));
+  }
+  if (stored) {
+    // 有记录：用记录，缺键（未来新增 agent）默认显示
+    const result = {};
+    AGENT_ORDER.forEach((app) => { result[app] = stored[app] ?? true; });
+    visibleAgents.value = result;
+  } else {
+    // 无记录：检测配置数据，默认「前三个 + 有数据的」，写库
+    const hasData = window.services.detectAgentsConfig();
+    const result = {};
+    AGENT_ORDER.forEach((app, i) => { result[app] = hasData[app] || i < 3; });
+    visibleAgents.value = result;
+    try { saveVisibleAgents(); } catch (e) { console.error("保存可见 agent 失败", e); }
+  }
+};
+initVisibleAgents();
+
+// 自动持久化：勾选或排序变化即保存（不依赖组件 change 事件，deep 监听可见状态与顺序）
+watch([visibleAgents, agentOrder], () => {
+  saveVisibleAgents();
+}, { deep: true });
+
+// checkbox 点击：只做禁用兜底，勾选状态由 v-model 更新，watch 自动持久化
+const onAgentToggle = (app, val) => {
+  if (!val && app === activeApp.value) {
+    visibleAgents.value[app] = true; // 禁止取消当前活跃，恢复勾选
+  }
+};
+
+// 程序调用（入口路由进入隐藏 agent 时自动显示），watch 自动持久化
+const toggleAgentVisibility = (app, val) => {
+  visibleAgents.value[app] = val;
+};
+
+// 拖拽排序：调整 agentOrder 并持久化
+const onAgentDragStart = (idx) => { dragAgentIndex = idx; };
+const onAgentDrop = (idx) => {
+  if (dragAgentIndex === null || dragAgentIndex === idx) { dragAgentIndex = null; return; }
+  const order = [...agentOrder.value];
+  const [moved] = order.splice(dragAgentIndex, 1);
+  order.splice(idx, 0, moved);
+  agentOrder.value = order; // watch 自动持久化
+  dragAgentIndex = null;
+};
+const onAgentDragEnd = () => { dragAgentIndex = null; };
+
+// 切换器下拉：通用恒显示 + 勾选的 agent，按拖拽排序后的顺序
+const appDropdownOptions = computed(() => {
+  const opts = [{ content: "通用", value: "common" }];
+  agentOrder.value.forEach((app) => {
+    if (visibleAgents.value && visibleAgents.value[app]) {
+      opts.push({ content: AGENT_META[app].name, value: app });
+    }
+  });
+  return opts;
+});
 
 const handleAppSelect = (data) => {
   const app = typeof data === "object" ? data.value : data;
@@ -166,6 +249,10 @@ onMounted(() => {
   if (appMap[props.route]) {
     setActiveApp(appMap[props.route]);
     ensureAppActivated(appMap[props.route]);
+    // 入口路由进入被隐藏的 agent 时自动显示，避免「回不去」死锁
+    if (visibleAgents.value && !visibleAgents.value[appMap[props.route]]) {
+      toggleAgentVisibility(appMap[props.route], true);
+    }
   }
 
   if (props.route === "installClaudeSkill" && props.payload) {
@@ -526,56 +613,95 @@ onMounted(() => {
       v-model:visible="showSettings"
       header="设置"
       :footer="false"
-      width="380px"
+      width="540px"
       placement="center"
     >
-      <div class="settings-row">
-        <div class="settings-label">
-          <div class="settings-title">黑暗模式背景特效</div>
+      <div class="settings-body">
+        <!-- Agent 显示管理（最上） -->
+        <div class="settings-section">
+          <div class="settings-title">Agent 显示管理</div>
           <div class="settings-desc">
-            深色模式下的动态背景特效，开启后可能会导致电脑卡顿
+            拖动可排序，勾选的 agent 会显示在顶部切换器中；「通用」始终显示；当前正在使用的 agent 不可取消
+          </div>
+          <div class="agent-visibility-list">
+            <div
+              v-for="(app, idx) in agentOrder"
+              :key="app"
+              class="agent-visibility-item"
+              @dragover.prevent
+              @drop="onAgentDrop(idx)"
+            >
+              <span
+                class="agent-visibility-drag"
+                draggable="true"
+                @dragstart="onAgentDragStart(idx)"
+                @dragend="onAgentDragEnd"
+              >
+                <GripVertical :size="16" />
+              </span>
+              <img :src="AGENT_META[app].icon" class="agent-visibility-icon" alt="" />
+              <span class="agent-visibility-name">{{ AGENT_META[app].name }}</span>
+              <span v-if="app === activeApp" class="agent-visibility-tag">当前</span>
+              <Checkbox
+                v-model="visibleAgents[app]"
+                :disabled="app === activeApp"
+                class="agent-visibility-checkbox"
+                @change="(val) => onAgentToggle(app, val)"
+              />
+            </div>
           </div>
         </div>
-        <Switch
-          :model-value="darkBackgroundEnabled"
-          @change="setDarkBackground"
-        />
-      </div>
-      <div
-        class="effect-cards"
-        :class="{ 'effect-cards--disabled': !darkBackgroundEnabled }"
-      >
-        <div
-          class="effect-card"
-          :class="{ 'effect-card--active': darkEffect === 'prismatic' }"
-          @click="darkBackgroundEnabled && setDarkEffect('prismatic')"
-        >
-          <div class="effect-card__name">Prismatic Burst</div>
-          <div class="effect-card__desc">棱镜光谱爆裂</div>
+
+        <Divider class="settings-divider" />
+
+        <div class="settings-row">
+          <div class="settings-label">
+            <div class="settings-title">黑暗模式背景特效</div>
+            <div class="settings-desc">
+              深色模式下的动态背景特效，开启后可能会导致电脑卡顿
+            </div>
+          </div>
+          <Switch
+            :model-value="darkBackgroundEnabled"
+            @change="setDarkBackground"
+          />
         </div>
         <div
-          class="effect-card"
-          :class="{ 'effect-card--active': darkEffect === 'pixel' }"
-          @click="darkBackgroundEnabled && setDarkEffect('pixel')"
+          class="effect-cards"
+          :class="{ 'effect-cards--disabled': !darkBackgroundEnabled }"
         >
-          <div class="effect-card__name">FaultyTerminal</div>
-          <div class="effect-card__desc">故障像素终端</div>
-        </div>
-        <div
-          class="effect-card"
-          :class="{ 'effect-card--active': darkEffect === 'aurora' }"
-          @click="darkBackgroundEnabled && setDarkEffect('aurora')"
-        >
-          <div class="effect-card__name">Aurora</div>
-          <div class="effect-card__desc">流动极光</div>
-        </div>
-        <div
-          class="effect-card"
-          :class="{ 'effect-card--active': darkEffect === 'galaxy' }"
-          @click="darkBackgroundEnabled && setDarkEffect('galaxy')"
-        >
-          <div class="effect-card__name">Galaxy</div>
-          <div class="effect-card__desc">星河漫游</div>
+          <div
+            class="effect-card"
+            :class="{ 'effect-card--active': darkEffect === 'prismatic' }"
+            @click="darkBackgroundEnabled && setDarkEffect('prismatic')"
+          >
+            <div class="effect-card__name">Prismatic Burst</div>
+            <div class="effect-card__desc">棱镜光谱爆裂</div>
+          </div>
+          <div
+            class="effect-card"
+            :class="{ 'effect-card--active': darkEffect === 'pixel' }"
+            @click="darkBackgroundEnabled && setDarkEffect('pixel')"
+          >
+            <div class="effect-card__name">FaultyTerminal</div>
+            <div class="effect-card__desc">故障像素终端</div>
+          </div>
+          <div
+            class="effect-card"
+            :class="{ 'effect-card--active': darkEffect === 'aurora' }"
+            @click="darkBackgroundEnabled && setDarkEffect('aurora')"
+          >
+            <div class="effect-card__name">Aurora</div>
+            <div class="effect-card__desc">流动极光</div>
+          </div>
+          <div
+            class="effect-card"
+            :class="{ 'effect-card--active': darkEffect === 'galaxy' }"
+            @click="darkBackgroundEnabled && setDarkEffect('galaxy')"
+          >
+            <div class="effect-card__name">Galaxy</div>
+            <div class="effect-card__desc">星河漫游</div>
+          </div>
         </div>
       </div>
     </Dialog>
@@ -671,6 +797,66 @@ onMounted(() => {
 }
 .settings-row + .settings-row {
   margin-top: 8px;
+}
+.settings-body {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.settings-divider {
+  margin: 16px 0 12px;
+}
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agent-visibility-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
+.agent-visibility-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--td-radius-default);
+  user-select: none;
+}
+.agent-visibility-item:hover {
+  background: var(--td-bg-color-container-hover);
+}
+.agent-visibility-drag {
+  flex-shrink: 0;
+  color: var(--td-text-color-placeholder);
+  cursor: grab;
+  display: inline-flex;
+  align-items: center;
+}
+.agent-visibility-drag:active {
+  cursor: grabbing;
+}
+.agent-visibility-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--td-radius-default);
+}
+.agent-visibility-name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+}
+.agent-visibility-tag {
+  font-size: 11px;
+  color: var(--td-success-color);
+  background: var(--td-success-color-1);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.agent-visibility-checkbox {
+  --td-brand-color: var(--td-success-color);
 }
 .effect-cards {
   display: flex;

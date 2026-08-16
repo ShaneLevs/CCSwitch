@@ -190,12 +190,14 @@ All Node.js-sensitive operations (file I/O, network requests, child process exec
 ## Managed Env Fields (constants.js)
 
 ```
-ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL, ANTHROPIC_MODEL,
+ANTHROPIC_AUTH_TOKEN, ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, ANTHROPIC_MODEL,
 ANTHROPIC_DEFAULT_HAIKU_MODEL, ANTHROPIC_DEFAULT_SONNET_MODEL,
 ANTHROPIC_DEFAULT_OPUS_MODEL, CLAUDE_CODE_SUBAGENT_MODEL
 ```
 
 These are explicitly managed during config switch — set, cleared, and not preserved from previous state.
+
+Claude 配置支持「认证方式」（`authVar`）：每个配置可选择 `ANTHROPIC_AUTH_TOKEN` 或 `ANTHROPIC_API_KEY`，切换时写入所选变量并清除另一个（互斥）。OpenCode Go 套餐用 `ANTHROPIC_API_KEY` + baseUrl `https://opencode.ai/zen/go`（注意不带 `/v1`），内置预设一键填充，模型候选实时从 `/v1/models` 获取。
 
 ## Dark Mode Implementation
 

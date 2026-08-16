@@ -22,6 +22,7 @@ const {
   compressConfigs, decompressConfigs,
   saveOverriddenEnv, getOverriddenEnv, saveHeatmapHistory, getHeatmapHistory,
   saveUsageCache, getUsageCache,
+  fetchOpencodeGoModels,
 } = config
 
 const {
@@ -58,6 +59,7 @@ window.services = {
   getClaudeMcpPath,
   openClaudeMcpFile,
   getMcpServerTools,
+  fetchOpencodeGoModels,
   encryptKey: encrypt,
   decryptKey: decrypt,
   saveOverriddenEnv,
@@ -1404,6 +1406,42 @@ window.services = {
   generateReasonixApiKeyEnv: reasonix.generateReasonixApiKeyEnv,
   openReasonixDir: reasonix.openReasonixDir,
   isReasonixInstalled: reasonix.isReasonixInstalled,
+  // 检测 5 个 agent 是否已有配置数据（本地文件 + DB，无网络，全部 try/catch）
+  detectAgentsConfig() {
+    const hasData = { claude: false, opencode: false, pi: false, omp: false, reasonix: false }
+    // claude：settings.json 有 managed env 字段，或 DB 有已存配置
+    try {
+      const settings = readClaudeSettings()
+      if (settings && settings.env) {
+        hasData.claude = Object.keys(settings.env).some(k => k.startsWith('ANTHROPIC_') || k.startsWith('CLAUDE_CODE_'))
+      }
+      if (!hasData.claude) {
+        hasData.claude = window.utools.db.allDocs().some(d => d._id.startsWith('ccswitch_config_'))
+      }
+    } catch (e) { /* ignore */ }
+    // opencode：provider / plugin / mcp 任一有内容
+    try {
+      const oc = readOpencodeConfig()
+      hasData.opencode = !!(oc && (Object.keys(oc.provider || {}).length > 0 || (oc.plugin || []).length > 0 || Object.keys(oc.mcp || {}).length > 0))
+    } catch (e) { /* ignore */ }
+    // pi：models.json 有供应商
+    try {
+      const models = pi.readPiModels()
+      hasData.pi = !!(models && Object.keys(models.providers || {}).length > 0)
+    } catch (e) { /* ignore */ }
+    // omp：modelRoles 或 models.yml 有内容
+    try {
+      const roles = omp.readOmpModelRoles()
+      const models = omp.readOmpModels()
+      hasData.omp = !!(Object.keys(roles || {}).length > 0 || Object.keys((models && models.providers) || {}).length > 0)
+    } catch (e) { /* ignore */ }
+    // reasonix：config.toml 有 providers
+    try {
+      const cfg = reasonix.readReasonixConfig()
+      hasData.reasonix = !!((cfg && cfg.providers) || []).length
+    } catch (e) { /* ignore */ }
+    return hasData
+  },
 }
 
 // 辅助函数：递归查找 SKILL.md
