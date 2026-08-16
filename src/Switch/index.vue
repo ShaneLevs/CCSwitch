@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from "vue";
-import { Button, Dropdown, Dialog, Switch } from "tdesign-vue-next";
+import { Button, Dropdown, Dialog, Switch, Checkbox, Divider } from "tdesign-vue-next";
 import {
   ChartIcon,
   DashboardIcon,
@@ -139,14 +139,68 @@ const switchApp = (app) => {
   }
 };
 
-const appDropdownOptions = [
-  { content: "通用", value: "common" },
-  { content: "Claude Code", value: "claude" },
-  { content: "OpenCode CLI", value: "opencode" },
-  { content: "Pi Agent", value: "pi" },
-  { content: "omp", value: "omp" },
-  { content: "Reasonix", value: "reasonix" },
-];
+// ==================== Agent 显示管理 ====================
+
+const VISIBLE_AGENTS_DB = "ccswitch_visible_agents";
+const AGENT_ORDER = ["claude", "opencode", "pi", "omp", "reasonix"];
+const AGENT_META = {
+  claude: { name: "Claude Code", icon: "/claudecode.png" },
+  opencode: { name: "OpenCode CLI", icon: "/icon-opencode.png" },
+  pi: { name: "Pi Agent", icon: "/icon-pi.png" },
+  omp: { name: "omp", icon: "/omp-icon.svg" },
+  reasonix: { name: "Reasonix", icon: "/reasonix.svg" },
+};
+
+// 可见 agent：有记录用记录（缺键按有数据兜底），无记录用「前三个 + 有数据的」并写库；检测结果只在首次参与，之后不覆盖用户选择
+const visibleAgents = ref(null);
+const saveVisibleAgents = () => {
+  const existing = window.utools.db.get(VISIBLE_AGENTS_DB);
+  const doc = { _id: VISIBLE_AGENTS_DB, visible: { ...visibleAgents.value } };
+  if (existing) doc._rev = existing._rev;
+  window.utools.db.put(doc);
+};
+const initVisibleAgents = () => {
+  let stored = null;
+  try {
+    stored = window.utools.db.get(VISIBLE_AGENTS_DB)?.visible || null;
+  } catch (e) { /* ignore */ }
+  if (stored) {
+    // 有记录：用记录，缺键（未来新增 agent）默认显示
+    const result = {};
+    AGENT_ORDER.forEach((app) => { result[app] = stored[app] ?? true; });
+    visibleAgents.value = result;
+  } else {
+    // 无记录：检测配置数据，默认「前三个 + 有数据的」，写库
+    const hasData = window.services.detectAgentsConfig();
+    const result = {};
+    AGENT_ORDER.forEach((app, i) => { result[app] = hasData[app] || i < 3; });
+    visibleAgents.value = result;
+    try { saveVisibleAgents(); } catch (e) { console.error("保存可见 agent 失败", e); }
+  }
+};
+initVisibleAgents();
+
+const toggleAgentVisibility = (app, val) => {
+  // 取消当前活跃 agent 禁止；显示总是允许（入口路由进入隐藏 agent 时自动显示）
+  if (!val && app === activeApp.value) return;
+  const prev = visibleAgents.value[app];
+  visibleAgents.value[app] = val;
+  try { saveVisibleAgents(); } catch (e) {
+    visibleAgents.value[app] = prev; // 写库失败回滚
+    console.error("保存可见 agent 失败", e);
+  }
+};
+
+// 切换器下拉：通用恒显示 + 勾选的 agent
+const appDropdownOptions = computed(() => {
+  const opts = [{ content: "通用", value: "common" }];
+  AGENT_ORDER.forEach((app) => {
+    if (visibleAgents.value && visibleAgents.value[app]) {
+      opts.push({ content: AGENT_META[app].name, value: app });
+    }
+  });
+  return opts;
+});
 
 const handleAppSelect = (data) => {
   const app = typeof data === "object" ? data.value : data;
@@ -166,6 +220,10 @@ onMounted(() => {
   if (appMap[props.route]) {
     setActiveApp(appMap[props.route]);
     ensureAppActivated(appMap[props.route]);
+    // 入口路由进入被隐藏的 agent 时自动显示，避免「回不去」死锁
+    if (visibleAgents.value && !visibleAgents.value[appMap[props.route]]) {
+      toggleAgentVisibility(appMap[props.route], true);
+    }
   }
 
   if (props.route === "installClaudeSkill" && props.payload) {
@@ -529,6 +587,7 @@ onMounted(() => {
       width="380px"
       placement="center"
     >
+      <div class="settings-body">
       <div class="settings-row">
         <div class="settings-label">
           <div class="settings-title">黑暗模式背景特效</div>
@@ -577,6 +636,32 @@ onMounted(() => {
           <div class="effect-card__name">Galaxy</div>
           <div class="effect-card__desc">星河漫游</div>
         </div>
+      </div>
+
+      <Divider class="settings-divider" />
+      <div class="settings-section">
+        <div class="settings-title">Agent 显示管理</div>
+        <div class="settings-desc">
+          勾选的 agent 会显示在顶部切换器中；「通用」始终显示；当前正在使用的 agent 不可取消
+        </div>
+        <div class="agent-visibility-list">
+          <div
+            v-for="app in AGENT_ORDER"
+            :key="app"
+            class="agent-visibility-item"
+          >
+            <img :src="AGENT_META[app].icon" class="agent-visibility-icon" alt="" />
+            <span class="agent-visibility-name">{{ AGENT_META[app].name }}</span>
+            <span v-if="app === activeApp" class="agent-visibility-tag">当前</span>
+            <Checkbox
+              :checked="!!(visibleAgents && visibleAgents[app])"
+              :disabled="app === activeApp"
+              class="agent-visibility-checkbox"
+              @change="(val) => toggleAgentVisibility(app, val)"
+            />
+          </div>
+        </div>
+      </div>
       </div>
     </Dialog>
   </div>
@@ -671,6 +756,55 @@ onMounted(() => {
 }
 .settings-row + .settings-row {
   margin-top: 8px;
+}
+.settings-body {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.settings-divider {
+  margin: 16px 0 12px;
+}
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agent-visibility-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+.agent-visibility-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--td-radius-default);
+}
+.agent-visibility-item:hover {
+  background: var(--td-bg-color-container-hover);
+}
+.agent-visibility-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--td-radius-default);
+}
+.agent-visibility-name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+}
+.agent-visibility-tag {
+  font-size: 11px;
+  color: var(--td-success-color);
+  background: var(--td-success-color-1);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.agent-visibility-checkbox {
+  --td-brand-color: var(--td-success-color);
 }
 .effect-cards {
   display: flex;
