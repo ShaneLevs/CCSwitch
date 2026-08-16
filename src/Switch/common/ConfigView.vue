@@ -353,65 +353,76 @@ const AGENT_DISPATCH_OPTIONS = [
   { label: "Reasonix", value: "reasonix", hint: "写入 config.toml 的供应商与模型（可设默认）" },
 ];
 
+// 供应商 / 模型支持多选：模型选项为所有已选供应商模型的并集，value 用 "供应商::模型ID" 区分同名
 const dispatchDialog = ref(false);
 const dispatchSubmitting = ref(false);
-const dispatchProviderName = ref("");
-const dispatchModelId = ref("");
-const dispatchProviderNameOverride = ref("");
+const dispatchProviderNames = ref([]);
+const dispatchModelKeys = ref([]);
 const dispatchTargets = ref([]);
 const dispatchSetDefault = ref(false);
 
 const dispatchProviderOptions = computed(() =>
   providers.value.map(p => ({ label: p.name, value: p.name }))
 );
-const dispatchSelectedProvider = computed(() =>
-  providers.value.find(p => p.name === dispatchProviderName.value)
-);
-const dispatchModelOptions = computed(() =>
-  (dispatchSelectedProvider.value?.models || []).map(m => ({
-    label: `${m.name || m.id}${m.contextWindow ? `（${formatNumber(m.contextWindow)} ctx）` : ""}`,
-    value: m.id,
-  }))
-);
-const dispatchSelectedModel = computed(() =>
-  dispatchSelectedProvider.value?.models.find(m => m.id === dispatchModelId.value)
-);
+const dispatchModelOptions = computed(() => {
+  const opts = [];
+  dispatchProviderNames.value.forEach(name => {
+    const p = providers.value.find(x => x.name === name);
+    if (!p) return;
+    (p.models || []).forEach(m => {
+      opts.push({
+        label: `${m.name || m.id}${m.contextWindow ? `（${formatNumber(m.contextWindow)} ctx）` : ""}（${p.name}）`,
+        value: `${p.name}::${m.id}`,
+      });
+    });
+  });
+  return opts;
+});
 
-watch(dispatchProviderName, () => { dispatchModelId.value = ""; });
+watch(dispatchProviderNames, () => { dispatchModelKeys.value = []; });
 
 const openDispatchDialog = (providerName = "", modelId = "") => {
-  dispatchProviderName.value = providerName || providers.value[0]?.name || "";
-  dispatchModelId.value = modelId || "";
-  dispatchProviderNameOverride.value = providerName || "";
+  dispatchProviderNames.value = providerName ? [providerName] : [];
+  dispatchModelKeys.value = providerName && modelId ? [`${providerName}::${modelId}`] : [];
   dispatchTargets.value = [];
   dispatchSetDefault.value = false;
   dispatchDialog.value = true;
 };
 
 const handleDispatch = async () => {
-  const provider = dispatchSelectedProvider.value;
-  const model = dispatchSelectedModel.value;
-  if (!provider) return MessagePlugin.warning("请选择供应商");
-  if (!model) return MessagePlugin.warning("请选择模型");
+  if (dispatchProviderNames.value.length === 0) return MessagePlugin.warning("请选择供应商");
+  if (dispatchModelKeys.value.length === 0) return MessagePlugin.warning("请选择模型");
   if (dispatchTargets.value.length === 0) return MessagePlugin.warning("请选择目标 agent");
-  const targets = dispatchTargets.value.map(app => ({
-    app,
-    providerName: dispatchProviderNameOverride.value.trim() || provider.name,
-    setDefault: dispatchSetDefault.value,
-  }));
+  const targets = dispatchTargets.value.map(app => ({ app, setDefault: dispatchSetDefault.value }));
   dispatchSubmitting.value = true;
   try {
-    const results = await window.services.dispatchCommonModel(provider, model, targets);
-    const ok = results.filter(r => r.ok).length;
-    results.forEach(r => {
-      const label = (AGENT_DISPATCH_OPTIONS.find(o => o.value === r.app) || {}).label || r.app;
-      if (r.ok) MessagePlugin.success(`${label}: ${r.message}`);
-      else MessagePlugin.error(`${label}: ${r.message}`);
+    const allResults = [];
+    for (const key of dispatchModelKeys.value) {
+      const [pName, mId] = key.split("::");
+      const provider = providers.value.find(p => p.name === pName);
+      const model = provider?.models.find(m => m.id === mId);
+      if (!provider || !model) continue;
+      const results = await window.services.dispatchCommonModel(provider, model, targets);
+      allResults.push(...results);
+    }
+    // 按 agent 聚合结果展示
+    const byApp = {};
+    allResults.forEach(r => {
+      if (!byApp[r.app]) byApp[r.app] = { ok: 0, fail: 0, err: "" };
+      if (r.ok) byApp[r.app].ok++;
+      else { byApp[r.app].fail++; if (!byApp[r.app].err) byApp[r.app].err = r.message; }
+    });
+    const totalOk = allResults.filter(r => r.ok).length;
+    const total = allResults.length;
+    Object.entries(byApp).forEach(([app, s]) => {
+      const label = (AGENT_DISPATCH_OPTIONS.find(o => o.value === app) || {}).label || app;
+      if (s.fail === 0) MessagePlugin.success(`${label}: ${s.ok} 个模型下发成功`);
+      else MessagePlugin.warning(`${label}: ${s.ok} 成功 / ${s.fail} 失败（${s.err}）`);
     });
     dispatchDialog.value = false;
-    if (ok === results.length) MessagePlugin.success(`下发完成：${ok}/${results.length} 成功`);
-    else if (ok > 0) MessagePlugin.warning(`下发完成：${ok}/${results.length} 成功，部分失败`);
-    else MessagePlugin.error(`下发失败：${results.length} 个目标全部失败`);
+    if (totalOk === total) MessagePlugin.success(`下发完成：${totalOk}/${total} 成功`);
+    else if (totalOk > 0) MessagePlugin.warning(`下发完成：${totalOk}/${total} 成功，部分失败`);
+    else MessagePlugin.error(`下发失败：${total} 个目标全部失败`);
   } catch (e) {
     MessagePlugin.error("下发失败: " + e.message);
   } finally {
@@ -829,15 +840,11 @@ onMounted(refresh);
       <div class="common-edit-form">
         <div class="common-form-item">
           <label>供应商 <span class="common-form-required">*</span></label>
-          <Select v-model="dispatchProviderName" :options="dispatchProviderOptions" placeholder="选择供应商" />
+          <Select v-model="dispatchProviderNames" :options="dispatchProviderOptions" multiple placeholder="选择供应商（可多选）" />
         </div>
         <div class="common-form-item">
           <label>模型 <span class="common-form-required">*</span></label>
-          <Select v-model="dispatchModelId" :options="dispatchModelOptions" placeholder="选择模型" />
-        </div>
-        <div class="common-form-item">
-          <label>目标供应商名（可选，默认与主数据一致；OpenCode 作为 provider id）</label>
-          <Input v-model="dispatchProviderNameOverride" placeholder="留空使用主数据供应商名" />
+          <Select v-model="dispatchModelKeys" :options="dispatchModelOptions" multiple placeholder="选择模型（可多选，跨供应商按「模型（供应商）」区分）" />
         </div>
         <div class="common-form-item">
           <label>目标 Agent <span class="common-form-required">*</span></label>

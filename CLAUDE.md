@@ -187,7 +187,7 @@ All Node.js-sensitive operations (file I/O, network requests, child process exec
 13. **通用配置主数据**: 跨 agent 供应商/模型主数据库（四协议），API Key 加密存 uTools DB，MCP/Skill 双端管理
 14. **刷新按钮**: 所有配置页面工具栏统一刷新按钮（纯图标，置于按钮组最右）
 15. **深色背景特效**: 可配置的动态背景（棱镜光谱爆裂 / 故障像素终端 / 流动极光 / 星河漫游，ogl WebGL）
-16. **模型下发到 Agent**: 通用配置页选中主数据 provider + 模型，一键写入 5 个 agent（Claude / OpenCode / Pi / omp / Reasonix）的模型配置，支持设为默认模型（Pi / Reasonix）
+16. **模型下发到 Agent**: 通用配置页多选主数据 provider + 模型（跨供应商可混选），一键批量写入 5 个 agent（Claude / OpenCode / Pi / omp / Reasonix）的模型配置，支持设为默认模型（Pi / Reasonix）
 
 ## Managed Env Fields (constants.js)
 
