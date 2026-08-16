@@ -142,7 +142,7 @@ public/
   - 通用 MCP → uTools DB `ccswitch_common_mcp`（格式同 ~/.mcp.json 的 `{ mcpServers }`）与本地 `~/.mcp.json` 双存储；McpView 按名称合并为单一列表，卡片标「本地/云端」tag，支持双端复制/移除，同名配置不同时显示警告
   - 通用 Skill → 只读扫描 `~/.agents/skills`（SKILL.md 元数据）；启停 = 物理移动目录到 `.disabled/`（与 Claude Code 机制一致）
   - `writeDoc` 捕获 uTools 结构化克隆失败：递归定位函数/Symbol 等非 JSON 字段并净化（丢弃）后重试写入（兼容历史脏数据）；失败时抛带原始错误信息的异常供 UI 展示
-  - **模型下发到 Agent**（`services/dispatch.js`）：把主数据的 provider + model 写入各 agent 模型配置——Claude → `~/.claude/settings.json` env（ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_MODEL，互斥删 API_KEY）；OpenCode → `opencode.json` provider[id]（options.baseURL/apiKey + models[id]）；Pi → `models.json` providers[name]（可选默认 provider/model）；omp → `models.yml` providers[name]（无默认概念）；Reasonix → `config.toml` providers[] + `.env` key（可选 `default_model`）。每个目标独立 try/catch，单个失败不影响其他目标
+  - **模型下发到 Agent**（`services/dispatch.js`）：把主数据的 provider + model 写入各 agent 模型配置——Claude → uTools DB 保存配置（`ccswitch_config_dispatch_<provider>`，一个 provider 一份，Claude 配置页可见；key 加密、authVar 默认 AUTH_TOKEN，模型自动填入空闲槽位 默认/Haiku/Sonnet/Opus/Subagent，已有同模型跳过、5 槽位满报错，不直接改 settings.json）；OpenCode → `opencode.json` provider[id]（options.baseURL/apiKey + models[id]）；Pi → `models.json` providers[name]（可选默认 provider/model）；omp → `models.yml` providers[name]（无默认概念）；Reasonix → `config.toml` providers[] + `.env` key（可选 `default_model`）。每个目标独立 try/catch，单个失败不影响其他目标
 - **OpenCode Config**: `~/.config/opencode.json` / `opencode.jsonc`（json5/jsonc 解析，优先 `.json`，不存在自动检测 `.jsonc`）↔ uTools DB
 - **OpenCode Usage**:
   - 数据目录（Windows/macOS/Linux 通用 XDG 风格）：`~/.local/share/opencode/opencode.db`

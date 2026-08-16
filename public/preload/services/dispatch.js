@@ -5,8 +5,9 @@
 //   pi       → ~/.pi/agent/models.json  providers[name] + settings.json（可选默认）
 //   omp      → ~/.omp/agent/models.yml  providers[name]（无默认模型概念，modelRoles 由用户自行配置）
 //   reasonix → ~/.reasonix/config.toml  providers[] + .env（可选 default_model）
-// 全部为纯文件写入，不依赖 agent 二进制；每个目标独立 try/catch，单个失败不影响其他目标。
-const config = require('./config')
+// 全部为纯文件/DB 写入，不依赖 agent 二进制；每个目标独立 try/catch，单个失败不影响其他目标。
+// Claude 特殊：下发写入 uTools DB 保存配置（一个 provider 一份，Claude 配置页可见），不直接改 settings.json
+const crypto = require('./crypto')
 const opencode = require('./opencode')
 const pi = require('./pi')
 const omp = require('./omp')
@@ -27,20 +28,60 @@ const normalizeCost = (cost) => {
 
 // ==================== 各 Agent 写入实现 ====================
 
-// Claude Code：模型配置即 env 里的 ANTHROPIC_MODEL（无独立 provider 概念，baseUrl + 认证 key 一并写入）
+// Claude Code：下发 = 在 uTools DB 保存一份「以 provider 命名」的配置（ccswitch_config_dispatch_<provider>），
+// 与 Claude 配置页的配置列表互通（切换时由 useConfigSwitch 写入 settings.json）。
+// 一个 provider 一份配置；模型自动填入空闲槽位（默认 → Haiku → Sonnet → Opus → Subagent），
+// 已有同模型跳过，5 个槽位全满时报错提示（不覆盖已有模型）。
+const DB_PREFIX = 'ccswitch_config_'
+const DISPATCH_DB_PREFIX = DB_PREFIX + 'dispatch_'
+const CLAUDE_MODEL_SLOTS = ['model', 'defaultHaikuModel', 'defaultSonnetModel', 'defaultOpusModel', 'subagentModel']
+const CLAUDE_SLOT_LABELS = { model: '默认模型', defaultHaikuModel: 'Haiku', defaultSonnetModel: 'Sonnet', defaultOpusModel: 'Opus', subagentModel: 'Subagent' }
+
 const dispatchToClaude = (provider, model) => {
-  const settings = config.readClaudeSettings() || {}
-  if (!settings.env) settings.env = {}
-  const env = settings.env
-  // 认证变量互斥：删 ANTHROPIC_API_KEY，写 ANTHROPIC_AUTH_TOKEN（与 CC 默认认证方式一致）
-  delete env.ANTHROPIC_API_KEY
-  if (provider.apiKey) env.ANTHROPIC_AUTH_TOKEN = provider.apiKey
-  else delete env.ANTHROPIC_AUTH_TOKEN
-  if (provider.baseUrl) env.ANTHROPIC_BASE_URL = provider.baseUrl
-  else delete env.ANTHROPIC_BASE_URL
-  env.ANTHROPIC_MODEL = model.id
-  if (!config.writeClaudeSettings(settings)) throw new Error('写入 settings.json 失败')
-  return `已写入 ~/.claude/settings.json（ANTHROPIC_MODEL=${model.id}）`
+  const docId = DISPATCH_DB_PREFIX + provider.name
+  let doc = null
+  try { doc = window.utools.db.get(docId) } catch (e) { /* ignore */ }
+  const now = Date.now()
+  const next = doc
+    ? { ...doc }
+    : {
+        _id: docId,
+        name: provider.name,
+        key: '',
+        authVar: 'ANTHROPIC_AUTH_TOKEN',
+        baseUrl: '',
+        model: '',
+        defaultHaikuModel: '',
+        defaultSonnetModel: '',
+        defaultOpusModel: '',
+        subagentModel: '',
+        extraFields: [],
+        updatedAt: now,
+      }
+  // provider 信息：非空才覆盖，避免清空已有配置
+  if (provider.apiKey) next.key = crypto.encrypt(provider.apiKey)
+  if (provider.baseUrl) next.baseUrl = provider.baseUrl
+  next.authVar = 'ANTHROPIC_AUTH_TOKEN'
+  next.updatedAt = now
+  // 模型槽位：已有同模型跳过；否则填第一个空槽位；全满报错
+  if (CLAUDE_MODEL_SLOTS.some(s => next[s] === model.id)) {
+    return `Claude 配置「${provider.name}」中已有模型 ${model.id}`
+  }
+  const slot = CLAUDE_MODEL_SLOTS.find(s => !next[s])
+  if (!slot) {
+    throw new Error(`Claude 配置「${provider.name}」5 个模型槽位已满，请先在 Claude 配置页清理后再下发`)
+  }
+  next[slot] = model.id
+  let res
+  try {
+    res = window.utools.db.put(next)
+  } catch (e) {
+    throw new Error(`保存 Claude 配置失败: ${e.message || e}`)
+  }
+  if (!res || !res.ok) {
+    throw new Error('保存 Claude 配置失败' + (res && res.message ? `：${res.message}` : ''))
+  }
+  return `已写入 Claude 配置「${provider.name}」：${model.id} → ${CLAUDE_SLOT_LABELS[slot]}`
 }
 
 // OpenCode CLI：provider[id]（options.baseURL/apiKey）+ models[id]
