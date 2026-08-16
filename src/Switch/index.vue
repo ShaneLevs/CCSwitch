@@ -153,17 +153,23 @@ const AGENT_META = {
 
 // 可见 agent：有记录用记录（缺键按有数据兜底），无记录用「前三个 + 有数据的」并写库；检测结果只在首次参与，之后不覆盖用户选择
 const visibleAgents = ref(null);
+// agent 显示顺序（可拖拽排序），默认 AGENT_ORDER
+const agentOrder = ref([...AGENT_ORDER]);
+let dragAgentIndex = null;
 const saveVisibleAgents = () => {
   const existing = window.utools.db.get(VISIBLE_AGENTS_DB);
-  const doc = { _id: VISIBLE_AGENTS_DB, visible: { ...visibleAgents.value } };
+  const doc = { _id: VISIBLE_AGENTS_DB, visible: { ...visibleAgents.value }, order: agentOrder.value };
   if (existing) doc._rev = existing._rev;
   window.utools.db.put(doc);
 };
 const initVisibleAgents = () => {
-  let stored = null;
-  try {
-    stored = window.utools.db.get(VISIBLE_AGENTS_DB)?.visible || null;
-  } catch (e) { /* ignore */ }
+  let doc = null;
+  try { doc = window.utools.db.get(VISIBLE_AGENTS_DB); } catch (e) { /* ignore */ }
+  const stored = doc?.visible || null;
+  const storedOrder = doc?.order || null;
+  if (Array.isArray(storedOrder) && storedOrder.length) {
+    agentOrder.value = storedOrder.filter(a => AGENT_ORDER.includes(a));
+  }
   if (stored) {
     // 有记录：用记录，缺键（未来新增 agent）默认显示
     const result = {};
@@ -191,10 +197,23 @@ const toggleAgentVisibility = (app, val) => {
   }
 };
 
-// 切换器下拉：通用恒显示 + 勾选的 agent
+// 拖拽排序：调整 agentOrder 并持久化
+const onAgentDragStart = (idx) => { dragAgentIndex = idx; };
+const onAgentDrop = (idx) => {
+  if (dragAgentIndex === null || dragAgentIndex === idx) { dragAgentIndex = null; return; }
+  const order = [...agentOrder.value];
+  const [moved] = order.splice(dragAgentIndex, 1);
+  order.splice(idx, 0, moved);
+  agentOrder.value = order;
+  try { saveVisibleAgents(); } catch (e) { console.error("保存 agent 顺序失败", e); }
+  dragAgentIndex = null;
+};
+const onAgentDragEnd = () => { dragAgentIndex = null; };
+
+// 切换器下拉：通用恒显示 + 勾选的 agent，按拖拽排序后的顺序
 const appDropdownOptions = computed(() => {
   const opts = [{ content: "通用", value: "common" }];
-  AGENT_ORDER.forEach((app) => {
+  agentOrder.value.forEach((app) => {
     if (visibleAgents.value && visibleAgents.value[app]) {
       opts.push({ content: AGENT_META[app].name, value: app });
     }
@@ -584,84 +603,91 @@ onMounted(() => {
       v-model:visible="showSettings"
       header="设置"
       :footer="false"
-      width="380px"
+      width="480px"
       placement="center"
     >
       <div class="settings-body">
-      <div class="settings-row">
-        <div class="settings-label">
-          <div class="settings-title">黑暗模式背景特效</div>
+        <!-- Agent 显示管理（最上） -->
+        <div class="settings-section">
+          <div class="settings-title">Agent 显示管理</div>
           <div class="settings-desc">
-            深色模式下的动态背景特效，开启后可能会导致电脑卡顿
+            拖动可排序，勾选的 agent 会显示在顶部切换器中；「通用」始终显示；当前正在使用的 agent 不可取消
+          </div>
+          <div class="agent-visibility-list">
+            <div
+              v-for="(app, idx) in agentOrder"
+              :key="app"
+              class="agent-visibility-item"
+              draggable="true"
+              @dragstart="onAgentDragStart(idx)"
+              @dragover.prevent
+              @drop="onAgentDrop(idx)"
+              @dragend="onAgentDragEnd"
+            >
+              <img :src="AGENT_META[app].icon" class="agent-visibility-icon" alt="" />
+              <span class="agent-visibility-name">{{ AGENT_META[app].name }}</span>
+              <span v-if="app === activeApp" class="agent-visibility-tag">当前</span>
+              <Checkbox
+                :checked="!!(visibleAgents && visibleAgents[app])"
+                :disabled="app === activeApp"
+                class="agent-visibility-checkbox"
+                @change="(val) => toggleAgentVisibility(app, val)"
+              />
+            </div>
           </div>
         </div>
-        <Switch
-          :model-value="darkBackgroundEnabled"
-          @change="setDarkBackground"
-        />
-      </div>
-      <div
-        class="effect-cards"
-        :class="{ 'effect-cards--disabled': !darkBackgroundEnabled }"
-      >
-        <div
-          class="effect-card"
-          :class="{ 'effect-card--active': darkEffect === 'prismatic' }"
-          @click="darkBackgroundEnabled && setDarkEffect('prismatic')"
-        >
-          <div class="effect-card__name">Prismatic Burst</div>
-          <div class="effect-card__desc">棱镜光谱爆裂</div>
-        </div>
-        <div
-          class="effect-card"
-          :class="{ 'effect-card--active': darkEffect === 'pixel' }"
-          @click="darkBackgroundEnabled && setDarkEffect('pixel')"
-        >
-          <div class="effect-card__name">FaultyTerminal</div>
-          <div class="effect-card__desc">故障像素终端</div>
-        </div>
-        <div
-          class="effect-card"
-          :class="{ 'effect-card--active': darkEffect === 'aurora' }"
-          @click="darkBackgroundEnabled && setDarkEffect('aurora')"
-        >
-          <div class="effect-card__name">Aurora</div>
-          <div class="effect-card__desc">流动极光</div>
-        </div>
-        <div
-          class="effect-card"
-          :class="{ 'effect-card--active': darkEffect === 'galaxy' }"
-          @click="darkBackgroundEnabled && setDarkEffect('galaxy')"
-        >
-          <div class="effect-card__name">Galaxy</div>
-          <div class="effect-card__desc">星河漫游</div>
-        </div>
-      </div>
 
-      <Divider class="settings-divider" />
-      <div class="settings-section">
-        <div class="settings-title">Agent 显示管理</div>
-        <div class="settings-desc">
-          勾选的 agent 会显示在顶部切换器中；「通用」始终显示；当前正在使用的 agent 不可取消
+        <Divider class="settings-divider" />
+
+        <div class="settings-row">
+          <div class="settings-label">
+            <div class="settings-title">黑暗模式背景特效</div>
+            <div class="settings-desc">
+              深色模式下的动态背景特效，开启后可能会导致电脑卡顿
+            </div>
+          </div>
+          <Switch
+            :model-value="darkBackgroundEnabled"
+            @change="setDarkBackground"
+          />
         </div>
-        <div class="agent-visibility-list">
+        <div
+          class="effect-cards"
+          :class="{ 'effect-cards--disabled': !darkBackgroundEnabled }"
+        >
           <div
-            v-for="app in AGENT_ORDER"
-            :key="app"
-            class="agent-visibility-item"
+            class="effect-card"
+            :class="{ 'effect-card--active': darkEffect === 'prismatic' }"
+            @click="darkBackgroundEnabled && setDarkEffect('prismatic')"
           >
-            <img :src="AGENT_META[app].icon" class="agent-visibility-icon" alt="" />
-            <span class="agent-visibility-name">{{ AGENT_META[app].name }}</span>
-            <span v-if="app === activeApp" class="agent-visibility-tag">当前</span>
-            <Checkbox
-              :checked="!!(visibleAgents && visibleAgents[app])"
-              :disabled="app === activeApp"
-              class="agent-visibility-checkbox"
-              @change="(val) => toggleAgentVisibility(app, val)"
-            />
+            <div class="effect-card__name">Prismatic Burst</div>
+            <div class="effect-card__desc">棱镜光谱爆裂</div>
+          </div>
+          <div
+            class="effect-card"
+            :class="{ 'effect-card--active': darkEffect === 'pixel' }"
+            @click="darkBackgroundEnabled && setDarkEffect('pixel')"
+          >
+            <div class="effect-card__name">FaultyTerminal</div>
+            <div class="effect-card__desc">故障像素终端</div>
+          </div>
+          <div
+            class="effect-card"
+            :class="{ 'effect-card--active': darkEffect === 'aurora' }"
+            @click="darkBackgroundEnabled && setDarkEffect('aurora')"
+          >
+            <div class="effect-card__name">Aurora</div>
+            <div class="effect-card__desc">流动极光</div>
+          </div>
+          <div
+            class="effect-card"
+            :class="{ 'effect-card--active': darkEffect === 'galaxy' }"
+            @click="darkBackgroundEnabled && setDarkEffect('galaxy')"
+          >
+            <div class="effect-card__name">Galaxy</div>
+            <div class="effect-card__desc">星河漫游</div>
           </div>
         </div>
-      </div>
       </div>
     </Dialog>
   </div>
@@ -771,17 +797,22 @@ onMounted(() => {
   gap: 8px;
 }
 .agent-visibility-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 6px;
 }
 .agent-visibility-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 6px 8px;
   border-radius: var(--td-radius-default);
+  cursor: grab;
+  user-select: none;
+}
+.agent-visibility-item:active {
+  cursor: grabbing;
 }
 .agent-visibility-item:hover {
   background: var(--td-bg-color-container-hover);
