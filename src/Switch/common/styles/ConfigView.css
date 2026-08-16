@@ -78,5 +78,6 @@
 .common-dispatch-agent { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
 .common-dispatch-checkbox { --td-brand-color: var(--td-success-color); }
 .common-dispatch-agent-hint { font-size: 12px; color: var(--td-text-color-placeholder); line-height: 1.5; padding-top: 1px; }
-.common-dispatch-default { cursor: pointer; }
+/* 级联/下拉面板（teleport 到 body）里的复选框统一绿色主题 */
+.common-dispatch-select-popup .t-checkbox { --td-brand-color: var(--td-success-color); }
 

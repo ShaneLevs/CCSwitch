@@ -1,8 +1,8 @@
 <script setup>
 
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted } from "vue";
 import {
-  Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin, Popconfirm, Alert as TAlert, Select, Switch, CheckboxGroup, Checkbox, Collapse, CollapsePanel, AutoComplete,
+  Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin, Popconfirm, Alert as TAlert, Select, Switch, CheckboxGroup, Checkbox, Collapse, CollapsePanel, AutoComplete, Cascader,
 } from "tdesign-vue-next";
 import {
   RefreshIcon, EditIcon, AddIcon, DeleteIcon, SendIcon,
@@ -353,55 +353,51 @@ const AGENT_DISPATCH_OPTIONS = [
   { label: "Reasonix", value: "reasonix", hint: "写入 config.toml 的供应商与模型（可设默认）" },
 ];
 
-// 供应商 / 模型支持多选：模型选项为所有已选供应商模型的并集，value 用 "供应商::模型ID" 区分同名
+// 供应商 + 模型合并为一个级联选择器：按供应商分组，value 用 "供应商::模型ID" 区分同名；
+// 父级（供应商）选中时下发该供应商全部模型
 const dispatchDialog = ref(false);
 const dispatchSubmitting = ref(false);
-const dispatchProviderNames = ref([]);
 const dispatchModelKeys = ref([]);
 const dispatchTargets = ref([]);
-const dispatchSetDefault = ref(false);
 
-const dispatchProviderOptions = computed(() =>
-  providers.value.map(p => ({ label: p.name, value: p.name }))
+const dispatchCascaderOptions = computed(() =>
+  providers.value.map(p => ({
+    label: p.name,
+    value: p.name,
+    children: (p.models || []).map(m => ({
+      label: `${m.name || m.id}${m.contextWindow ? `（${formatNumber(m.contextWindow)} ctx）` : ""}`,
+      value: `${p.name}::${m.id}`,
+    })),
+  }))
 );
-const dispatchModelOptions = computed(() => {
-  const opts = [];
-  dispatchProviderNames.value.forEach(name => {
-    const p = providers.value.find(x => x.name === name);
-    if (!p) return;
-    (p.models || []).forEach(m => {
-      opts.push({
-        label: `${m.name || m.id}${m.contextWindow ? `（${formatNumber(m.contextWindow)} ctx）` : ""}（${p.name}）`,
-        value: `${p.name}::${m.id}`,
-      });
-    });
-  });
-  return opts;
-});
-
-watch(dispatchProviderNames, () => { dispatchModelKeys.value = []; });
 
 const openDispatchDialog = (providerName = "", modelId = "") => {
-  dispatchProviderNames.value = providerName ? [providerName] : [];
   dispatchModelKeys.value = providerName && modelId ? [`${providerName}::${modelId}`] : [];
   dispatchTargets.value = [];
-  dispatchSetDefault.value = false;
   dispatchDialog.value = true;
 };
 
 const handleDispatch = async () => {
-  if (dispatchProviderNames.value.length === 0) return MessagePlugin.warning("请选择供应商");
-  if (dispatchModelKeys.value.length === 0) return MessagePlugin.warning("请选择模型");
+  if (dispatchModelKeys.value.length === 0) return MessagePlugin.warning("请选择供应商与模型");
   if (dispatchTargets.value.length === 0) return MessagePlugin.warning("请选择目标 agent");
-  const targets = dispatchTargets.value.map(app => ({ app, setDefault: dispatchSetDefault.value }));
+  const targets = dispatchTargets.value.map(app => ({ app }));
   dispatchSubmitting.value = true;
   try {
     const allResults = [];
+    const combos = [];
     for (const key of dispatchModelKeys.value) {
       const [pName, mId] = key.split("::");
       const provider = providers.value.find(p => p.name === pName);
-      const model = provider?.models.find(m => m.id === mId);
-      if (!provider || !model) continue;
+      if (!provider) continue;
+      if (mId) {
+        const model = provider.models.find(m => m.id === mId);
+        if (model) combos.push([provider, model]);
+      } else {
+        // 选中父级（整个供应商）：下发其全部模型
+        provider.models.forEach(m => combos.push([provider, m]));
+      }
+    }
+    for (const [provider, model] of combos) {
       const results = await window.services.dispatchCommonModel(provider, model, targets);
       allResults.push(...results);
     }
@@ -839,12 +835,16 @@ onMounted(refresh);
     >
       <div class="common-edit-form">
         <div class="common-form-item">
-          <label>供应商 <span class="common-form-required">*</span></label>
-          <Select v-model="dispatchProviderNames" :options="dispatchProviderOptions" multiple placeholder="选择供应商（可多选）" />
-        </div>
-        <div class="common-form-item">
-          <label>模型 <span class="common-form-required">*</span></label>
-          <Select v-model="dispatchModelKeys" :options="dispatchModelOptions" multiple placeholder="选择模型（可多选，跨供应商按「模型（供应商）」区分）" />
+          <label>供应商与模型 <span class="common-form-required">*</span></label>
+          <Cascader
+            v-model="dispatchModelKeys"
+            :options="dispatchCascaderOptions"
+            multiple
+            filterable
+            clearable
+            placeholder="选择供应商与模型（可多选，勾选供应商 = 全选其模型）"
+            :popup-props="{ overlayClassName: 'common-dispatch-select-popup' }"
+          />
         </div>
         <div class="common-form-item">
           <label>目标 Agent <span class="common-form-required">*</span></label>
@@ -854,14 +854,6 @@ onMounted(refresh);
               <span class="common-dispatch-agent-hint">{{ opt.hint }}</span>
             </label>
           </CheckboxGroup>
-        </div>
-        <div class="common-form-item">
-          <label class="common-dispatch-default">
-            <Checkbox v-model="dispatchSetDefault" class="common-dispatch-checkbox">设为默认模型</Checkbox>
-          </label>
-          <div class="common-form-hint">
-            生效范围：Pi → defaultProvider/defaultModel；Reasonix → default_model；Claude 的模型配置即默认模型（恒生效）；OpenCode / omp 无默认模型概念，自动忽略
-          </div>
         </div>
       </div>
     </Dialog>
