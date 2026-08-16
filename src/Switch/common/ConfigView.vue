@@ -346,11 +346,11 @@ const handleDeleteModel = async (providerName, modelId) => {
 // ==================== 下发到 Agent（主数据 → 各 agent 模型配置） ====================
 
 const AGENT_DISPATCH_OPTIONS = [
-  { label: "Claude Code", value: "claude", hint: "写入 uTools DB 保存配置（Claude 配置页可见），一个 provider 一份，模型自动填入空闲槽位（默认/Haiku/Sonnet/Opus/Subagent）" },
-  { label: "OpenCode CLI", value: "opencode", hint: "写入 opencode.json 的 provider[id] 与模型列表" },
-  { label: "Pi Agent", value: "pi", hint: "写入 models.json 的供应商与模型（可设默认）" },
-  { label: "omp", value: "omp", hint: "写入 models.yml 的供应商与模型（默认模型需在 omp 配置页配置 modelRoles）" },
-  { label: "Reasonix", value: "reasonix", hint: "写入 config.toml 的供应商与模型（可设默认）" },
+  { label: "Claude Code", value: "claude" },
+  { label: "OpenCode CLI", value: "opencode" },
+  { label: "Pi Agent", value: "pi" },
+  { label: "omp", value: "omp" },
+  { label: "Reasonix", value: "reasonix" },
 ];
 
 // 供应商 + 模型合并为一个级联选择器：按供应商分组，value 用 "供应商::模型ID" 区分同名；
@@ -851,9 +851,9 @@ onMounted(refresh);
           <CheckboxGroup v-model="dispatchTargets" class="common-dispatch-agents">
             <label v-for="opt in AGENT_DISPATCH_OPTIONS" :key="opt.value" class="common-dispatch-agent">
               <Checkbox :value="opt.value" class="common-dispatch-checkbox">{{ opt.label }}</Checkbox>
-              <span class="common-dispatch-agent-hint">{{ opt.hint }}</span>
             </label>
           </CheckboxGroup>
+          <div class="common-form-hint">Claude → 写入 uTools DB 配置（Claude 配置页可见）；OpenCode → opencode.json；Pi → models.json；omp → models.yml；Reasonix → config.toml</div>
         </div>
       </div>
     </Dialog>
