@@ -187,12 +187,13 @@ const initVisibleAgents = () => {
 };
 initVisibleAgents();
 
-// checkbox 点击：v-model 已更新状态，这里只做禁用兜底 + 持久化
+// checkbox 点击：显式更新状态并持久化（不依赖 v-model 的更新顺序）
 const onAgentToggle = (app, val) => {
   if (!val && app === activeApp.value) {
     visibleAgents.value[app] = true; // 禁止取消当前活跃，恢复勾选
     return;
   }
+  visibleAgents.value[app] = val;
   try { saveVisibleAgents(); } catch (e) { console.error("保存可见 agent 失败", e); }
 };
 
@@ -626,13 +627,14 @@ onMounted(() => {
               @dragover.prevent
               @drop="onAgentDrop(idx)"
             >
-              <GripVertical
+              <span
                 class="agent-visibility-drag"
-                :size="16"
                 draggable="true"
                 @dragstart="onAgentDragStart(idx)"
                 @dragend="onAgentDragEnd"
-              />
+              >
+                <GripVertical :size="16" />
+              </span>
               <img :src="AGENT_META[app].icon" class="agent-visibility-icon" alt="" />
               <span class="agent-visibility-name">{{ AGENT_META[app].name }}</span>
               <span v-if="app === activeApp" class="agent-visibility-tag">当前</span>
@@ -826,6 +828,8 @@ onMounted(() => {
   flex-shrink: 0;
   color: var(--td-text-color-placeholder);
   cursor: grab;
+  display: inline-flex;
+  align-items: center;
 }
 .agent-visibility-drag:active {
   cursor: grabbing;
