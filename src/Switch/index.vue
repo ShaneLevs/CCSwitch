@@ -584,7 +584,7 @@ onMounted(() => {
 
 <style scoped>
 .container {
-  padding: 10px 20px 20px;
+  padding: 10px 20px 10px;
   min-height: 100vh;
   box-sizing: border-box;
   background: var(--td-bg-color-container);

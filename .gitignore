@@ -27,4 +27,7 @@ dist-ssr
 # WorkBuddy
 .workbuddy/
 
+# 本地工具会话残留 / 本地配置（不入库）
+.playwright-mcp/
+.claude/settings.local.json
 .delivery-review
