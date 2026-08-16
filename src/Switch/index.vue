@@ -10,6 +10,7 @@ import {
   AppIcon,
   SettingIcon,
 } from "tdesign-icons-vue-next";
+import { GripVertical } from "@lucide/vue";
 import ConfigView from "./claude/ConfigView.vue";
 import UsageView from "./claude/UsageView.vue";
 import McpView from "./claude/McpView.vue";
@@ -607,7 +608,7 @@ onMounted(() => {
       v-model:visible="showSettings"
       header="设置"
       :footer="false"
-      width="480px"
+      width="540px"
       placement="center"
     >
       <div class="settings-body">
@@ -625,14 +626,14 @@ onMounted(() => {
               @dragover.prevent
               @drop="onAgentDrop(idx)"
             >
-              <img
-                :src="AGENT_META[app].icon"
-                class="agent-visibility-icon"
+              <GripVertical
+                class="agent-visibility-drag"
+                :size="16"
                 draggable="true"
                 @dragstart="onAgentDragStart(idx)"
                 @dragend="onAgentDragEnd"
-                alt=""
               />
+              <img :src="AGENT_META[app].icon" class="agent-visibility-icon" alt="" />
               <span class="agent-visibility-name">{{ AGENT_META[app].name }}</span>
               <span v-if="app === activeApp" class="agent-visibility-tag">当前</span>
               <Checkbox
@@ -821,10 +822,12 @@ onMounted(() => {
 .agent-visibility-item:hover {
   background: var(--td-bg-color-container-hover);
 }
-.agent-visibility-icon {
+.agent-visibility-drag {
+  flex-shrink: 0;
+  color: var(--td-text-color-placeholder);
   cursor: grab;
 }
-.agent-visibility-icon:active {
+.agent-visibility-drag:active {
   cursor: grabbing;
 }
 .agent-visibility-icon {
