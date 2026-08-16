@@ -108,6 +108,9 @@ const syncOpencodeGoFromUrl = (url) => {
   if (clean === OPENCODE_GO_BASE_URL) {
     formData.value.authVar = 'ANTHROPIC_API_KEY';
     loadOpencodeGoModels();
+  } else if (opencodeGoModels.value.length) {
+    // URL 离开 OpenCode Go 时清空候选，避免残留误导
+    opencodeGoModels.value = [];
   }
 };
 watch(() => formData.value.baseUrl, syncOpencodeGoFromUrl);
@@ -682,13 +685,13 @@ onMounted(() => { loadCurrentConfig(); checkFirstOpen(); loadSavedConfigs(); loa
         </div>
         <div class="form-item"><label>TOKEN <span class="required">*</span></label><Input v-model="formData.key" type="password" :placeholder="formData.authVar || 'ANTHROPIC_AUTH_TOKEN'" /></div>
         <div class="form-hint">设置默认对话模型，留空则跟随系统默认</div>
-        <div class="form-item"><label>MODEL</label><AutoComplete v-model="formData.model" :options="opencodeGoModels.length ? opencodeGoModels : null" filterable placeholder="ANTHROPIC_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.model1m" size="small" :disabled="!formData.model" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
+        <div class="form-item"><label>MODEL</label><AutoComplete v-model="formData.model" :options="opencodeGoModels" filterable placeholder="ANTHROPIC_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.model1m" size="small" :disabled="!formData.model" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
         <div class="form-hint">分别指定各层级模型版本，留空则使用系统默认分配</div>
-        <div class="form-item"><label>HAIKU</label><AutoComplete v-model="formData.defaultHaikuModel" :options="opencodeGoModels.length ? opencodeGoModels : null" filterable placeholder="ANTHROPIC_DEFAULT_HAIKU_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultHaikuModel1m" size="small" :disabled="!formData.defaultHaikuModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
-        <div class="form-item"><label>SONNET</label><AutoComplete v-model="formData.defaultSonnetModel" :options="opencodeGoModels.length ? opencodeGoModels : null" filterable placeholder="ANTHROPIC_DEFAULT_SONNET_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultSonnetModel1m" size="small" :disabled="!formData.defaultSonnetModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
-        <div class="form-item"><label>OPUS</label><AutoComplete v-model="formData.defaultOpusModel" :options="opencodeGoModels.length ? opencodeGoModels : null" filterable placeholder="ANTHROPIC_DEFAULT_OPUS_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultOpusModel1m" size="small" :disabled="!formData.defaultOpusModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
+        <div class="form-item"><label>HAIKU</label><AutoComplete v-model="formData.defaultHaikuModel" :options="opencodeGoModels" filterable placeholder="ANTHROPIC_DEFAULT_HAIKU_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultHaikuModel1m" size="small" :disabled="!formData.defaultHaikuModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
+        <div class="form-item"><label>SONNET</label><AutoComplete v-model="formData.defaultSonnetModel" :options="opencodeGoModels" filterable placeholder="ANTHROPIC_DEFAULT_SONNET_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultSonnetModel1m" size="small" :disabled="!formData.defaultSonnetModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
+        <div class="form-item"><label>OPUS</label><AutoComplete v-model="formData.defaultOpusModel" :options="opencodeGoModels" filterable placeholder="ANTHROPIC_DEFAULT_OPUS_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.defaultOpusModel1m" size="small" :disabled="!formData.defaultOpusModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
         <div class="form-hint">设置子代理（工具调用、后台任务等）使用的模型</div>
-        <div class="form-item"><label>SUBAGENT</label><AutoComplete v-model="formData.subagentModel" :options="opencodeGoModels.length ? opencodeGoModels : null" filterable placeholder="CLAUDE_CODE_SUBAGENT_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.subagentModel1m" size="small" :disabled="!formData.subagentModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
+        <div class="form-item"><label>SUBAGENT</label><AutoComplete v-model="formData.subagentModel" :options="opencodeGoModels" filterable placeholder="CLAUDE_CODE_SUBAGENT_MODEL"><template #suffix><Tooltip content="模型支持一百万个上下文时勾选"><Checkbox v-model="formData.subagentModel1m" size="small" :disabled="!formData.subagentModel" class="model-1m-checkbox">1m</Checkbox></Tooltip></template></AutoComplete></div>
       </div>
       <div v-else class="extra-fields-dialog">
         <div class="extra-fields-hint">

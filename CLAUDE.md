@@ -197,7 +197,7 @@ ANTHROPIC_DEFAULT_OPUS_MODEL, CLAUDE_CODE_SUBAGENT_MODEL
 
 These are explicitly managed during config switch — set, cleared, and not preserved from previous state.
 
-Claude 配置支持「认证方式」（`authVar`）：每个配置可选择 `ANTHROPIC_AUTH_TOKEN` 或 `ANTHROPIC_API_KEY`，切换时写入所选变量并清除另一个（互斥）。OpenCode Go 套餐用 `ANTHROPIC_API_KEY` + baseUrl `https://opencode.ai/zen/go`（注意不带 `/v1`），内置预设一键填充，模型候选实时从 `/v1/models` 获取。
+Claude 配置支持「认证方式」（`authVar`）：每个配置可选择 `ANTHROPIC_AUTH_TOKEN` 或 `ANTHROPIC_API_KEY`，切换时写入所选变量并清除另一个（互斥）。OpenCode Go 套餐用 `ANTHROPIC_API_KEY` + baseUrl `https://opencode.ai/zen/go`（注意不带 `/v1`），URL 填入该地址时自动切换认证方式为 API_KEY，模型候选实时从 `/v1/models` 获取（不写死）。
 
 ## Dark Mode Implementation
 

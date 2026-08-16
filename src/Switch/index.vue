@@ -152,7 +152,7 @@ const AGENT_META = {
   reasonix: { name: "Reasonix", icon: "/reasonix.svg" },
 };
 
-// 可见 agent：有记录用记录（缺键按有数据兜底），无记录用「前三个 + 有数据的」并写库；检测结果只在首次参与，之后不覆盖用户选择
+// 可见 agent：有记录用记录（缺键默认显示，兼容未来新增 agent），无记录用「前三个 + 有数据的」并写库；检测结果只在首次参与，之后不覆盖用户选择
 const visibleAgents = ref(null);
 // agent 显示顺序（可拖拽排序），默认 AGENT_ORDER
 const agentOrder = ref([...AGENT_ORDER]);
