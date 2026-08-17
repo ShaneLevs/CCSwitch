@@ -142,14 +142,17 @@ const switchApp = (app) => {
 
 // ==================== Agent 显示管理 ====================
 
+// 图标位于 public/ 目录：必须用 BASE_URL 前缀拼接（base: './' 打包后为相对路径，
+// 否则 uTools 以 file:// 加载时绝对路径会指向文件系统根目录导致图标丢失）
+const ASSET_BASE = import.meta.env.BASE_URL;
 const VISIBLE_AGENTS_DB = "ccswitch_visible_agents";
 const AGENT_ORDER = ["claude", "opencode", "pi", "omp", "reasonix"];
 const AGENT_META = {
-  claude: { name: "Claude Code", icon: "/claudecode.png" },
-  opencode: { name: "OpenCode CLI", icon: "/icon-opencode.png" },
-  pi: { name: "Pi Agent", icon: "/icon-pi.png" },
-  omp: { name: "omp", icon: "/omp-icon.svg" },
-  reasonix: { name: "Reasonix", icon: "/reasonix.svg" },
+  claude: { name: "Claude Code", icon: `${ASSET_BASE}claudecode.png` },
+  opencode: { name: "OpenCode CLI", icon: `${ASSET_BASE}icon-opencode.png` },
+  pi: { name: "Pi Agent", icon: `${ASSET_BASE}icon-pi.png` },
+  omp: { name: "omp", icon: `${ASSET_BASE}omp-icon.svg` },
+  reasonix: { name: "Reasonix", icon: `${ASSET_BASE}reasonix.svg` },
 };
 
 // 可见 agent：有记录用记录（缺键默认显示，兼容未来新增 agent），无记录用「前三个 + 有数据的」并写库；检测结果只在首次参与，之后不覆盖用户选择
@@ -306,17 +309,17 @@ onMounted(() => {
   >
     <div class="header">
       <div class="header-left">
-        <img v-if="isClaude" src="/claudecode.png" alt="logo" class="logo" />
+        <img v-if="isClaude" :src="`${ASSET_BASE}claudecode.png`" alt="logo" class="logo" />
         <img
           v-else-if="isOpenCode"
-          src="/icon-opencode.png"
+          :src="`${ASSET_BASE}icon-opencode.png`"
           alt="logo"
           class="logo"
         />
-        <img v-else-if="isOmp" src="/omp-icon.svg" alt="logo" class="logo" />
-        <img v-else-if="isReasonix" src="/reasonix.svg" alt="logo" class="logo" />
-        <img v-else-if="isPi" src="/icon-pi.png" alt="logo" class="logo" />
-        <img v-else-if="isCommon" src="/gen.svg" alt="logo" class="logo" />
+        <img v-else-if="isOmp" :src="`${ASSET_BASE}omp-icon.svg`" alt="logo" class="logo" />
+        <img v-else-if="isReasonix" :src="`${ASSET_BASE}reasonix.svg`" alt="logo" class="logo" />
+        <img v-else-if="isPi" :src="`${ASSET_BASE}icon-pi.png`" alt="logo" class="logo" />
+        <img v-else-if="isCommon" :src="`${ASSET_BASE}gen.svg`" alt="logo" class="logo" />
         <Dropdown
           :options="appDropdownOptions"
           :min-column-width="160"
