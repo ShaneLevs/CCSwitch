@@ -985,7 +985,9 @@ const getPiSkills = () => {
         "SKILL.md",
       );
       try {
-        const content = fs.readFileSync(skillMd, { encoding: "utf-8" });
+        const content = fs
+          .readFileSync(skillMd, { encoding: "utf-8" })
+          .replace(/^\uFEFF/, "");
         const match = content.match(/^---\n([\s\S]*?)\n---/);
         frontmatter = match ? match[1] : "";
       } catch {

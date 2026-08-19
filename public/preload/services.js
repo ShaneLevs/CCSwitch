@@ -201,7 +201,9 @@ window.services = {
         if (!fs.existsSync(skillMdPath)) continue;
 
         try {
-          const content = fs.readFileSync(skillMdPath, { encoding: "utf-8" });
+          const content = fs
+            .readFileSync(skillMdPath, { encoding: "utf-8" })
+            .replace(/^\uFEFF/, "");
           const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
           const frontmatter = frontmatterMatch ? frontmatterMatch[1] : "";
           const usage = skillUsage[skillName] || {};
@@ -234,7 +236,9 @@ window.services = {
           if (!fs.existsSync(skillMdPath)) continue;
 
           try {
-            const content = fs.readFileSync(skillMdPath, { encoding: "utf-8" });
+            const content = fs
+              .readFileSync(skillMdPath, { encoding: "utf-8" })
+              .replace(/^\uFEFF/, "");
             const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
             const frontmatter = frontmatterMatch ? frontmatterMatch[1] : "";
             const usage = skillUsage[skillName] || {};
@@ -292,9 +296,11 @@ window.services = {
               if (!fs.existsSync(skillMdPath)) continue;
 
               try {
-                const content = fs.readFileSync(skillMdPath, {
-                  encoding: "utf-8",
-                });
+                const content = fs
+                  .readFileSync(skillMdPath, {
+                    encoding: "utf-8",
+                  })
+                  .replace(/^\uFEFF/, "");
                 const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
                 const frontmatter = frontmatterMatch ? frontmatterMatch[1] : "";
                 const usage = skillUsage[skillName] || {};
@@ -334,9 +340,11 @@ window.services = {
                 if (!fs.existsSync(skillMdPath)) continue;
 
                 try {
-                  const content = fs.readFileSync(skillMdPath, {
-                    encoding: "utf-8",
-                  });
+                  const content = fs
+                    .readFileSync(skillMdPath, {
+                      encoding: "utf-8",
+                    })
+                    .replace(/^\uFEFF/, "");
                   const frontmatterMatch = content.match(
                     /^---\n([\s\S]*?)\n---/,
                   );

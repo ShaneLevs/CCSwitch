@@ -328,6 +328,8 @@ const deleteCommonSkill = (skillName) => {
 const parseSkillFrontmatter = (content) => {
   const result = { name: "", description: "" };
   if (!content) return result;
+  // 去除 UTF-8 BOM（SkillHub 等来源的 SKILL.md 常带 BOM）
+  content = content.replace(/^\uFEFF/, "");
   const lines = content.split("\n");
   let inFm = false;
   let descKey = null;
@@ -382,7 +384,9 @@ const readCommonSkills = () => {
       const skillMdPath = path.join(skillDir, "SKILL.md");
       if (!fs.existsSync(skillMdPath)) return;
       try {
-        const content = fs.readFileSync(skillMdPath, { encoding: "utf-8" });
+        const content = fs
+          .readFileSync(skillMdPath, { encoding: "utf-8" })
+          .replace(/^\uFEFF/, "");
         const fm = parseSkillFrontmatter(content);
         const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
         let fileCount = 0;
