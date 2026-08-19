@@ -566,34 +566,11 @@ window.services = {
     window.utools.shellOpenPath(skillsDir);
   },
 
-  fetchSkillInfo(slug) {
-    const https = require("node:https");
-    return new Promise((resolve, reject) => {
-      const url = `https://api.skillhub.tencent.com/api/v1/skills/${slug}`;
-      const options = {
-        headers: {
-          accept: "*/*",
-          "accept-language": "zh-CN,zh;q=0.9",
-          origin: "https://skillhub.tencent.com",
-          referer: "https://skillhub.tencent.com/",
-          "user-agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        },
-      };
-      https
-        .get(url, options, (res) => {
-          let data = "";
-          res.on("data", (chunk) => (data += chunk));
-          res.on("end", () => {
-            try {
-              resolve({ source: "skillhub", data: JSON.parse(data) });
-            } catch (e) {
-              reject(new Error("解析响应失败"));
-            }
-          });
-        })
-        .on("error", reject);
+  async fetchSkillInfo(slug, namespace) {
+    const data = await _skillhubGetJson(`/api/v1/skills/${slug}`, {
+      namespace,
     });
+    return { source: "skillhub", data };
   },
 
   fetchModelScopeSkillInfo(skillPath) {
@@ -627,11 +604,9 @@ window.services = {
     });
   },
 
-  async installSkill(slug, version, onProgress) {
-    const https = require("node:https");
+  async installSkill(slug, version, namespace, onProgress) {
     const { execSync } = require("node:child_process");
 
-    const zipUrl = `https://skillhub-1388575217.cos.accelerate.myqcloud.com/skills/${slug}/${version}.zip`;
     const tempDir = path.join(
       window.utools.getPath("temp"),
       "ccswitch-skill-install",
@@ -643,37 +618,9 @@ window.services = {
     if (!fs.existsSync(extractDir))
       fs.mkdirSync(extractDir, { recursive: true });
 
-    await new Promise((resolve, reject) => {
-      const file = fs.createWriteStream(zipPath);
-      https
-        .get(zipUrl, (res) => {
-          if (res.statusCode === 302 || res.statusCode === 301) {
-            https
-              .get(res.headers.location, (res2) => {
-                const totalSize = parseInt(res2.headers["content-length"], 10);
-                let downloaded = 0;
-                res2.on("data", (chunk) => {
-                  downloaded += chunk.length;
-                  if (onProgress && totalSize)
-                    onProgress(Math.round((downloaded / totalSize) * 100));
-                });
-                res2.pipe(file);
-              })
-              .on("error", reject);
-          } else {
-            const totalSize = parseInt(res.headers["content-length"], 10);
-            let downloaded = 0;
-            res.on("data", (chunk) => {
-              downloaded += chunk.length;
-              if (onProgress && totalSize)
-                onProgress(Math.round((downloaded / totalSize) * 100));
-            });
-            res.pipe(file);
-          }
-        })
-        .on("error", reject);
-      file.on("finish", () => file.close(resolve));
-    });
+    await _downloadSkillhubZip({ slug, version, namespace }, zipPath, onProgress);
+    if (!fs.existsSync(zipPath) || fs.statSync(zipPath).size === 0)
+      throw new Error("下载文件不存在或为空");
 
     if (window.utools.isMacOS() || window.utools.isLinux()) {
       execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { stdio: "pipe" });
@@ -834,12 +781,10 @@ window.services = {
 
   // ==================== OpenCode Skills Install ====================
 
-  async installOpencodeSkill(slug, version, onProgress) {
-    const https = require("node:https");
+  async installOpencodeSkill(slug, version, namespace, onProgress) {
     const { execSync } = require("node:child_process");
     const targetBase = opencode.getOpencodeSkillsPath();
 
-    const zipUrl = `https://skillhub-1388575217.cos.accelerate.myqcloud.com/skills/${slug}/${version}.zip`;
     const tempDir = path.join(
       window.utools.getPath("temp"),
       "ccswitch-skill-install",
@@ -851,37 +796,9 @@ window.services = {
     if (!fs.existsSync(extractDir))
       fs.mkdirSync(extractDir, { recursive: true });
 
-    await new Promise((resolve, reject) => {
-      const file = fs.createWriteStream(zipPath);
-      https
-        .get(zipUrl, (res) => {
-          if (res.statusCode === 302 || res.statusCode === 301) {
-            https
-              .get(res.headers.location, (res2) => {
-                const totalSize = parseInt(res2.headers["content-length"], 10);
-                let downloaded = 0;
-                res2.on("data", (chunk) => {
-                  downloaded += chunk.length;
-                  if (onProgress && totalSize)
-                    onProgress(Math.round((downloaded / totalSize) * 100));
-                });
-                res2.pipe(file);
-              })
-              .on("error", reject);
-          } else {
-            const totalSize = parseInt(res.headers["content-length"], 10);
-            let downloaded = 0;
-            res.on("data", (chunk) => {
-              downloaded += chunk.length;
-              if (onProgress && totalSize)
-                onProgress(Math.round((downloaded / totalSize) * 100));
-            });
-            res.pipe(file);
-          }
-        })
-        .on("error", reject);
-      file.on("finish", () => file.close(resolve));
-    });
+    await _downloadSkillhubZip({ slug, version, namespace }, zipPath, onProgress);
+    if (!fs.existsSync(zipPath) || fs.statSync(zipPath).size === 0)
+      throw new Error("下载文件不存在或为空");
 
     if (window.utools.isMacOS() || window.utools.isLinux()) {
       execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { stdio: "pipe" });
@@ -1044,12 +961,10 @@ window.services = {
 
   // ==================== Common Skills Install（~/.agents/skills） ====================
 
-  async installCommonSkill(slug, version, onProgress) {
-    const https = require("node:https");
+  async installCommonSkill(slug, version, namespace, onProgress) {
     const { execSync } = require("node:child_process");
     const targetBase = common.COMMON_SKILLS_DIR();
 
-    const zipUrl = `https://skillhub-1388575217.cos.accelerate.myqcloud.com/skills/${slug}/${version}.zip`;
     const tempDir = path.join(
       window.utools.getPath("temp"),
       "ccswitch-skill-install",
@@ -1061,37 +976,9 @@ window.services = {
     if (!fs.existsSync(extractDir))
       fs.mkdirSync(extractDir, { recursive: true });
 
-    await new Promise((resolve, reject) => {
-      const file = fs.createWriteStream(zipPath);
-      https
-        .get(zipUrl, (res) => {
-          if (res.statusCode === 302 || res.statusCode === 301) {
-            https
-              .get(res.headers.location, (res2) => {
-                const totalSize = parseInt(res2.headers["content-length"], 10);
-                let downloaded = 0;
-                res2.on("data", (chunk) => {
-                  downloaded += chunk.length;
-                  if (onProgress && totalSize)
-                    onProgress(Math.round((downloaded / totalSize) * 100));
-                });
-                res2.pipe(file);
-              })
-              .on("error", reject);
-          } else {
-            const totalSize = parseInt(res.headers["content-length"], 10);
-            let downloaded = 0;
-            res.on("data", (chunk) => {
-              downloaded += chunk.length;
-              if (onProgress && totalSize)
-                onProgress(Math.round((downloaded / totalSize) * 100));
-            });
-            res.pipe(file);
-          }
-        })
-        .on("error", reject);
-      file.on("finish", () => file.close(resolve));
-    });
+    await _downloadSkillhubZip({ slug, version, namespace }, zipPath, onProgress);
+    if (!fs.existsSync(zipPath) || fs.statSync(zipPath).size === 0)
+      throw new Error("下载文件不存在或为空");
 
     if (window.utools.isMacOS() || window.utools.isLinux()) {
       execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { stdio: "pipe" });
@@ -2119,4 +2006,98 @@ function _findSkillMd(dir, depth = 0) {
     /* ignore */
   }
   return results;
+}
+
+// ==================== SkillHub 辅助函数 ====================
+const SKILLHUB_API_BASE = "https://api.skillhub.cn";
+const SKILLHUB_HEADERS = {
+  accept: "application/json, text/plain, */*",
+  origin: "https://skillhub.cn",
+  referer: "https://skillhub.cn/",
+  "user-agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+};
+
+// 拼接 SkillHub API URL（自动过滤空参数）
+function _skillhubApiUrl(pathname, params) {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params || {})) {
+    if (v !== undefined && v !== null && v !== "") qs.set(k, v);
+  }
+  const q = qs.toString();
+  return `${SKILLHUB_API_BASE}${pathname}${q ? `?${q}` : ""}`;
+}
+
+// GET JSON（带状态码校验）
+function _skillhubGetJson(pathname, params) {
+  const https = require("node:https");
+  return new Promise((resolve, reject) => {
+    https
+      .get(_skillhubApiUrl(pathname, params), { headers: SKILLHUB_HEADERS }, (res) => {
+        if (res.statusCode === 404) return reject(new Error("Skill not found"));
+        if (res.statusCode !== 200)
+          return reject(new Error(`请求失败: HTTP ${res.statusCode}`));
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(new Error("解析响应失败"));
+          }
+        });
+      })
+      .on("error", reject);
+  });
+}
+
+// 下载文件到本地（支持多级重定向与相对 location）
+function _downloadToFile(url, filePath, onProgress) {
+  const https = require("node:https");
+  return new Promise((resolve, reject) => {
+    const doGet = (targetUrl, redirectCount = 0) => {
+      if (redirectCount > 10) return reject(new Error("重定向次数过多"));
+      https
+        .get(targetUrl, { headers: SKILLHUB_HEADERS }, (res) => {
+          if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
+            if (!res.headers.location)
+              return reject(new Error("重定向缺少 location"));
+            res.resume();
+            doGet(
+              new URL(res.headers.location, targetUrl).toString(),
+              redirectCount + 1,
+            );
+            return;
+          }
+          if (res.statusCode !== 200)
+            return reject(new Error(`下载失败: HTTP ${res.statusCode}`));
+          const totalSize = parseInt(res.headers["content-length"], 10) || 0;
+          let downloaded = 0;
+          const file = fs.createWriteStream(filePath);
+          res.on("data", (chunk) => {
+            downloaded += chunk.length;
+            if (onProgress && totalSize > 0)
+              onProgress(Math.round((downloaded / totalSize) * 100));
+          });
+          res.pipe(file);
+          file.on("finish", () => file.close(resolve));
+          file.on("error", (err) => {
+            try {
+              fs.unlinkSync(filePath);
+            } catch (e) {
+              /* ignore */
+            }
+            reject(err);
+          });
+        })
+        .on("error", reject);
+    };
+    doGet(url);
+  });
+}
+
+// 下载 SkillHub skill 的 zip 包（官方 download 端点，302 到 COS）
+function _downloadSkillhubZip({ slug, version, namespace }, zipPath, onProgress) {
+  const url = _skillhubApiUrl("/api/v1/download", { slug, version, namespace });
+  return _downloadToFile(url, zipPath, onProgress);
 }

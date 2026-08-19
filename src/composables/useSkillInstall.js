@@ -24,23 +24,33 @@ export function useSkillInstall(loadSkills, config = {}) {
   let fetchTimer = null;
 
   const extractSlug = (url) => {
-    const skillhubMatch = url.match(/skillhub\.(tencent\.com|cn)\/skills\/([^/]+)/);
-    if (skillhubMatch) return { source: 'skillhub', slug: skillhubMatch[2] };
+    // SkillHub 新格式: skillhub.cn/skills/{namespace}/{slug}；兼容老格式单段 /skills/{slug}
+    const skillhubMatch = url.match(
+      /skillhub\.(?:tencent\.com|cn)\/skills\/([^/?#]+)(?:\/([^/?#]+))?/,
+    );
+    if (skillhubMatch) {
+      const first = skillhubMatch[1];
+      const second = skillhubMatch[2];
+      if (second)
+        return { source: 'skillhub', slug: second, namespace: first };
+      return { source: 'skillhub', slug: first, namespace: null };
+    }
     const modelscopeMatch = url.match(/modelscope\.cn\/skills\/(@?[^/]+\/[^/]+)/);
     if (modelscopeMatch) return { source: 'modelscope', slug: modelscopeMatch[1] };
     return null;
   };
 
-  const doFetchSkillInfo = async ({ source, slug }) => {
+  const doFetchSkillInfo = async ({ source, slug, namespace }) => {
     isFetchingInfo.value = true;
     installInfo.value = null;
     try {
       if (source === 'skillhub') {
-        const result = await window.services.fetchSkillInfo(slug);
+        const result = await window.services.fetchSkillInfo(slug, namespace);
         const info = result.data;
         installInfo.value = {
           source: 'skillhub',
           slug,
+          namespace,
           displayName: info.skill?.displayName || slug,
           summary: info.skill?.summary_zh || info.skill?.summary || "暂无描述",
           version: info.latestVersion?.version || "unknown",
@@ -122,6 +132,7 @@ export function useSkillInstall(loadSkills, config = {}) {
         result = await window.services[cfg.installSkill](
           installInfo.value.slug,
           installInfo.value.version,
+          installInfo.value.namespace,
           (progress) => { installProgress.value = progress; }
         );
       } else if (installInfo.value.source === 'modelscope') {

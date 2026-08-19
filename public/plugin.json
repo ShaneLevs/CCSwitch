@@ -52,7 +52,7 @@
         {
           "type": "regex",
           "label": "安装通用 Skill",
-          "match": "/^https:\\/\\/(www\\.)?(skillhub\\.(tencent\\.com|cn)\\/skills\\/[\\w-]+|modelscope\\.cn\\/skills\\/@[\\w-]+\\/[\\w-]+)$/",
+          "match": "/^https:\\/\\/(www\\.)?(skillhub\\.(tencent\\.com|cn)\\/skills\\/[\\w-]+(\\/[\\w-]+)?|modelscope\\.cn\\/skills\\/@[\\w-]+\\/[\\w-]+)$/",
           "minLength": 30,
           "maxLength": 200
         }
@@ -65,7 +65,7 @@
         {
           "type": "regex",
           "label": "安装 Claude Code Skill",
-          "match": "/^https:\\/\\/(www\\.)?(skillhub\\.(tencent\\.com|cn)\\/skills\\/[\\w-]+|modelscope\\.cn\\/skills\\/@[\\w-]+\\/[\\w-]+)$/",
+          "match": "/^https:\\/\\/(www\\.)?(skillhub\\.(tencent\\.com|cn)\\/skills\\/[\\w-]+(\\/[\\w-]+)?|modelscope\\.cn\\/skills\\/@[\\w-]+\\/[\\w-]+)$/",
           "minLength": 30,
           "maxLength": 200
         }
@@ -79,7 +79,7 @@
         {
           "type": "regex",
           "label": "安装 OpenCode Skill",
-          "match": "/^https:\\/\\/(www\\.)?(skillhub\\.(tencent\\.com|cn)\\/skills\\/[\\w-]+|modelscope\\.cn\\/skills\\/@[\\w-]+\\/[\\w-]+)$/",
+          "match": "/^https:\\/\\/(www\\.)?(skillhub\\.(tencent\\.com|cn)\\/skills\\/[\\w-]+(\\/[\\w-]+)?|modelscope\\.cn\\/skills\\/@[\\w-]+\\/[\\w-]+)$/",
           "minLength": 30,
           "maxLength": 200
         }

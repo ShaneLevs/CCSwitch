@@ -49,7 +49,7 @@ defineExpose({ open, openInstallWithUrl, openDir });
   >
     <div class="install-form">
       <div class="skill-install-form-item"><label>Skill 链接</label><Input v-model="installUrl" placeholder="输入 Skill 详情页面链接" :disabled="isFetchingInfo || isInstalling" /></div>
-      <div class="install-hint">支持从 <span class="hint-link" @click="openExternal('https://skillhub.tencent.com/skills')">SkillHub</span> 或 <span class="hint-link" @click="openExternal('https://www.modelscope.cn/skills')">魔搭社区</span> 安装 Skill，复制其地址粘贴到上方输入框</div>
+      <div class="install-hint">支持从 <span class="hint-link" @click="openExternal('https://skillhub.cn/skills')">SkillHub</span> 或 <span class="hint-link" @click="openExternal('https://www.modelscope.cn/skills')">魔搭社区</span> 安装 Skill，复制其地址粘贴到上方输入框</div>
       <div class="install-hint">手动安装请将 Skill 文件夹放到 <span class="hint-link" @click="openDir">{{ manualDirLabel }}</span> 目录下</div>
       <div v-if="installInfo" class="install-info-card">
         <div class="install-info-header">
