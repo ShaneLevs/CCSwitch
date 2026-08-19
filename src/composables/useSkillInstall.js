@@ -35,34 +35,20 @@ const SKILLHUB_CATEGORY_FALLBACK = {
   'life-service': '生活服务',
 };
 
-// 计算 TRACE 评测摘要（算法与官方一致：维度分 = items 均值，总分 = 五维均值）
+// 计算 TRACE 评测总分（算法与官方一致：维度分 = items 均值，总分 = 五维均值）
 const buildEvaluation = (data) => {
   if (!data || !data.dimensions) return null;
-  const dimScores = {};
-  TRACE_DIMENSIONS.forEach(({ key, label }) => {
+  const dimScores = TRACE_DIMENSIONS.map(({ key }) => {
     const items = data.dimensions[key]?.items;
     const scores = Object.values(items || {})
       .map((i) => i?.score)
       .filter((s) => typeof s === 'number');
-    dimScores[key] = {
-      key,
-      label,
-      score: scores.length
-        ? scores.reduce((a, b) => a + b, 0) / scores.length
-        : 0,
-    };
+    return scores.length
+      ? scores.reduce((a, b) => a + b, 0) / scores.length
+      : 0;
   });
-  const total =
-    TRACE_DIMENSIONS.reduce((sum, { key }) => sum + dimScores[key].score, 0) /
-    TRACE_DIMENSIONS.length;
-  const rating =
-    total >= 4 ? '优秀' : total >= 3 ? '良好' : total >= 2 ? '及格' : '待改进';
-  return {
-    total: Math.round(total * 10) / 10,
-    rating,
-    dimensions: dimScores,
-    summary: data.summary || data.userSummary || '',
-  };
+  const total = dimScores.reduce((a, b) => a + b, 0) / dimScores.length;
+  return { total: Math.round(total * 10) / 10 };
 };
 
 export function useSkillInstall(loadSkills, config = {}) {
