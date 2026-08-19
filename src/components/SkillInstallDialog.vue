@@ -60,7 +60,27 @@ defineExpose({ open, openInstallWithUrl, openDir });
           <Tag size="small" :theme="installInfo.source === 'skillhub' ? 'primary' : 'warning'" variant="light" class="install-info-source">{{ installInfo.source === 'skillhub' ? 'SkillHub' : '魔搭社区' }}</Tag>
           <span class="install-info-version">v{{ installInfo.version }}</span>
         </div>
+        <div v-if="installInfo.tags?.length" class="install-info-tags">
+          <Tag v-for="t in installInfo.tags" :key="t" size="small" variant="light" :theme="t === '需配置 API Key' ? 'warning' : 'default'" class="install-info-tag">{{ t }}</Tag>
+        </div>
         <div class="install-info-summary">{{ installInfo.summary }}</div>
+        <div v-if="installInfo.evaluation" class="install-eval">
+          <div class="install-eval-header">
+            <span class="install-eval-score">{{ installInfo.evaluation.total }}</span>
+            <span class="install-eval-rating">{{ installInfo.evaluation.rating }}</span>
+            <span class="install-eval-label">TRACE 评测</span>
+          </div>
+          <div class="install-eval-dims">
+            <div v-for="d in Object.values(installInfo.evaluation.dimensions)" :key="d.key" class="install-eval-dim">
+              <span class="install-eval-dim-label">{{ d.label }}</span>
+              <div class="install-eval-dim-bar">
+                <div class="install-eval-dim-fill" :style="{ width: (d.score / 5 * 100) + '%' }"></div>
+              </div>
+              <span class="install-eval-dim-score">{{ d.score.toFixed(1) }}</span>
+            </div>
+          </div>
+          <div v-if="installInfo.evaluation.summary" class="install-eval-summary">{{ installInfo.evaluation.summary }}</div>
+        </div>
         <div v-if="installProgress > 0 && installProgress < 100" class="install-progress"><Loading size="small" /><span>下载中... {{ installProgress }}%</span></div>
       </div>
     </div>
@@ -150,10 +170,109 @@ defineExpose({ open, openInstallWithUrl, openDir });
   margin-bottom: 8px;
 }
 
+.install-info-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.install-info-tag {
+  margin: 0;
+}
+
 .install-info-summary {
   font-size: 13px;
   color: var(--td-text-color-secondary);
   line-height: 1.5;
+}
+
+.install-eval {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--td-bg-color-component);
+  border-radius: var(--td-radius-medium);
+  border: 1px solid var(--td-component-stroke);
+}
+
+.install-eval-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.install-eval-score {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--td-text-color-primary);
+  line-height: 1;
+}
+
+.install-eval-rating {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: var(--td-radius-small);
+  background: var(--td-brand-color);
+  color: var(--td-font-white-1);
+}
+
+.install-eval-label {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--td-text-color-placeholder);
+}
+
+.install-eval-dims {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.install-eval-dim {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.install-eval-dim-label {
+  width: 52px;
+  flex-shrink: 0;
+  color: var(--td-text-color-secondary);
+}
+
+.install-eval-dim-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--td-bg-color-container-hover);
+  overflow: hidden;
+}
+
+.install-eval-dim-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--td-brand-color);
+  transition: width 0.3s ease;
+}
+
+.install-eval-dim-score {
+  width: 32px;
+  flex-shrink: 0;
+  text-align: right;
+  color: var(--td-text-color-primary);
+}
+
+.install-eval-summary {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .install-progress {

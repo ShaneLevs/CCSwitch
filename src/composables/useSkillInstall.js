@@ -9,6 +9,62 @@ const DEFAULT_CONFIG = {
   cancelSkillInstall: 'cancelSkillInstall',
 };
 
+// TRACE 评测维度（顺序与官方一致）
+const TRACE_DIMENSIONS = [
+  { key: 'trust', label: '可信任度' },
+  { key: 'reliability', label: '可靠性' },
+  { key: 'adaptability', label: '适用性' },
+  { key: 'convention', label: '规范性' },
+  { key: 'effectiveness', label: '有效性' },
+];
+
+// 分类 key → 中文名（fetchSkillHubCategories 失败时的兜底）
+const SKILLHUB_CATEGORY_FALLBACK = {
+  'pay-skill': 'Pay Skill',
+  'office-efficiency': '办公效率',
+  'content-creation': '内容创作',
+  'dev-programming': '开发编程',
+  'data-analysis': '数据分析',
+  'design-media': '设计多媒体',
+  'ai-agent': 'AI Agent',
+  'knowledge-management': '知识管理',
+  'business-ops': '商业运营',
+  education: '教育学习',
+  professional: '行业专业',
+  'it-ops-security': 'IT 运维与安全',
+  'life-service': '生活服务',
+};
+
+// 计算 TRACE 评测摘要（算法与官方一致：维度分 = items 均值，总分 = 五维均值）
+const buildEvaluation = (data) => {
+  if (!data || !data.dimensions) return null;
+  const dimScores = {};
+  TRACE_DIMENSIONS.forEach(({ key, label }) => {
+    const items = data.dimensions[key]?.items;
+    const scores = Object.values(items || {})
+      .map((i) => i?.score)
+      .filter((s) => typeof s === 'number');
+    dimScores[key] = {
+      key,
+      label,
+      score: scores.length
+        ? scores.reduce((a, b) => a + b, 0) / scores.length
+        : 0,
+    };
+  });
+  const total =
+    TRACE_DIMENSIONS.reduce((sum, { key }) => sum + dimScores[key].score, 0) /
+    TRACE_DIMENSIONS.length;
+  const rating =
+    total >= 4 ? '优秀' : total >= 3 ? '良好' : total >= 2 ? '及格' : '待改进';
+  return {
+    total: Math.round(total * 10) / 10,
+    rating,
+    dimensions: dimScores,
+    summary: data.summary || data.userSummary || '',
+  };
+};
+
 export function useSkillInstall(loadSkills, config = {}) {
   const cfg = { ...DEFAULT_CONFIG, ...config };
 
@@ -47,6 +103,31 @@ export function useSkillInstall(loadSkills, config = {}) {
       if (source === 'skillhub') {
         const result = await window.services.fetchSkillInfo(slug, namespace);
         const info = result.data;
+        // 并行拉取评测报告与分类（尽力而为，失败不阻塞主流程）
+        let evaluation = null;
+        let categoryMap = {};
+        try {
+          const [ev, cat] = await Promise.all([
+            window.services.fetchSkillEvaluation(slug, namespace),
+            window.services.fetchSkillHubCategories(),
+          ]);
+          evaluation = ev;
+          categoryMap = (cat?.items || []).reduce((acc, c) => {
+            acc[c.key] = c.name;
+            return acc;
+          }, {});
+        } catch (e) {
+          /* ignore */
+        }
+        const catKey = info.skill?.category;
+        const tags = [];
+        const catName = categoryMap[catKey] || SKILLHUB_CATEGORY_FALLBACK[catKey];
+        if (catName) tags.push(catName);
+        (info.skill?.subCategories || []).forEach((s) => {
+          if (s?.name) tags.push(s.name);
+        });
+        if (info.skill?.labels?.requires_api_key === 'true')
+          tags.push('需配置 API Key');
         installInfo.value = {
           source: 'skillhub',
           slug,
@@ -55,7 +136,9 @@ export function useSkillInstall(loadSkills, config = {}) {
           summary: info.skill?.summary_zh || info.skill?.summary || "暂无描述",
           version: info.latestVersion?.version || "unknown",
           downloads: info.skill?.stats?.downloads || 0,
-          author: info.owner?.displayName || info.owner?.handle || "未知"
+          author: info.owner?.displayName || info.owner?.handle || "未知",
+          tags,
+          evaluation: buildEvaluation(evaluation),
         };
       } else if (source === 'modelscope') {
         const result = await window.services.fetchModelScopeSkillInfo(slug);

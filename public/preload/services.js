@@ -573,6 +573,23 @@ window.services = {
     return { source: "skillhub", data };
   },
 
+  // 获取 SkillHub skill 评测报告（TRACE 体系）；无评测时返回 null
+  async fetchSkillEvaluation(slug, namespace) {
+    try {
+      return await _skillhubGetJson(
+        `/api/v1/skills/${slug}/evaluation`,
+        { namespace },
+      );
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // 获取 SkillHub 分类列表（key → 中文名）
+  fetchSkillHubCategories() {
+    return _skillhubGetJson("/api/v1/categories");
+  },
+
   fetchModelScopeSkillInfo(skillPath) {
     const https = require("node:https");
     return new Promise((resolve, reject) => {
