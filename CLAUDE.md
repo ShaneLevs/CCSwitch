@@ -238,6 +238,9 @@ Claude 配置支持「认证方式」（`authVar`）：每个配置可选择 `AN
 9. **installOpencodeSkill** — URL regex → 安装到 OpenCode skills
 10. **installPiExtension** — Regex `pi install <包名>` → Pi Extension 安装
 
+> **Agent 启停 ↔ 启动指令同步**：设置 →「Agent 启停管理」勾选状态存 uTools DB（`ccswitch_visible_agents`，首次默认全部启用）。停用某 agent 时，preload 通过 uTools 动态指令 API（`utools.removeFeature`）从指令注册表移除其 features（固定命令 + 匹配命令，映射见 `public/preload/services/commands.js` 的 `AGENT_FEATURES`：claude → claudeConfig/installClaudeSkill，opencode → opencodeConfig/installOpencodeSkill，pi → piConfig/installPiExtension，omp → ompConfig，reasonix → reasonixConfig）；启用时 `utools.setFeature` 按 plugin.json 规范定义恢复（每次同步重读 plugin.json，取最新定义）。`onPluginReady`/`onPluginEnter` 从 DB 重放同步（幂等自愈重启/更新后的回归），渲染进程勾选变化时即时调用 `window.services.syncAgentCommands`。「通用配置」（commonConfig / installCommonSkill）永不参与启停。
+> **背景与实现约束**：uTools 4.x 插件以 asar 只读打包，运行时**无法改写 plugin.json 文件**，动态指令 API（setFeature/removeFeature/getFeatures）是官方提供的唯一「对插件应用功能进行动态增减」机制。plugin.json 规范定义通过 `__dirname` 相对定位（多候选探测）：dev 源码 `public/preload/services.js` → `../plugin.json`；prod bundle `dist/preload/services.js` → `../plugin.json`（asar 内同级）；源码 services 子目录 → `../../plugin.json`。
+
 ## Build Notes
 
 - Vite config includes custom `bundlePreloadPlugin` (`vite.config.js`) that runs esbuild on `public/preload/services.js` during `buildStart` + `closeBundle`; dev server watches `public/preload/**` and rebuilds on change

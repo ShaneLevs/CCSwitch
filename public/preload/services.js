@@ -12,6 +12,7 @@ const omp = require("./services/omp");
 const reasonix = require("./services/reasonix");
 const common = require("./services/common");
 const dispatch = require("./services/dispatch");
+const commands = require("./services/commands");
 
 const {
   CLAUDE_SETTINGS_PATH,
@@ -1931,6 +1932,10 @@ window.services = {
   // 通用库 provider + model → 各 Agent 模型配置下发
   dispatchCommonModel: dispatch.dispatchCommonModel,
 
+  // ==================== 智能体启停 ↔ uTools 指令同步 ====================
+  // 按启停状态增删各 agent 的启动命令（功能指令 + 匹配指令），详见 services/commands.js
+  syncAgentCommands: commands.syncAgentCommands,
+
   getReasonixConfigPath: reasonix.getReasonixConfigPath,
   readReasonixConfig: reasonix.readReasonixConfig,
   writeReasonixConfig: reasonix.writeReasonixConfig,
@@ -2126,3 +2131,14 @@ function _downloadSkillhubZip({ slug, version, namespace }, zipPath, onProgress)
   const url = _skillhubApiUrl("/api/v1/download", { slug, version, namespace });
   return _downloadToFile(url, zipPath, onProgress);
 }
+
+// ==================== 智能体启停指令同步：生命周期自愈 ====================
+// 装载 + 每次进入时从 uTools DB 读取启停状态并重放同步（幂等）。
+// 覆盖 uTools 重启 / 插件更新 / 开发者工具重新导入后静态指令（plugin.json features）回归的场景：
+// 停用的 agent 命令在插件首次装载/进入后即被移除。
+window.utools.onPluginReady(() => {
+  try { commands.initFromDb(); } catch (e) { console.error("[commands] onPluginReady 同步失败", e); }
+});
+window.utools.onPluginEnter(() => {
+  try { commands.initFromDb(); } catch (e) { console.error("[commands] onPluginEnter 同步失败", e); }
+});

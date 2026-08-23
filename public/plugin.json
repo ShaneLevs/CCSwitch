@@ -61,6 +61,7 @@
     {
       "code": "installClaudeSkill",
       "explain": "从 SkillHub/魔搭社区 安装 Claude Code Skill",
+      "icon": "claudecode.png",
       "cmds": [
         {
           "type": "regex",

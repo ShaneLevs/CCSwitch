@@ -155,7 +155,7 @@ const AGENT_META = {
   reasonix: { name: "Reasonix", icon: `${ASSET_BASE}reasonix.svg` },
 };
 
-// 可见 agent：有记录用记录（缺键默认显示，兼容未来新增 agent），无记录用「前三个 + 有数据的」并写库；检测结果只在首次参与，之后不覆盖用户选择
+// 可见 agent：有记录用记录（缺键默认启用，兼容未来新增 agent），无记录默认全部启用并写库；检测结果只在首次参与，之后不覆盖用户选择
 const visibleAgents = ref(null);
 // agent 显示顺序（可拖拽排序），默认 AGENT_ORDER
 const agentOrder = ref([...AGENT_ORDER]);
@@ -184,10 +184,9 @@ const initVisibleAgents = () => {
     AGENT_ORDER.forEach((app) => { result[app] = stored[app] ?? true; });
     visibleAgents.value = result;
   } else {
-    // 无记录：检测配置数据，默认「前三个 + 有数据的」，写库
-    const hasData = window.services.detectAgentsConfig();
+    // 无记录：默认全部启用（与「Agent 启停管理」语义一致：默认开启，由用户自行停用），写库
     const result = {};
-    AGENT_ORDER.forEach((app, i) => { result[app] = hasData[app] || i < 3; });
+    AGENT_ORDER.forEach((app) => { result[app] = true; });
     visibleAgents.value = result;
     try { saveVisibleAgents(); } catch (e) { console.error("保存可见 agent 失败", e); }
   }
@@ -195,7 +194,26 @@ const initVisibleAgents = () => {
 initVisibleAgents();
 
 // 自动持久化：勾选或排序变化即保存（不依赖组件 change 事件，deep 监听可见状态与顺序）
-watch([visibleAgents, agentOrder], () => {
+// 同步 uTools 启动指令：停用 → 移除该 agent 的功能指令 + 匹配指令；启用 → 恢复（幂等）
+const syncAgentCommands = () => {
+  try {
+    if (visibleAgents.value && window.services.syncAgentCommands) {
+      const res = window.services.syncAgentCommands({ ...visibleAgents.value });
+      if (res && res.failed && res.failed.length) {
+        console.error("同步启动指令失败:", res.failed);
+      }
+    }
+  } catch (e) {
+    console.error("同步启动指令失败", e);
+  }
+};
+
+// 启停变化：持久化 + 同步指令（拖拽排序只触发 agentOrder 的 watch，不重复同步指令）
+watch(visibleAgents, () => {
+  saveVisibleAgents();
+  syncAgentCommands();
+}, { deep: true });
+watch(agentOrder, () => {
   saveVisibleAgents();
 }, { deep: true });
 
@@ -620,11 +638,13 @@ onMounted(() => {
       placement="center"
     >
       <div class="settings-body">
-        <!-- Agent 显示管理（最上） -->
+        <!-- Agent 启停管理（最上） -->
         <div class="settings-section">
-          <div class="settings-title">Agent 显示管理</div>
+          <div class="settings-title">Agent 启停管理</div>
           <div class="settings-desc">
-            拖动可排序，勾选的 agent 会显示在顶部切换器中；「通用」始终显示；当前正在使用的 agent 不可取消
+            勾选 = 启用：显示在顶部切换器，并保留 uTools 启动指令；取消勾选 = 停用：从切换器隐藏，
+            并移除该 agent 的 uTools 启动指令（功能指令 + 匹配指令一并移除）；「通用」始终启用；
+            当前正在使用的 agent 不可停用；拖动可排序
           </div>
           <div class="agent-visibility-list">
             <div
