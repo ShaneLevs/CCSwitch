@@ -13,6 +13,7 @@ const reasonix = require("./services/reasonix");
 const common = require("./services/common");
 const dispatch = require("./services/dispatch");
 const commands = require("./services/commands");
+const autoroute = require("./services/autoroute");
 
 const {
   CLAUDE_SETTINGS_PATH,
@@ -1931,6 +1932,16 @@ window.services = {
   deleteCommonSkill: common.deleteCommonSkill,
   // 通用库 provider + model → 各 Agent 模型配置下发
   dispatchCommonModel: dispatch.dispatchCommonModel,
+  // 自动路由网关：本地模型代理（配置 / 启停 / 状态 / 下发）
+  readAutoRouteConfig: autoroute.readAutoRouteConfig,
+  writeAutoRouteConfig: autoroute.writeAutoRouteConfig,
+  regenerateAutoRouteKey: autoroute.regenerateAutoRouteKey,
+  resolveAutoRouteModels: autoroute.resolveAutoRouteModels,
+  startAutoRoute: autoroute.startAutoRoute,
+  stopAutoRoute: autoroute.stopAutoRoute,
+  setAutoRouteEnabled: autoroute.setAutoRouteEnabled,
+  getAutoRouteStatus: autoroute.getAutoRouteStatus,
+  dispatchAutoRoute: dispatch.dispatchAutoRoute,
 
   // ==================== 智能体启停 ↔ uTools 指令同步 ====================
   // 按启停状态增删各 agent 的启动命令（功能指令 + 匹配指令），详见 services/commands.js
@@ -2138,7 +2149,9 @@ function _downloadSkillhubZip({ slug, version, namespace }, zipPath, onProgress)
 // 停用的 agent 命令在插件首次装载/进入后即被移除。
 window.utools.onPluginReady(() => {
   try { commands.initFromDb(); } catch (e) { console.error("[commands] onPluginReady 同步失败", e); }
+  autoroute.startAutoRouteIfEnabled();
 });
 window.utools.onPluginEnter(() => {
   try { commands.initFromDb(); } catch (e) { console.error("[commands] onPluginEnter 同步失败", e); }
+  autoroute.startAutoRouteIfEnabled();
 });

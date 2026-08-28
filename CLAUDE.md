@@ -100,6 +100,7 @@ src/
         ├── ConfigView.vue     # 供应商/模型主数据库 CRUD（四协议）
         ├── McpView.vue        # MCP：本地 ~/.mcp.json + 云端 uTools DB 合并单一列表
         ├── SkillView.vue      # Skill：只读扫描 ~/.agents/skills + 链接安装 + .disabled 启停
+        ├── AutoRouteView.vue  # 自动路由：本地模型网关（开关/端口/key/模型勾选/下发/请求日志）
         └── styles/
 
 public/
@@ -121,6 +122,9 @@ public/
         ├── omp.js             # omp modelRoles + models.yml providers CRUD（js-yaml 纯文件读写）
         ├── reasonix.js        # Reasonix config.toml + .env 读写（smol-toml）
         ├── plugins.js         # Claude plugin Marketplace / component discovery
+        ├── dispatch.js        # 通用库 → 各 agent 模型配置下发（dispatchCommonModel / dispatchAutoRoute）
+        ├── autoroute.js       # 自动路由本地网关（uTools DB 配置、http server 启停、路由、请求日志）
+        ├── autoroute-convert/ # 协议转换层：canonical.js 标准格式 + source.js/target.js 入出站适配 + stream.js 流式管道
         └── usage.js           # Shared JSONL parsing / stats aggregation (Claude + Pi)
 ```
 
@@ -142,7 +146,9 @@ public/
   - 通用 MCP → uTools DB `ccswitch_common_mcp`（格式同 ~/.mcp.json 的 `{ mcpServers }`）与本地 `~/.mcp.json` 双存储；McpView 按名称合并为单一列表，卡片标「本地/云端」tag，支持双端复制/移除，同名配置不同时显示警告
   - 通用 Skill → 只读扫描 `~/.agents/skills`（SKILL.md 元数据）；启停 = 物理移动目录到 `.disabled/`（与 Claude Code 机制一致）
   - `writeDoc` 捕获 uTools 结构化克隆失败：递归定位函数/Symbol 等非 JSON 字段并净化（丢弃）后重试写入（兼容历史脏数据）；失败时抛带原始错误信息的异常供 UI 展示
-  - **模型下发到 Agent**（`services/dispatch.js`）：把主数据的 provider + model 写入各 agent 模型配置——Claude → uTools DB 保存配置（`ccswitch_config_dispatch_<provider>`，一个 provider 一份，Claude 配置页可见；key 加密、authVar 默认 AUTH_TOKEN，模型自动填入空闲槽位 默认/Haiku/Sonnet/Opus/Subagent，已有同模型跳过、5 槽位满报错，不直接改 settings.json）；OpenCode → `opencode.json` provider[id]（options.baseURL/apiKey + models[id]）；Pi → `models.json` providers[name]（可选默认 provider/model）；omp → `models.yml` providers[name]（无默认概念）；Reasonix → `config.toml` providers[] + `.env` key（可选 `default_model`）。每个目标独立 try/catch，单个失败不影响其他目标
+  - **模型下发到 Agent**（`services/dispatch.js`）：把主数据的 provider + model 写入各 agent 模型配置——Claude → uTools DB 保存配置（`ccswitch_config_dispatch_<provider>`，一个 provider 一份，Claude 配置页可见；key 加密、authVar 默认 AUTH_TOKEN，模型自动填入空闲槽位 默认/Haiku/Sonnet/Opus/Subagent，已有同模型跳过、5 槽位满报错，不直接改 settings.json；**仅接受 anthropic-messages 协议供应商**，其余协议 UI 禁用 Claude 选项、preload 直接报错）；OpenCode → `opencode.json` provider[id]（options.baseURL/apiKey + models[id]）；Pi → `models.json` providers[name]（可选默认 provider/model）；omp → `models.yml` providers[name]（无默认概念）；Reasonix → `config.toml` providers[] + `.env` key（可选 `default_model`）。每个目标独立 try/catch，单个失败不影响其他目标
+  - **自动路由**（`services/autoroute.js` + `autoroute-convert/`）：本地模型网关，把通用库勾选的供应商+模型经 `http://127.0.0.1:<port>`（默认 17877）暴露给本机 agent——入站支持 Anthropic Messages（`POST /v1/messages`）/ OpenAI Chat（`/v1/chat/completions`）/ OpenAI Responses（`/v1/responses`），出站支持 anthropic-messages / openai-completions / openai-responses（google-generative-ai 不支持，明确 400）；入站与出站协议一致时透传（仅重写 model，保留图片等字段），否则经 canonical 中间格式转换（含流式 SSE：canonical 事件流 ↔ 各协议帧）；`GET /v1/models` 返回启用模型（去重）；model 直查按勾选顺序，兼容「供应商/模型ID」消歧；随机 key（`sk-ccr-*`，Authorization Bearer / x-api-key 均可）校验防本机滥用。配置存 uTools DB `ccswitch_autoroute_config`；onPluginReady/onPluginEnter 幂等自启动（enabled=true 时），uTools 退出即停。请求日志存内存（最近 50 条）
+  - **自动路由下发**（`dispatchAutoRoute(targets)`）：虚拟供应商「自动路由」按目标 agent 构造——Claude 目标 `api='anthropic-messages'`（通过协议守卫），其余 `api='openai-completions'`；baseUrl 指向网关、key 为网关随机 key，模型为全部启用模型，复用各目标既有写入实现
 - **OpenCode Config**: `~/.config/opencode.json` / `opencode.jsonc`（json5/jsonc 解析，优先 `.json`，不存在自动检测 `.jsonc`）↔ uTools DB
 - **OpenCode Usage**:
   - 数据目录（Windows/macOS/Linux 通用 XDG 风格）：`~/.local/share/opencode/opencode.db`
@@ -187,7 +193,8 @@ All Node.js-sensitive operations (file I/O, network requests, child process exec
 13. **通用配置主数据**: 跨 agent 供应商/模型主数据库（四协议），API Key 加密存 uTools DB，MCP/Skill 双端管理
 14. **刷新按钮**: 所有配置页面工具栏统一刷新按钮（纯图标，置于按钮组最右）
 15. **深色背景特效**: 可配置的动态背景（棱镜光谱爆裂 / 故障像素终端 / 流动极光 / 星河漫游，ogl WebGL）
-16. **模型下发到 Agent**: 通用配置页用级联选择器多选主数据供应商 + 模型（勾选供应商 = 全选其模型），一键批量写入 5 个 agent（Claude / OpenCode / Pi / omp / Reasonix）的模型配置
+16. **模型下发到 Agent**: 通用配置页用级联选择器多选主数据供应商 + 模型（勾选供应商 = 全选其模型），一键批量写入 5 个 agent（Claude / OpenCode / Pi / omp / Reasonix）的模型配置；Claude 仅接受 Anthropic Messages 协议供应商（UI 禁用选项 + preload 报错双重拦截）
+17. **自动路由**: 通用配置页 tab，本地模型网关总开关——勾选主数据供应商+模型经本地端点暴露给任意 agent，三种入站协议（Anthropic Messages / OpenAI Chat / OpenAI Responses）跨协议自动转换（含流式），页内一键下发虚拟供应商「自动路由」到各 agent，含端口/key 管理与最近请求日志
 
 ## Managed Env Fields (constants.js)
 

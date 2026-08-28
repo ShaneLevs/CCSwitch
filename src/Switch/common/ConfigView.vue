@@ -1,6 +1,6 @@
 <script setup>
 
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import {
   Empty, Button, Tag, Space, Tooltip, Dialog, Input, InputNumber, MessagePlugin, Popconfirm, Alert as TAlert, Select, Switch, CheckboxGroup, Checkbox, Collapse, CollapsePanel, AutoComplete, Cascader,
 } from "tdesign-vue-next";
@@ -370,6 +370,19 @@ const dispatchCascaderOptions = computed(() =>
     })),
   }))
 );
+
+// Claude Code 仅支持 Anthropic Messages 协议：所选供应商全部非该协议时禁用 Claude 目标
+const claudeDispatchDisabled = computed(() => {
+  const names = new Set(dispatchModelKeys.value.map((k) => k.split("::")[0]));
+  const selected = providers.value.filter((p) => names.has(p.name));
+  return (
+    selected.length > 0 &&
+    !selected.some((p) => (p.api || "openai-completions") === "anthropic-messages")
+  );
+});
+watch(claudeDispatchDisabled, (disabled) => {
+  if (disabled) dispatchTargets.value = dispatchTargets.value.filter((t) => t !== "claude");
+});
 
 const openDispatchDialog = (providerName = "", modelId = "") => {
   dispatchModelKeys.value = providerName && modelId ? [`${providerName}::${modelId}`] : [];
@@ -850,7 +863,10 @@ onMounted(refresh);
           <label>目标 Agent <span class="common-form-required">*</span></label>
           <CheckboxGroup v-model="dispatchTargets" class="common-dispatch-agents">
             <label v-for="opt in AGENT_DISPATCH_OPTIONS" :key="opt.value" class="common-dispatch-agent">
-              <Checkbox :value="opt.value" class="common-dispatch-checkbox">{{ opt.label }}</Checkbox>
+              <Tooltip v-if="opt.value === 'claude'" content="仅 Anthropic Messages 协议的供应商可下发 Claude Code">
+                <Checkbox :value="opt.value" :disabled="claudeDispatchDisabled" class="common-dispatch-checkbox">{{ opt.label }}</Checkbox>
+              </Tooltip>
+              <Checkbox v-else :value="opt.value" class="common-dispatch-checkbox">{{ opt.label }}</Checkbox>
             </label>
           </CheckboxGroup>
           <div class="common-form-hint">Claude → 写入 uTools DB 配置（Claude 配置页可见）；OpenCode → opencode.json；Pi → models.json；omp → models.yml；Reasonix → config.toml</div>

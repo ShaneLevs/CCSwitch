@@ -12,6 +12,7 @@ const opencode = require('./opencode')
 const pi = require('./pi')
 const omp = require('./omp')
 const reasonix = require('./reasonix')
+const autoroute = require('./autoroute')
 
 // cost 规范化（与 pi/omp 一致：全 0 省略，Pi schema 约定 0 无效）
 const normalizeCost = (cost) => {
@@ -32,12 +33,16 @@ const normalizeCost = (cost) => {
 // 与 Claude 配置页的配置列表互通（切换时由 useConfigSwitch 写入 settings.json）。
 // 一个 provider 一份配置；模型自动填入空闲槽位（默认 → Haiku → Sonnet → Opus → Subagent），
 // 已有同模型跳过，5 个槽位全满时报错提示（不覆盖已有模型）。
+// 仅接受 anthropic-messages 协议的供应商（激活后写入 ANTHROPIC_* env，其余协议不可用）。
 const DB_PREFIX = 'ccswitch_config_'
 const DISPATCH_DB_PREFIX = DB_PREFIX + 'dispatch_'
 const CLAUDE_MODEL_SLOTS = ['model', 'defaultHaikuModel', 'defaultSonnetModel', 'defaultOpusModel', 'subagentModel']
 const CLAUDE_SLOT_LABELS = { model: '默认模型', defaultHaikuModel: 'Haiku', defaultSonnetModel: 'Sonnet', defaultOpusModel: 'Opus', subagentModel: 'Subagent' }
 
 const dispatchToClaude = (provider, model) => {
+  if ((provider.api || 'openai-completions') !== 'anthropic-messages') {
+    throw new Error(`供应商「${provider.name}」协议为 ${provider.api || 'openai-completions'}，仅 Anthropic Messages 协议供应商可下发 Claude Code`)
+  }
   const docId = DISPATCH_DB_PREFIX + provider.name
   let doc = null
   try { doc = window.utools.db.get(docId) } catch (e) { /* ignore */ }
@@ -230,6 +235,46 @@ const dispatchToReasonix = (provider, model, opts) => {
   return `供应商 ${name} 已更新，模型 ${model.id} 已写入${suffix}`
 }
 
+// ==================== 自动路由下发 ====================
+
+// 自动路由网关（autoroute.js）作为虚拟供应商写入各 agent：Claude 目标用 anthropic-messages
+//（对外就是 Anthropic 协议端点，可通过协议守卫），其余目标用 openai-completions；
+// baseUrl 指向 http://127.0.0.1:<port>，key 为网关随机 key（agent 侧是占位符，网关侧用于鉴权）。
+const AUTOROUTE_PROVIDER_NAME = "自动路由";
+const dispatchAutoRoute = (targets) => {
+  const config = autoroute.readAutoRouteConfig();
+  const enabled = autoroute.resolveAutoRouteModels(config);
+  if (!enabled.length) throw new Error("请先在通用配置 · 自动路由中勾选要路由的模型");
+  const list = Array.isArray(targets) ? targets : [];
+  if (list.length === 0) throw new Error("请选择目标 agent");
+  const models = enabled.map(({ model }) => model);
+  const baseUrl = `http://127.0.0.1:${config.port}`;
+  const results = [];
+  for (const t of list) {
+    const d = APP_DISPATCHERS[t && t.app];
+    if (!d) {
+      results.push({ app: (t && t.app) || "unknown", ok: false, message: "未知目标 agent" });
+      continue;
+    }
+    const provider = {
+      name: AUTOROUTE_PROVIDER_NAME,
+      api: (t && t.app) === "claude" ? "anthropic-messages" : "openai-completions",
+      apiKey: config.key || "",
+      baseUrl,
+      models,
+    };
+    for (const model of models) {
+      try {
+        const message = d.run(provider, model, { providerName: AUTOROUTE_PROVIDER_NAME });
+        results.push({ app: t.app, ok: true, message });
+      } catch (e) {
+        results.push({ app: t.app, ok: false, message: e.message || String(e) });
+      }
+    }
+  }
+  return results;
+};
+
 const APP_DISPATCHERS = {
   claude: { run: dispatchToClaude },
   opencode: { run: dispatchToOpencode },
@@ -267,6 +312,7 @@ const dispatchCommonModel = (provider, model, targets) => {
 
 module.exports = {
   dispatchCommonModel,
+  dispatchAutoRoute,
   // 内部实现导出，供测试/复用
   dispatchToClaude, dispatchToOpencode, dispatchToPi, dispatchToOmp, dispatchToReasonix,
 }

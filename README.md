@@ -12,6 +12,7 @@
   - omp：`~/.omp/agent/models.yml` 供应商/模型 + `config.yml` modelRoles
   - Reasonix：`~/.reasonix/config.toml`（smol-toml 读写，保留未知扩展字段）+ `~/.reasonix/.env` 密钥管理
 - **通用配置（跨 agent 主数据）** — 供应商/模型主数据库（uTools DB 加密存储），支持 OpenAI Chat Completions / OpenAI Responses / Anthropic Messages / Google Generative AI 四类协议；MCP 本地（`~/.mcp.json`）与云端（uTools DB）双存储、合并为单一列表管理；Skill 存放于 `~/.agents/skills`（跨 agent 共享），支持链接安装与 `.disabled` 启停
+- **自动路由（本地模型网关）** — 通用配置内勾选供应商+模型，经本地端点 `http://127.0.0.1:<port>` 暴露给本机任意 agent：支持 Anthropic Messages / OpenAI Chat Completions / OpenAI Responses 三种协议请求，跨协议自动转换（含流式）；随机 key 鉴权，一键下发虚拟供应商到各 agent
 - **MCP 配置** — 管理各应用的 MCP Server，支持实时工具发现画布
   - Claude MCP 读写 `~/.claude.json` 顶层 `mcpServers`（Claude Code 官方位置，单一来源，全局生效）
 - **Skill 管理** — 从 SkillHub / 魔搭社区一键安装 Skill（通用 / Claude Code / OpenCode CLI），支持全局与项目级 Skill 启用/禁用（`.disabled` 目录机制）
@@ -145,6 +146,7 @@ src/
         ├── ConfigView.vue     # 供应商/模型主数据库 CRUD（四协议）
         ├── McpView.vue        # MCP：本地 ~/.mcp.json + 云端 DB 合并单一列表
         ├── SkillView.vue      # Skill：只读扫描 ~/.agents/skills + 链接安装 + .disabled 启停
+        ├── AutoRouteView.vue  # 自动路由：本地模型网关（开关/端口/key/模型勾选/下发/请求日志）
         └── styles/
 public/
 ├── plugin.json                # uTools 插件配置（关键词/特性）
@@ -165,6 +167,9 @@ public/
         ├── pi.js              # Pi Agent 供应商/模型/扩展 CRUD + /models API 自动拉取
         ├── omp.js             # omp modelRoles + models.yml providers CRUD（js-yaml）
         ├── reasonix.js        # Reasonix config.toml + .env 读写（smol-toml）
+        ├── dispatch.js        # 通用库 → 各 agent 模型配置下发（dispatchCommonModel / dispatchAutoRoute）
+        ├── autoroute.js       # 自动路由本地网关（uTools DB 配置、http server 启停、路由、请求日志）
+        ├── autoroute-convert/ # 协议转换层：canonical.js + source.js/target.js + stream.js
         └── usage.js           # 共享统计聚合（Claude / OpenCode / Pi）
 ```
 
@@ -185,6 +190,12 @@ Claude:
   通用 MCP → uTools DB（ccswitch_common_mcp）+ 本地 ~/.mcp.json 双存储，按名称合并单一列表，本地/云端 tag 标注，支持双端复制/移除
   通用 Skill → 只读扫描 ~/.agents/skills（SKILL.md 元数据），启停 = 物理移动目录到 .disabled/（同 Claude Code 机制）
   协议类型：OpenAI Chat Completions / OpenAI Responses / Anthropic Messages / Google Generative AI
+  自动路由 → 本地模型网关（http://127.0.0.1:<port>，默认 17877）：
+    入站 POST /v1/messages（Anthropic）/ /v1/chat/completions（OpenAI Chat）/ /v1/responses（OpenAI Responses）+ GET /v1/models
+    出站支持 anthropic-messages / openai-completions / openai-responses，google-generative-ai 明确 400
+    同协议透传（仅重写 model），跨协议经 canonical 中间格式转换（autoroute-convert/，含流式 SSE 双向转换）
+    model 直查按勾选顺序取第一个，兼容「供应商/模型ID」消歧；随机 key 鉴权（Authorization Bearer / x-api-key）
+    配置存 uTools DB（ccswitch_autoroute_config），onPluginReady/onPluginEnter 幂等自启动，uTools 退出即停
 
 OpenCode CLI:
   ~/.config/opencode.json / opencode.jsonc (json5/jsonc，优先 .json)  ←→  uTools DB

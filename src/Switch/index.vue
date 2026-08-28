@@ -9,6 +9,7 @@ import {
   ChevronDownIcon,
   AppIcon,
   SettingIcon,
+  MapRoutePlanningIcon,
 } from "tdesign-icons-vue-next";
 import { GripVertical } from "@lucide/vue";
 import ConfigView from "./claude/ConfigView.vue";
@@ -31,6 +32,7 @@ import ReasonixConfigView from "./reasonix/ConfigView.vue";
 import CommonConfigView from "./common/ConfigView.vue";
 import CommonMcpView from "./common/McpView.vue";
 import CommonSkillView from "./common/SkillView.vue";
+import CommonAutoRouteView from "./common/AutoRouteView.vue";
 import { useAppContext } from "../composables/useAppContext";
 import { useDarkBackground } from "../composables/useDarkBackground";
 
@@ -121,6 +123,7 @@ const pageTitleSuffix = computed(() => {
     },
     common: {
       config: "配置",
+      autoroute: "路由",
       mcp: "MCP",
       skill: "Skill",
     },
@@ -371,6 +374,14 @@ onMounted(() => {
           </Button>
           <Button
             size="small"
+            :theme="activeTab === 'autoroute' ? 'primary' : 'default'"
+            :variant="activeTab === 'autoroute' ? 'base' : 'outline'"
+            @click="activeTab = 'autoroute'"
+          >
+            <template #icon><MapRoutePlanningIcon /></template> 路由
+          </Button>
+          <Button
+            size="small"
             :theme="activeTab === 'mcp' ? 'primary' : 'default'"
             :variant="activeTab === 'mcp' ? 'base' : 'outline'"
             @click="activeTab = 'mcp'"
@@ -551,6 +562,10 @@ onMounted(() => {
         v-if="isTabVisited('common', 'skill')"
         v-show="isCommon && activeTab === 'skill'"
         ref="commonSkillViewRef"
+      />
+      <CommonAutoRouteView
+        v-if="isTabVisited('common', 'autoroute')"
+        v-show="isCommon && activeTab === 'autoroute'"
       />
     </template>
 

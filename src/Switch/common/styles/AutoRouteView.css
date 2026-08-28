@@ -1,0 +1,61 @@
+.autoroute-container { display: flex; flex-direction: column; gap: 12px; padding-top: 0; }
+.autoroute-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.autoroute-tip { font-size: 12px; color: var(--td-text-color-secondary); }
+.autoroute-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.autoroute-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--td-radius-default);
+  background: var(--td-bg-color-container);
+  border: 1px solid var(--td-border-level-1-color);
+}
+.autoroute-status-row { display: flex; align-items: center; gap: 10px; }
+.autoroute-url { font-size: 13px; color: var(--td-brand-color); font-weight: 500; }
+.autoroute-key {
+  font-size: 12px;
+  color: var(--td-text-color-primary);
+  background: var(--td-bg-color-secondarycontainer);
+  padding: 2px 8px;
+  border-radius: var(--td-radius-default);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.autoroute-form-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.autoroute-label { font-size: 12px; color: var(--td-text-color-placeholder); flex-shrink: 0; }
+.autoroute-port { width: 110px; }
+.autoroute-cascader { flex: 1; min-width: 320px; }
+/* 级联弹层：TDesign 默认每列写死 148px，改为适应内容宽度 */
+.autoroute-cascader-popup .t-cascader__menu { width: auto; min-width: 200px; max-width: 40vw; }
+/* 路由页复选框选中态用绿色（主题品牌色为灰阶，深色模式下白勾落在近白底上不可见） */
+.autoroute-cascader-popup .t-checkbox.t-is-checked .t-checkbox__input,
+.autoroute-cascader-popup .t-checkbox.t-is-checked:not(.t-is-disabled):hover .t-checkbox__input,
+.autoroute-dispatch-dialog .t-checkbox.t-is-checked .t-checkbox__input,
+.autoroute-dispatch-dialog .t-checkbox.t-is-checked:not(.t-is-disabled):hover .t-checkbox__input {
+  background-color: var(--td-success-color);
+  border-color: var(--td-success-color);
+}
+.autoroute-hint { font-size: 12px; color: var(--td-text-color-placeholder); line-height: 1.6; }
+.autoroute-endpoints { gap: 6px; }
+.autoroute-endpoints-title { font-size: 12px; font-weight: 500; color: var(--td-text-color-secondary); }
+.autoroute-endpoint-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.autoroute-endpoint-method { flex-shrink: 0; font-variant-numeric: tabular-nums; min-width: 44px; justify-content: center; }
+.autoroute-endpoint-path { font-family: var(--td-font-family-code, Menlo, Consolas, monospace); color: var(--td-text-color-primary); }
+.autoroute-endpoint-desc { color: var(--td-text-color-placeholder); }
+.autoroute-logs { display: flex; flex-direction: column; gap: 4px; }
+.autoroute-logs-title { font-size: 12px; color: var(--td-text-color-placeholder); margin-bottom: 2px; }
+.autoroute-logs-empty { font-size: 12px; color: var(--td-text-color-placeholder); padding: 8px 0; }
+.autoroute-log-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 8px; border-radius: var(--td-radius-default); }
+.autoroute-log-row:hover { background: var(--td-bg-color-container-hover); }
+.autoroute-log-time { color: var(--td-text-color-placeholder); font-variant-numeric: tabular-nums; }
+.autoroute-log-model { color: var(--td-text-color-primary); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.autoroute-log-flag { font-size: 11px; color: var(--td-brand-color); }
+.autoroute-log-arrow { color: var(--td-text-color-placeholder); }
+.autoroute-log-ms { color: var(--td-text-color-placeholder); margin-left: auto; font-variant-numeric: tabular-nums; }
+.autoroute-dispatch-form { display: flex; flex-direction: column; gap: 10px; }
+.autoroute-dispatch-agents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.autoroute-dispatch-agent { display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 4px 8px; border-radius: var(--td-radius-default); }
+.autoroute-dispatch-agent:hover { background: var(--td-bg-color-container-hover); }
