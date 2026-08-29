@@ -94,7 +94,7 @@ const appLabel = computed(() => {
   if (isPi.value) return "Pi Agent";
   if (isOmp.value) return "omp";
   if (isReasonix.value) return "Reasonix";
-  if (isCodex.value) return "Codex";
+  if (isCodex.value) return "Codex Desktop";
   return "通用";
 });
 
@@ -165,7 +165,7 @@ const AGENT_META = {
   pi: { name: "Pi Agent", icon: `${ASSET_BASE}icon-pi.png` },
   omp: { name: "omp", icon: `${ASSET_BASE}omp-icon.svg` },
   reasonix: { name: "Reasonix", icon: `${ASSET_BASE}reasonix.svg` },
-  codex: { name: "Codex", icon: `${ASSET_BASE}icon-codex.png` },
+  codex: { name: "Codex Desktop", icon: `${ASSET_BASE}icon-codex.png` },
 };
 
 // 可见 agent：有记录用记录（缺键默认启用，兼容未来新增 agent），无记录默认全部启用并写库；检测结果只在首次参与，之后不覆盖用户选择
