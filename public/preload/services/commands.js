@@ -8,8 +8,8 @@
 //   utools.getFeatures(codes?) —— 读取当前动态功能
 //
 // 本模块是「启停状态」与「uTools 指令注册表」之间的唯一同步点，幂等：
-//   - 插件装载（onPluginReady）与每次进入（onPluginEnter）时从 uTools DB 读取启停状态重放同步，
-//     自愈 uTools 重启 / 插件更新后静态指令回归的场景；
+//   - 插件装载（preload 顶层执行，uTools 无 onPluginReady 回调）与每次进入（onPluginEnter）时
+//     从 uTools DB 读取启停状态重放同步，自愈 uTools 重启 / 插件更新后静态指令回归的场景；
 //   - 设置界面勾选变化时由渲染进程调用 syncAgentCommands 即时同步。
 // 「通用配置」（commonConfig / installCommonSkill）永远保留，不参与启停。
 const fs = require("node:fs");
@@ -23,6 +23,7 @@ const AGENT_FEATURES = {
   pi: ["piConfig", "installPiExtension"],
   omp: ["ompConfig"],
   reasonix: ["reasonixConfig"],
+  codex: ["codexConfig"],
 };
 
 const VISIBLE_AGENTS_DB = "ccswitch_visible_agents";
@@ -102,7 +103,7 @@ function syncAgentCommands(visible) {
   return { ok: failed.length === 0, removed, registered, failed };
 }
 
-// 从 uTools DB 读取启停状态并同步（onPluginReady / onPluginEnter 自愈调用）
+// 从 uTools DB 读取启停状态并同步（preload 装载 / onPluginEnter 自愈调用）
 function initFromDb() {
   try {
     let visible = null;

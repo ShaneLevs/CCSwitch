@@ -7,7 +7,7 @@
 //   GET  /health             → 健康检查
 // 入站协议与目标供应商协议一致时原样透传（仅重写 model），否则经 autoroute-convert 自动转换（含流式 SSE）。
 // 随机 key 校验 Authorization Bearer / x-api-key，防止本机其他进程滥用主数据里的真实供应商密钥。
-// 生命周期：uTools 运行期间存活（onPluginReady/onPluginEnter 幂等自启动），uTools 退出即停止。
+// 生命周期：uTools 运行期间存活（preload 装载 + onPluginEnter 幂等自启动），uTools 退出即停止。
 
 const http = require("http");
 const https = require("https");

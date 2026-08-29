@@ -12,7 +12,8 @@ export function useAppContext() {
   const isPi = computed(() => activeApp.value === 'pi')
   const isOmp = computed(() => activeApp.value === 'omp')
   const isReasonix = computed(() => activeApp.value === 'reasonix')
+  const isCodex = computed(() => activeApp.value === 'codex')
   const isCommon = computed(() => activeApp.value === 'common')
 
-  return { activeApp, setActiveApp, isClaude, isOpenCode, isPi, isOmp, isReasonix, isCommon }
+  return { activeApp, setActiveApp, isClaude, isOpenCode, isPi, isOmp, isReasonix, isCodex, isCommon }
 }

@@ -351,6 +351,7 @@ const AGENT_DISPATCH_OPTIONS = [
   { label: "Pi Agent", value: "pi" },
   { label: "omp", value: "omp" },
   { label: "Reasonix", value: "reasonix" },
+  { label: "Codex", value: "codex" },
 ];
 
 // 供应商 + 模型合并为一个级联选择器：按供应商分组，value 用 "供应商::模型ID" 区分同名；
@@ -382,6 +383,21 @@ const claudeDispatchDisabled = computed(() => {
 });
 watch(claudeDispatchDisabled, (disabled) => {
   if (disabled) dispatchTargets.value = dispatchTargets.value.filter((t) => t !== "claude");
+});
+
+// Codex 仅支持 OpenAI 系协议（wire_api chat/responses）：所选供应商全部非该协议时禁用 Codex 目标
+const codexDispatchDisabled = computed(() => {
+  const names = new Set(dispatchModelKeys.value.map((k) => k.split("::")[0]));
+  const selected = providers.value.filter((p) => names.has(p.name));
+  return (
+    selected.length > 0 &&
+    !selected.some((p) =>
+      ["openai-completions", "openai-responses"].includes(p.api || "openai-completions")
+    )
+  );
+});
+watch(codexDispatchDisabled, (disabled) => {
+  if (disabled) dispatchTargets.value = dispatchTargets.value.filter((t) => t !== "codex");
 });
 
 const openDispatchDialog = (providerName = "", modelId = "") => {
@@ -838,7 +854,7 @@ onMounted(refresh);
       </div>
     </Dialog>
 
-    <!-- 下发到 Agent 弹窗：选中主数据 provider + model，写入 5 个 agent 的模型配置 -->
+    <!-- 下发到 Agent 弹窗：选中主数据 provider + model，写入 6 个 agent 的模型配置 -->
     <Dialog
       v-model:visible="dispatchDialog"
       header="下发模型到 Agent"
@@ -866,10 +882,13 @@ onMounted(refresh);
               <Tooltip v-if="opt.value === 'claude'" content="仅 Anthropic Messages 协议的供应商可下发 Claude Code">
                 <Checkbox :value="opt.value" :disabled="claudeDispatchDisabled" class="common-dispatch-checkbox">{{ opt.label }}</Checkbox>
               </Tooltip>
+              <Tooltip v-else-if="opt.value === 'codex'" content="仅 OpenAI Chat / Responses 协议的供应商可下发 Codex">
+                <Checkbox :value="opt.value" :disabled="codexDispatchDisabled" class="common-dispatch-checkbox">{{ opt.label }}</Checkbox>
+              </Tooltip>
               <Checkbox v-else :value="opt.value" class="common-dispatch-checkbox">{{ opt.label }}</Checkbox>
             </label>
           </CheckboxGroup>
-          <div class="common-form-hint">Claude → 写入 uTools DB 配置（Claude 配置页可见）；OpenCode → opencode.json；Pi → models.json；omp → models.yml；Reasonix → config.toml</div>
+          <div class="common-form-hint">Claude → 写入 uTools DB 配置（Claude 配置页可见）；OpenCode → opencode.json；Pi → models.json；omp → models.yml；Reasonix → config.toml；Codex → ~/.codex/config.toml</div>
         </div>
       </div>
     </Dialog>

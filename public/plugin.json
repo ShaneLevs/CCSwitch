@@ -45,6 +45,12 @@
       "cmds": ["Reasonix配置"]
     },
     {
+      "code": "codexConfig",
+      "explain": "Codex 模型配置管理工具（Desktop / CLI）",
+      "icon": "icon-codex.png",
+      "cmds": ["Codex配置"]
+    },
+    {
       "code": "installCommonSkill",
       "explain": "从 SkillHub/魔搭社区 安装通用 Skill（~/.agents/skills）",
       "icon": "gen.svg",

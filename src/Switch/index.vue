@@ -29,6 +29,7 @@ import OpenCodeSkillView from "./opencode/SkillView.vue";
 import OpenCodeUsageView from "./opencode/UsageView.vue";
 import OmpConfigView from "./omp/ConfigView.vue";
 import ReasonixConfigView from "./reasonix/ConfigView.vue";
+import CodexConfigView from "./codex/ConfigView.vue";
 import CommonConfigView from "./common/ConfigView.vue";
 import CommonMcpView from "./common/McpView.vue";
 import CommonSkillView from "./common/SkillView.vue";
@@ -41,7 +42,7 @@ const props = defineProps({
   payload: String,
 });
 
-const { activeApp, setActiveApp, isClaude, isOpenCode, isPi, isOmp, isReasonix, isCommon } = useAppContext();
+const { activeApp, setActiveApp, isClaude, isOpenCode, isPi, isOmp, isReasonix, isCodex, isCommon } = useAppContext();
 
 const { darkBackgroundEnabled, setDarkBackground, darkEffect, setDarkEffect } =
   useDarkBackground();
@@ -89,6 +90,7 @@ const appLabel = computed(() => {
   if (isPi.value) return "Pi Agent";
   if (isOmp.value) return "omp";
   if (isReasonix.value) return "Reasonix";
+  if (isCodex.value) return "Codex";
   return "通用";
 });
 
@@ -121,6 +123,9 @@ const pageTitleSuffix = computed(() => {
     reasonix: {
       config: "配置管理",
     },
+    codex: {
+      config: "模型配置",
+    },
     common: {
       config: "配置",
       autoroute: "路由",
@@ -149,13 +154,14 @@ const switchApp = (app) => {
 // 否则 uTools 以 file:// 加载时绝对路径会指向文件系统根目录导致图标丢失）
 const ASSET_BASE = import.meta.env.BASE_URL;
 const VISIBLE_AGENTS_DB = "ccswitch_visible_agents";
-const AGENT_ORDER = ["claude", "opencode", "pi", "omp", "reasonix"];
+const AGENT_ORDER = ["claude", "opencode", "pi", "omp", "reasonix", "codex"];
 const AGENT_META = {
   claude: { name: "Claude Code", icon: `${ASSET_BASE}claudecode.png` },
   opencode: { name: "OpenCode CLI", icon: `${ASSET_BASE}icon-opencode.png` },
   pi: { name: "Pi Agent", icon: `${ASSET_BASE}icon-pi.png` },
   omp: { name: "omp", icon: `${ASSET_BASE}omp-icon.svg` },
   reasonix: { name: "Reasonix", icon: `${ASSET_BASE}reasonix.svg` },
+  codex: { name: "Codex", icon: `${ASSET_BASE}icon-codex.png` },
 };
 
 // 可见 agent：有记录用记录（缺键默认启用，兼容未来新增 agent），无记录默认全部启用并写库；检测结果只在首次参与，之后不覆盖用户选择
@@ -179,7 +185,10 @@ const initVisibleAgents = () => {
   const stored = doc?.visible || null;
   const storedOrder = doc?.order || null;
   if (Array.isArray(storedOrder) && storedOrder.length) {
-    agentOrder.value = storedOrder.filter(a => AGENT_ORDER.includes(a));
+    // 存量记录里没有的新增 agent 追加到末尾（否则升级后设置列表/切换器永远看不到新 agent）
+    const known = storedOrder.filter(a => AGENT_ORDER.includes(a));
+    AGENT_ORDER.forEach((app) => { if (!known.includes(app)) known.push(app); });
+    agentOrder.value = known;
   }
   if (stored) {
     // 有记录：用记录，缺键（未来新增 agent）默认显示
@@ -268,6 +277,7 @@ onMounted(() => {
     piConfig: "pi",
     ompConfig: "omp",
     reasonixConfig: "reasonix",
+    codexConfig: "codex",
     commonConfig: "common",
   };
   if (appMap[props.route]) {
@@ -339,6 +349,7 @@ onMounted(() => {
         />
         <img v-else-if="isOmp" :src="`${ASSET_BASE}omp-icon.svg`" alt="logo" class="logo" />
         <img v-else-if="isReasonix" :src="`${ASSET_BASE}reasonix.svg`" alt="logo" class="logo" />
+        <img v-else-if="isCodex" :src="`${ASSET_BASE}icon-codex.png`" alt="logo" class="logo" />
         <img v-else-if="isPi" :src="`${ASSET_BASE}icon-pi.png`" alt="logo" class="logo" />
         <img v-else-if="isCommon" :src="`${ASSET_BASE}gen.svg`" alt="logo" class="logo" />
         <Dropdown
@@ -505,6 +516,17 @@ onMounted(() => {
             <template #icon><DashboardIcon /></template> 配置
           </Button>
         </div>
+        <!-- Codex tabs（仅模型配置） -->
+        <div v-else-if="isCodex" class="tab-buttons">
+          <Button
+            size="small"
+            :theme="activeTab === 'config' ? 'primary' : 'default'"
+            :variant="activeTab === 'config' ? 'base' : 'outline'"
+            @click="activeTab = 'config'"
+          >
+            <template #icon><DashboardIcon /></template> 配置
+          </Button>
+        </div>
         <!-- OpenCode tabs -->
         <div v-else class="tab-buttons">
           <Button
@@ -643,6 +665,11 @@ onMounted(() => {
     <!-- Reasonix views -->
     <template v-if="isAppReady('reasonix')">
       <ReasonixConfigView v-if="isReasonix && activeTab === 'config'" />
+    </template>
+
+    <!-- Codex views（仅模型配置） -->
+    <template v-if="isAppReady('codex')">
+      <CodexConfigView v-if="isCodex && activeTab === 'config'" />
     </template>
 
     <Dialog

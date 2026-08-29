@@ -1,0 +1,93 @@
+.codex-config-container { display: flex; flex-direction: column; gap: 14px; padding-top: 0; }
+
+/* ===== 顶部工具栏 ===== */
+.codex-toolbar { display: flex; justify-content: space-between; align-items: center; }
+.codex-toolbar-left { min-width: 0; flex: 1; }
+.codex-toolbar-tip { font-size: 13px; color: var(--td-text-color-secondary); display: flex; align-items: baseline; gap: 6px; }
+.codex-toolbar-sub { font-size: 11px; color: var(--td-text-color-placeholder); }
+.codex-toolbar-right { display: flex; gap: 4px; }
+
+.codex-config-warning { margin-bottom: 0; }
+.codex-config-empty { margin-top: 32px; }
+
+/* ===== 当前模型配置卡（config.toml 顶层字段） ===== */
+.codex-current-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--td-border-level-1-color);
+  border-radius: var(--td-radius-default);
+  background: var(--td-bg-color-secondarycontainer);
+}
+.codex-current-header { display: flex; align-items: baseline; gap: 10px; }
+.codex-block-title { font-size: 14px; font-weight: 600; color: var(--td-text-color-primary); }
+.codex-block-sub { font-size: 11px; color: var(--td-text-color-placeholder); }
+.codex-current-controls { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.codex-current-item { display: flex; flex-direction: column; gap: 4px; }
+.codex-current-item--grow { flex: 1; min-width: 180px; }
+.codex-current-item label { font-size: 12px; color: var(--td-text-color-secondary); }
+.codex-current-auth { margin-bottom: 4px; white-space: nowrap; --td-brand-color: var(--td-success-color); }
+
+/* ===== 供应商列表（TDesign Collapse 手风琴） ===== */
+.codex-provider-list { display: flex; flex-direction: column; gap: 8px; }
+.codex-provider-collapse { border-radius: var(--td-radius-default); overflow: hidden; }
+.codex-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__header { padding: 10px 14px; }
+.codex-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__header:hover { background: var(--td-bg-color-container-hover); }
+.codex-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__body { background: var(--td-bg-color-container); }
+.codex-provider-collapse .t-collapse-panel__wrapper .t-collapse-panel__content { padding: 0 14px 14px; }
+
+.codex-provider-header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.codex-provider-header-right { display: flex; align-items: center; flex-shrink: 0; gap: 2px; }
+.codex-provider-name { font-weight: 600; font-size: 14px; color: var(--td-text-color-primary); }
+.codex-provider-display-name { font-size: 12px; color: var(--td-text-color-placeholder); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codex-model-count { font-size: 12px; color: var(--td-text-color-placeholder); white-space: nowrap; }
+
+/* 供应商展开内容 */
+.codex-provider-body { padding: 10px 0 4px; }
+.codex-provider-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 16px;
+  padding: 8px 12px;
+  background: var(--td-bg-color-secondarycontainer);
+  border-radius: var(--td-radius-default);
+  margin-bottom: 10px;
+}
+.codex-detail-item { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.codex-detail-label { font-size: 11px; color: var(--td-text-color-placeholder); text-transform: uppercase; letter-spacing: 0.3px; }
+.codex-detail-value { font-size: 13px; color: var(--td-text-color-primary); word-break: break-all; display: flex; align-items: center; gap: 4px; }
+.codex-key-lock { color: var(--td-text-color-placeholder); flex-shrink: 0; }
+.codex-key-copy { cursor: pointer; color: var(--td-text-color-placeholder); display: inline-flex; align-items: center; padding: 2px; border-radius: var(--td-radius-small); }
+.codex-key-copy:hover { color: var(--td-brand-color); background: var(--td-brand-color-light); }
+
+/* 模型子区 */
+.codex-models-section { border-top: 1px solid var(--td-border-level-1-color); padding-top: 8px; }
+.codex-models-title { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 500; color: var(--td-text-color-placeholder); margin-bottom: 8px; }
+.codex-models-empty { font-size: 12px; color: var(--td-text-color-placeholder); padding: 8px 0; }
+.codex-model-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.codex-model-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px;
+  background: var(--td-bg-color-container-hover);
+  border-radius: var(--td-radius-default);
+  border: 1px solid var(--td-border-level-1-color);
+  transition: border-color 0.15s;
+}
+.codex-model-tag:hover { border-color: var(--td-brand-color); }
+.codex-model-tag-name { font-size: 12px; color: var(--td-text-color-primary); }
+.codex-model-tag-star { cursor: pointer; color: var(--td-warning-color); display: flex; align-items: center; padding: 2px; border-radius: var(--td-radius-small); }
+.codex-model-tag-star:hover { color: var(--td-warning-color); background: var(--td-warning-color-1); }
+.codex-model-tag-del { cursor: pointer; color: var(--td-text-color-placeholder); display: flex; align-items: center; padding: 2px; border-radius: var(--td-radius-small); }
+.codex-model-tag-del:hover { color: var(--td-error-color); background: var(--td-error-color-1); }
+
+/* ===== 表单弹窗 ===== */
+.codex-edit-form { display: flex; flex-direction: column; gap: 12px; }
+.codex-form-item { display: flex; flex-direction: column; gap: 4px; }
+.codex-form-item label { font-size: 13px; color: var(--td-text-color-secondary); }
+.codex-form-hint { font-size: 12px; color: var(--td-text-color-placeholder); }
+.codex-form-required { color: var(--td-error-color); }
+.codex-clear-key-checkbox { margin-top: 2px; --td-brand-color: var(--td-error-color); }
+.codex-fetch-error { color: var(--td-error-color); }
+.codex-fetch-retry { cursor: pointer; color: var(--td-brand-color); margin-left: 4px; }
+.mono { font-family: 'Courier New', Courier, monospace; font-size: 12px; }

@@ -10,6 +10,7 @@ const usage = require("./services/usage");
 const pi = require("./services/pi");
 const omp = require("./services/omp");
 const reasonix = require("./services/reasonix");
+const codex = require("./services/codex");
 const common = require("./services/common");
 const dispatch = require("./services/dispatch");
 const commands = require("./services/commands");
@@ -1903,7 +1904,25 @@ window.services = {
   openOmpDir: omp.openOmpDir,
   isOmpInstalled: omp.isOmpInstalled,
 
-  // ==================== Reasonix ====================
+  // ==================== Codex（Desktop / CLI 模型配置） ====================
+
+  getCodexDir: codex.getCodexDir,
+  getCodexConfigPath: codex.getCodexConfigPath,
+  getCodexModelsJsonPath: codex.getCodexModelsJsonPath,
+  getCodexProviderList: codex.getCodexProviderList,
+  addCodexProvider: codex.addCodexProvider,
+  updateCodexProvider: codex.updateCodexProvider,
+  deleteCodexProvider: codex.deleteCodexProvider,
+  getCodexCurrent: codex.getCodexCurrent,
+  setCodexDefaultModel: codex.setCodexDefaultModel,
+  setCodexReasoningEffort: codex.setCodexReasoningEffort,
+  setCodexApiAuth: codex.setCodexApiAuth,
+  getCodexProviderModelsMap: codex.getCodexProviderModelsMap,
+  addCodexModel: codex.addCodexModel,
+  deleteCodexModel: codex.deleteCodexModel,
+  syncCodexModelCatalog: codex.syncCodexModelCatalog,
+  openCodexDir: codex.openCodexDir,
+  isCodexInstalled: codex.isCodexInstalled,
 
   // ==================== 通用配置（主数据库） ====================
 
@@ -1973,6 +1992,7 @@ window.services = {
       pi: false,
       omp: false,
       reasonix: false,
+      codex: false,
     };
     // claude：settings.json 有 managed env 字段，或 DB 有已存配置
     try {
@@ -2024,6 +2044,16 @@ window.services = {
     try {
       const cfg = reasonix.readReasonixConfig();
       hasData.reasonix = !!((cfg && cfg.providers) || []).length;
+    } catch (e) {
+      /* ignore */
+    }
+    // codex：config.toml 有 model_providers 或顶层 model/model_provider
+    try {
+      const cfg = codex.readCodexConfig();
+      hasData.codex = !!(
+        (cfg && cfg.model_providers && Object.keys(cfg.model_providers).length > 0) ||
+        (cfg && (cfg.model || cfg.model_provider))
+      );
     } catch (e) {
       /* ignore */
     }
@@ -2144,14 +2174,16 @@ function _downloadSkillhubZip({ slug, version, namespace }, zipPath, onProgress)
 }
 
 // ==================== 智能体启停指令同步：生命周期自愈 ====================
-// 装载 + 每次进入时从 uTools DB 读取启停状态并重放同步（幂等）。
-// 覆盖 uTools 重启 / 插件更新 / 开发者工具重新导入后静态指令（plugin.json features）回归的场景：
-// 停用的 agent 命令在插件首次装载/进入后即被移除。
-window.utools.onPluginReady(() => {
-  try { commands.initFromDb(); } catch (e) { console.error("[commands] onPluginReady 同步失败", e); }
-  autoroute.startAutoRouteIfEnabled();
-});
+// 注意：uTools API 没有 onPluginReady 回调（误用会抛 TypeError 并中断后续注册，
+// 导致同步链路整体失效）。preload 顶层代码在插件每次装载（启动）时执行，
+// 等价于启动时机，直接重放同步；onPluginEnter 再覆盖每次进入。两者均幂等，
+// 覆盖 uTools 重启 / 插件更新 / 开发者工具重新导入后静态指令（plugin.json
+// features）回归的场景：停用的 agent 命令在插件装载/进入后即被移除。
+const syncLifecycle = () => {
+  try { commands.initFromDb(); } catch (e) { console.error("[commands] 启停指令同步失败", e); }
+  try { autoroute.startAutoRouteIfEnabled(); } catch (e) { console.error("[autoroute] 网关自启失败", e); }
+};
+syncLifecycle();
 window.utools.onPluginEnter(() => {
-  try { commands.initFromDb(); } catch (e) { console.error("[commands] onPluginEnter 同步失败", e); }
-  autoroute.startAutoRouteIfEnabled();
+  syncLifecycle();
 });

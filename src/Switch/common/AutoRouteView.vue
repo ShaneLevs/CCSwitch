@@ -11,6 +11,7 @@ const AGENT_DISPATCH_OPTIONS = [
   { label: "Pi Agent", value: "pi" },
   { label: "omp", value: "omp" },
   { label: "Reasonix", value: "reasonix" },
+  { label: "Codex", value: "codex" },
 ];
 
 const loading = ref(false);
