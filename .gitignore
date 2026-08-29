@@ -31,3 +31,4 @@ dist-ssr
 .playwright-mcp/
 .claude/settings.local.json
 .delivery-review
+.zcode/
