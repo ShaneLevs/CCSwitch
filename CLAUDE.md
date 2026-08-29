@@ -244,20 +244,22 @@ Claude 配置支持「认证方式」（`authVar`）：每个配置可选择 `AN
 
 ## uTools Plugin Features (plugin.json)
 
-1. **commonConfig** — Triggered by keyword "通用配置"
-2. **claudeConfig** — Triggered by keyword "Claude Code配置"
-3. **opencodeConfig** — Triggered by keyword "OpenCode配置"
-4. **piConfig** — Triggered by keyword "Pi Agents配置"
-5. **ompConfig** — Triggered by keyword "omp配置"
-6. **reasonixConfig** — Triggered by keyword "Reasonix配置"
-7. **codexConfig** — Triggered by keyword "Codex配置"
-8. **installCommonSkill** — URL regex (SkillHub / ModelScope) → 安装到 `~/.agents/skills`
-9. **installClaudeSkill** — URL regex → 安装到 Claude skills
-10. **installOpencodeSkill** — URL regex → 安装到 OpenCode skills
-11. **installPiExtension** — Regex `pi install <包名>` → Pi Extension 安装
+plugin.json **仅静态声明「通用配置」两个入口**（保证插件永远可被打开）：
 
-> **Agent 启停 ↔ 启动指令同步**：设置 →「Agent 启停管理」勾选状态存 uTools DB（`ccswitch_visible_agents`，首次默认全部启用）。停用某 agent 时，preload 通过 uTools 动态指令 API（`utools.removeFeature`）从指令注册表移除其 features（固定命令 + 匹配命令，映射见 `public/preload/services/commands.js` 的 `AGENT_FEATURES`：claude → claudeConfig/installClaudeSkill，opencode → opencodeConfig/installOpencodeSkill，pi → piConfig/installPiExtension，omp → ompConfig，reasonix → reasonixConfig，codex → codexConfig）；启用时 `utools.setFeature` 按 plugin.json 规范定义恢复（每次同步重读 plugin.json，取最新定义）。**preload 装载（顶层执行）+ `onPluginEnter` 每次**进入时从 DB 重放同步（幂等自愈重启/更新后的回归；注意 uTools **没有 onPluginReady API**，误用会抛 TypeError 中断后续注册、令同步链路失效），渲染进程勾选变化时即时调用 `window.services.syncAgentCommands`。「通用配置」（commonConfig / installCommonSkill）永不参与启停。
-> **背景与实现约束**：uTools 4.x 插件以 asar 只读打包，运行时**无法改写 plugin.json 文件**，动态指令 API（setFeature/removeFeature/getFeatures）是官方提供的唯一「对插件应用功能进行动态增减」机制。plugin.json 规范定义通过 `__dirname` 相对定位（多候选探测）：dev 源码 `public/preload/services.js` → `../plugin.json`；prod bundle `dist/preload/services.js` → `../plugin.json`（asar 内同级）；源码 services 子目录 → `../../plugin.json`。
+1. **commonConfig** — Triggered by keyword "通用配置"
+2. **installCommonSkill** — URL regex (SkillHub / ModelScope) → 安装到 `~/.agents/skills`
+
+各 agent 的指令（功能指令 + 匹配指令）**不做静态声明**，规范定义内置在 `public/preload/services/commands.js` 的 `FEATURE_DEFINITIONS`（与原静态声明逐字段一致），由启停同步逻辑在插件装载/进入/勾选时按启停状态动态注册（`utools.setFeature`）：
+
+- **claudeConfig / installClaudeSkill** — 关键词 "Claude Code配置" / URL regex 安装 Skill
+- **opencodeConfig / installOpencodeSkill** — "OpenCode配置" / URL regex
+- **piConfig / installPiExtension** — "Pi Agents配置" / regex `pi install <包名>`
+- **ompConfig** — "omp配置"；**reasonixConfig** — "Reasonix配置"；**codexConfig** — "Codex配置"
+
+> **为什么不做静态声明**：静态 features 会在 uTools 重启 / 插件更新 / 开发者工具重新导入后全部回归指令注册表，已停用 agent 的指令无法清除。动态指令不受此影响——默认（未打开过插件）搜索框没有 agent 指令，首次打开插件后按启停状态生成。
+
+> **Agent 启停 ↔ 启动指令同步**：设置 →「Agent 启停管理」勾选状态存 uTools DB（`ccswitch_visible_agents`，首次默认全部启用）。停用某 agent 时，preload 通过 uTools 动态指令 API（`utools.removeFeature`）从指令注册表移除其 features（固定命令 + 匹配命令，映射见 `public/preload/services/commands.js` 的 `AGENT_FEATURES`：claude → claudeConfig/installClaudeSkill，opencode → opencodeConfig/installOpencodeSkill，pi → piConfig/installPiExtension，omp → ompConfig，reasonix → reasonixConfig，codex → codexConfig）；启用时 `utools.setFeature` 按内置规范定义（`FEATURE_DEFINITIONS`，agent 指令已不写入 plugin.json）恢复。**preload 装载（顶层执行）+ `onPluginEnter` 每次**进入时从 DB 重放同步（幂等自愈重启/更新后的回归；注意 uTools **没有 onPluginReady API**，误用会抛 TypeError 中断后续注册、令同步链路失效），渲染进程勾选变化时即时调用 `window.services.syncAgentCommands`。「通用配置」（commonConfig / installCommonSkill）为静态声明，永不参与启停。
+> **背景与实现约束**：uTools 4.x 插件以 asar 只读打包，运行时**无法改写 plugin.json 文件**，动态指令 API（setFeature/removeFeature/getFeatures）是官方提供的唯一「对插件应用功能进行动态增减」机制。agent 指令的规范定义内置于 `commands.js`（不依赖运行时读取 plugin.json，dev/prod 无路径差异）。
 
 ## Build Notes
 

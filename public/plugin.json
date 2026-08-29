@@ -15,42 +15,6 @@
       "cmds": ["通用配置"]
     },
     {
-      "code": "claudeConfig",
-      "explain": "Claude Code 配置管理工具",
-      "icon": "claudecode.png",
-      "cmds": ["Claude Code配置"]
-    },
-    {
-      "code": "opencodeConfig",
-      "explain": "OpenCode 配置管理工具",
-      "icon": "icon-opencode.png",
-      "cmds": ["OpenCode配置"]
-    },
-    {
-      "code": "piConfig",
-      "explain": "Pi Agent 配置管理工具",
-      "icon": "icon-pi.png",
-      "cmds": ["Pi Agents配置"]
-    },
-    {
-      "code": "ompConfig",
-      "explain": "omp CLI 配置管理工具",
-      "icon": "omp-icon.svg",
-      "cmds": ["omp配置"]
-    },
-    {
-      "code": "reasonixConfig",
-      "explain": "Reasonix 配置管理工具",
-      "icon": "reasonix.svg",
-      "cmds": ["Reasonix配置"]
-    },
-    {
-      "code": "codexConfig",
-      "explain": "Codex 模型配置管理工具（Desktop / CLI）",
-      "icon": "icon-codex.png",
-      "cmds": ["Codex配置"]
-    },
-    {
       "code": "installCommonSkill",
       "explain": "从 SkillHub/魔搭社区 安装通用 Skill（~/.agents/skills）",
       "icon": "gen.svg",
@@ -60,48 +24,6 @@
           "label": "安装通用 Skill",
           "match": "/^https:\\/\\/(www\\.)?(skillhub\\.(tencent\\.com|cn)\\/skills\\/[\\w-]+(\\/[\\w-]+)?|modelscope\\.cn\\/skills\\/@[\\w-]+\\/[\\w-]+)$/",
           "minLength": 30,
-          "maxLength": 200
-        }
-      ]
-    },
-    {
-      "code": "installClaudeSkill",
-      "explain": "从 SkillHub/魔搭社区 安装 Claude Code Skill",
-      "icon": "claudecode.png",
-      "cmds": [
-        {
-          "type": "regex",
-          "label": "安装 Claude Code Skill",
-          "match": "/^https:\\/\\/(www\\.)?(skillhub\\.(tencent\\.com|cn)\\/skills\\/[\\w-]+(\\/[\\w-]+)?|modelscope\\.cn\\/skills\\/@[\\w-]+\\/[\\w-]+)$/",
-          "minLength": 30,
-          "maxLength": 200
-        }
-      ]
-    },
-    {
-      "code": "installOpencodeSkill",
-      "explain": "从 SkillHub/魔搭社区 安装 OpenCode Skill",
-      "icon": "icon-opencode.png",
-      "cmds": [
-        {
-          "type": "regex",
-          "label": "安装 OpenCode Skill",
-          "match": "/^https:\\/\\/(www\\.)?(skillhub\\.(tencent\\.com|cn)\\/skills\\/[\\w-]+(\\/[\\w-]+)?|modelscope\\.cn\\/skills\\/@[\\w-]+\\/[\\w-]+)$/",
-          "minLength": 30,
-          "maxLength": 200
-        }
-      ]
-    },
-    {
-      "code": "installPiExtension",
-      "explain": "安装 Pi Agent 扩展",
-      "icon": "icon-pi.png",
-      "cmds": [
-        {
-          "type": "regex",
-          "label": "安装 Pi Agent 扩展",
-          "match": "/^pi\\s+install\\s+.+/",
-          "minLength": 12,
           "maxLength": 200
         }
       ]
