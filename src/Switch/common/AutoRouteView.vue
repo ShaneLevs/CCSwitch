@@ -2,9 +2,12 @@
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { MessagePlugin, Button, Switch, Tag, Tooltip, Dialog, CheckboxGroup, Checkbox, Input, Cascader } from "tdesign-vue-next";
 import { CopyIcon, RefreshIcon, SendIcon } from "tdesign-icons-vue-next";
+import { useAutoRouteStatus } from "../../composables/useAutoRouteStatus";
 import "./styles/AutoRouteView.css";
 
 // 自动路由：本地模型网关 — 勾选主数据模型，经本地 HTTP 服务暴露给本机任意 agent（跨协议自动转换）
+// 开启状态同步到共享 ref，驱动 index.vue「路由」tab 按钮的绿点标识
+const { autoRouteEnabled, refreshAutoRouteEnabled } = useAutoRouteStatus();
 const AGENT_DISPATCH_OPTIONS = [
   { label: "Claude Code", value: "claude" },
   { label: "OpenCode CLI", value: "opencode" },
@@ -38,6 +41,7 @@ const routeOptions = computed(() =>
 const loadAll = () => {
   try {
     config.value = window.services.readAutoRouteConfig();
+    autoRouteEnabled.value = !!config.value.enabled;
     providers.value = window.services.readCommonProviders().providers;
     refreshStatus();
     selectionKeys.value = (config.value.selection || []).map((s) => `${s.provider}::${s.modelId}`);
@@ -87,9 +91,12 @@ const saveSelection = () => {
 const onToggleEnabled = async (val) => {
   try {
     status.value = await window.services.setAutoRouteEnabled(!!val);
+    autoRouteEnabled.value = !!val;
     MessagePlugin.success(val ? "自动路由已开启" : "自动路由已关闭");
   } catch (e) {
     config.value.enabled = !val;
+    // 启动失败时 preload 已回写 enabled=false，从 DB 重读保持绿点一致
+    refreshAutoRouteEnabled();
     MessagePlugin.error(e.message);
   }
 };
@@ -131,7 +138,8 @@ const copy = (text) => {
   MessagePlugin.success("已复制");
 };
 
-// 下发到 Agent：虚拟供应商「自动路由」写入各 agent（Claude 走 anthropic 协议，其余 openai 兼容）
+// 下发到 Agent：虚拟供应商「router」写入各 agent（Claude 走 anthropic 协议，其余 openai 兼容；
+// 名称用英文，因为它同时作为 Codex model_providers 的 ID，仅支持英文）
 const dispatchDialog = ref(false);
 const dispatchSubmitting = ref(false);
 const dispatchTargets = ref([]);
@@ -294,6 +302,7 @@ onUnmounted(() => {
         <span class="autoroute-log-model">{{ log.model || "-" }}</span>
         <span v-if="log.passthrough" class="autoroute-log-flag">直通</span>
         <Tag size="small" :theme="log.status < 400 ? 'success' : 'danger'">{{ log.status }}</Tag>
+        <span v-if="log.error" class="autoroute-log-error" :title="log.error">{{ log.error }}</span>
         <span class="autoroute-log-ms">{{ log.ms }}ms</span>
       </div>
     </div>
@@ -314,7 +323,7 @@ onUnmounted(() => {
           </label>
         </CheckboxGroup>
         <div class="autoroute-hint">
-          将写入虚拟供应商「自动路由」：baseUrl = {{ baseUrl }}，模型为全部已启用的 {{ modelCount }} 个模型。Claude Code 目标为 Anthropic 协议，其余目标为 OpenAI 兼容协议。
+          将写入虚拟供应商「router」：baseUrl = {{ baseUrl }}，模型为全部已启用的 {{ modelCount }} 个模型。Claude Code 目标为 Anthropic 协议，其余目标为 OpenAI 兼容协议。
         </div>
       </div>
     </Dialog>

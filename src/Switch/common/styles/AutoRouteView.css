@@ -53,6 +53,8 @@
 .autoroute-log-time { color: var(--td-text-color-placeholder); font-variant-numeric: tabular-nums; }
 .autoroute-log-model { color: var(--td-text-color-primary); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .autoroute-log-flag { font-size: 11px; color: var(--td-brand-color); }
+/* 报错原因：占满剩余宽度，超长省略，悬停 title 看全文 */
+.autoroute-log-error { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--td-error-color); }
 .autoroute-log-arrow { color: var(--td-text-color-placeholder); }
 .autoroute-log-ms { color: var(--td-text-color-placeholder); margin-left: auto; font-variant-numeric: tabular-nums; }
 .autoroute-dispatch-form { display: flex; flex-direction: column; gap: 10px; }

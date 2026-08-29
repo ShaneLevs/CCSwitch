@@ -120,11 +120,19 @@ const safeJsonParse = (text, fallback = null) => {
   }
 };
 
-// 从上游错误响应体提取 message（兼容 openai {error:{message}} 与 anthropic {error:{message}})
+// 从上游错误响应体提取人类可读的原因：JSON 错误体取 error.message / error.type
+//（兼容 openai {error:{message}} 与 anthropic {error:{message}}）；
+// 非 JSON（纯文本 / HTML 错误页）去掉标签后截取片段；超长截断，兜底「上游返回 <status>」
 const extractUpstreamErrorMessage = (bodyText, statusCode) => {
+  const truncate = (s) => {
+    const t = String(s).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    return t.length > 200 ? `${t.slice(0, 200)}…` : t;
+  };
   const parsed = safeJsonParse(bodyText);
   const msg = parsed && parsed.error && (parsed.error.message || parsed.error.type);
-  return (typeof msg === "string" && msg) || `上游返回 ${statusCode}`;
+  if (typeof msg === "string" && msg) return truncate(msg);
+  if (typeof bodyText === "string" && bodyText.trim()) return truncate(bodyText);
+  return `上游返回 ${statusCode}`;
 };
 
 module.exports = {

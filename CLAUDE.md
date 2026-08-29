@@ -61,6 +61,7 @@ src/
 │   ├── useConfigSwitch.js     # Apply config to settings.json
 │   ├── useExtraFields.js      # Global vs config-specific env extra fields
 │   ├── useDarkBackground.js   # 深色背景开关 + 效果选择（DB 持久化）
+│   ├── useAutoRouteStatus.js  # 自动路由开启状态共享（「路由」tab 绿点标识）
 │   └── useSkillInstall.js     # SkillHub / ModelScope install workflow
 ├── utils/
 │   └── time.js                # Time formatting utils
@@ -151,8 +152,8 @@ public/
   - 通用 Skill → 只读扫描 `~/.agents/skills`（SKILL.md 元数据）；启停 = 物理移动目录到 `.disabled/`（与 Claude Code 机制一致）
   - `writeDoc` 捕获 uTools 结构化克隆失败：递归定位函数/Symbol 等非 JSON 字段并净化（丢弃）后重试写入（兼容历史脏数据）；失败时抛带原始错误信息的异常供 UI 展示
   - **模型下发到 Agent**（`services/dispatch.js`）：把主数据的 provider + model 写入各 agent 模型配置——Claude → uTools DB 保存配置（`ccswitch_config_dispatch_<provider>`，一个 provider 一份，Claude 配置页可见；key 加密、authVar 默认 AUTH_TOKEN，模型自动填入空闲槽位 默认/Haiku/Sonnet/Opus/Subagent，已有同模型跳过、5 槽位满报错，不直接改 settings.json；**仅接受 anthropic-messages 协议供应商**，其余协议 UI 禁用 Claude 选项、preload 直接报错）；OpenCode → `opencode.json` provider[id]（options.baseURL/apiKey + models[id]）；Pi → `models.json` providers[name]（可选默认 provider/model）；omp → `models.yml` providers[name]（无默认概念）；Reasonix → `config.toml` providers[] + `.env` key（可选 `default_model`）；Codex → `~/.codex/config.toml` [model_providers.<id>]（**仅接受 OpenAI Chat/Responses 协议**，wire_api 映射 chat/responses；可选 setDefault 写顶层 model_provider+model，模型同时进 DB 列表）。每个目标独立 try/catch，单个失败不影响其他目标
-  - **自动路由**（`services/autoroute.js` + `autoroute-convert/`）：本地模型网关，把通用库勾选的供应商+模型经 `http://127.0.0.1:<port>`（默认 17877）暴露给本机 agent——入站支持 Anthropic Messages（`POST /v1/messages`）/ OpenAI Chat（`/v1/chat/completions`）/ OpenAI Responses（`/v1/responses`），出站支持 anthropic-messages / openai-completions / openai-responses（google-generative-ai 不支持，明确 400）；入站与出站协议一致时透传（仅重写 model，保留图片等字段），否则经 canonical 中间格式转换（含流式 SSE：canonical 事件流 ↔ 各协议帧）；`GET /v1/models` 返回启用模型（去重）；model 直查按勾选顺序，兼容「供应商/模型ID」消歧；随机 key（`sk-ccr-*`，Authorization Bearer / x-api-key 均可）校验防本机滥用。配置存 uTools DB `ccswitch_autoroute_config`；onPluginReady/onPluginEnter 幂等自启动（enabled=true 时），uTools 退出即停。请求日志存内存（最近 50 条）
-  - **自动路由下发**（`dispatchAutoRoute(targets)`）：虚拟供应商「自动路由」按目标 agent 构造——Claude 目标 `api='anthropic-messages'`（通过协议守卫），Codex 目标 `api='openai-responses'`（Responses 为 Codex 原生 wire_api，base_url 追加 `/v1` 指向网关），其余 `api='openai-completions'`；baseUrl 指向网关、key 为网关随机 key，模型为全部启用模型，复用各目标既有写入实现
+  - **自动路由**（`services/autoroute.js` + `autoroute-convert/`）：本地模型网关，把通用库勾选的供应商+模型经 `http://127.0.0.1:<port>`（默认 17877）暴露给本机 agent——入站支持 Anthropic Messages（`POST /v1/messages`）/ OpenAI Chat（`/v1/chat/completions`）/ OpenAI Responses（`/v1/responses`），出站支持 anthropic-messages / openai-completions / openai-responses（google-generative-ai 不支持，明确 400）；入站与出站协议一致时透传（仅重写 model，保留图片等字段），否则经 canonical 中间格式转换（含流式 SSE：canonical 事件流 ↔ 各协议帧）；`GET /v1/models` 返回启用模型（去重）；model 直查按勾选顺序，兼容「供应商/模型ID」消歧；随机 key（`sk-ccr-*`，Authorization Bearer / x-api-key 均可）校验防本机滥用。配置存 uTools DB `ccswitch_autoroute_config`；onPluginReady/onPluginEnter 幂等自启动（enabled=true 时），uTools 退出即停。请求日志存内存（最近 50 条），错误请求记录 error 原因（路由自身的校验错误直接记录；上游错误经 `extractUpstreamErrorMessage` 提取——JSON 错误体取 error.message/type，纯文本/HTML 去标签截取，超长截断 200 字符；同协议流式直通遇上游非 200 时转为源协议错误响应并如实记录状态码，不再误按 200 转发）
+  - **自动路由下发**（`dispatchAutoRoute(targets)`）：虚拟供应商「router」按目标 agent 构造（名称用英文——它同时用作 Codex `model_providers.<id>`，TOML ID 仅支持英文；历史版本曾下发中文名「自动路由」，某目标全部模型写入成功后自动清理该目标的遗留条目，被引用为当前/默认供应商时跳过）——Claude 目标 `api='anthropic-messages'`（通过协议守卫），Codex 目标 `api='openai-responses'`（Responses 为 Codex 原生 wire_api，base_url 追加 `/v1` 指向网关），其余 `api='openai-completions'`；baseUrl 指向网关、key 为网关随机 key，模型为全部启用模型，复用各目标既有写入实现
 - **OpenCode Config**: `~/.config/opencode.json` / `opencode.jsonc`（json5/jsonc 解析，优先 `.json`，不存在自动检测 `.jsonc`）↔ uTools DB
 - **OpenCode Usage**:
   - 数据目录（Windows/macOS/Linux 通用 XDG 风格）：`~/.local/share/opencode/opencode.db`
@@ -172,11 +173,12 @@ public/
   - 删除供应商/模型前检查 modelRoles 引用，被引用时拒绝删除并提示先修改角色
   - 纯文件读写，不依赖 omp 二进制 / bun 运行时
 - **Reasonix Config**: `~/.reasonix/config.toml`（Windows: `%APPDATA%\reasonix\config.toml`）用 smol-toml 读写（保留未知扩展字段；smol-toml 整数解析为 BigInt，需转 Number）+ `~/.reasonix/.env` 密钥管理（掩码编辑，`ENV_KEY_RE` 校验变量名合法性）
-- **Codex Config**: `~/.codex/config.toml`（Codex Desktop / CLI / VS Code 插件共用）用 smol-toml 读写（解析失败抛错阻断写回，防覆盖 mcp_servers 等配置节；保留 provider 未知扩展字段如 env_key/http_headers）
+- **Codex Config**: `~/.codex/config.toml`（Codex Desktop / CLI / VS Code 插件共用；支持 `CODEX_HOME` 环境变量重定向主目录，与客户端/官方接入脚本行为一致）用 smol-toml 读写（解析失败抛错阻断写回，防覆盖 mcp_servers 等配置节；保留 provider 未知扩展字段如 env_key/http_headers）
   - 接入方式参照 DeepSeek 官方文档：`[model_providers.<id>]`（name / base_url / wire_api: responses|chat / experimental_bearer_token）+ 顶层 `model` / `model_provider` / `model_reasoning_effort` / `preferred_auth_method` / `forced_login_method` / `model_catalog_json`
   - 仅管理模型相关字段，其余配置读改写原样保留；切换默认模型（`setCodexDefaultModel`）时只补缺失的 `preferred_auth_method=apikey` + `forced_login_method=api`（跳过 ChatGPT 登录），不覆盖用户已有值
   - 每供应商模型列表存 uTools DB `ccswitch_codex_provider_models`（config.toml 原生无此概念），供卡片快捷切换与目录生成；供应商重命名/删除自动同步
-  - 「同步模型目录」：把各供应商模型合并写入 `~/.codex/models.json`（桌面端模型列表由该文件驱动，已有条目原样保留，只补缺失 slug，instructions_template=null 用内置模板）并设置 `model_catalog_json`；纯手动触发，下发不自动写该文件
+  - 「模型目录」开关（工具栏 Switch）：开 = 把各供应商模型合并写入 `~/.codex/models.json`（桌面端模型列表由该文件驱动）并设置 `model_catalog_json`（写绝对路径 + 正斜杠——Windows 客户端不展开 `~` 会静默加载失败，且反斜杠在 TOML 中是转义字符，同 DeepSeek 官方 Windows 脚本处理）；关 = 仅解除 `model_catalog_json` 引用（`disableCodexCatalog`，桌面端恢复内置模型列表），文件保留。启用后模型/供应商的增删改（经 `writeProviderModelsDoc` 唯一写入口触发 `autoSyncCatalog`）自动重新同步，失效条目（模型/供应商被删）自动清理，用户手工维护的条目不动；停用期间不自动重启，未启用不主动创建文件。条目结构对照 Codex `ModelInfo` schema（codex-rs/protocol/src/openai_models.rs）并照抄 DeepSeek 官方接入脚本：必填字段 slug / display_name / supported_reasoning_levels（键名必须是 `effort`）/ shell_type / visibility / supported_in_api / priority / support_verbosity / truncation_policy / experimental_supported_tools 缺一即客户端解析失败，且内嵌 Codex 指令模板（`model_messages.instructions_template`，照抄官方脚本，缺了第三方模型将以空指令运行）；带「由 CCSwitch 生成」description 标记的旧条目在同步时原地升级（历史版本曾生成缺 effort 字段的坏条目，靠升级自愈），用户手工维护的条目不动
+  - 「恢复默认配置」（`resetCodexConfig`，当前生效配置卡标题旁入口，确认弹窗列明撤销项）：一键撤销全部模型定制——顶层 model / model_provider / model_reasoning_effort / preferred_auth_method / forced_login_method / model_catalog_json + 全部 [model_providers.*] 子表（其余配置节如 mcp_servers 原样保留），清 uTools DB 模型列表，删 `~/.codex/auth.json` 登录态（含登录失败留下的无效 key 场景）；撤销后重启 Codex 客户端回到官方默认状态并重新登录 ChatGPT 账号。models.json 文件保留
 - **Skill Install**: SkillHub / ModelScope URL → fetch metadata → download zip → extract → find SKILL.md（安装目录按目标区分：Claude → `~/.claude/skills`，OpenCode → `~/.config/opencode/skills`，通用 → `~/.agents/skills`）
 
 **Key Architecture Pattern — "Fat Preload":**
@@ -203,8 +205,8 @@ All Node.js-sensitive operations (file I/O, network requests, child process exec
 14. **刷新按钮**: 所有配置页面工具栏统一刷新按钮（纯图标，置于按钮组最右）
 15. **深色背景特效**: 可配置的动态背景（棱镜光谱爆裂 / 故障像素终端 / 流动极光 / 星河漫游，ogl WebGL）
 16. **模型下发到 Agent**: 通用配置页用级联选择器多选主数据供应商 + 模型（勾选供应商 = 全选其模型），一键批量写入 6 个 agent（Claude / OpenCode / Pi / omp / Reasonix / Codex）的模型配置；Claude 仅接受 Anthropic Messages 协议供应商、Codex 仅接受 OpenAI 系协议供应商（UI 禁用选项 + preload 报错双重拦截）
-17. **自动路由**: 通用配置页 tab，本地模型网关总开关——勾选主数据供应商+模型经本地端点暴露给任意 agent，三种入站协议（Anthropic Messages / OpenAI Chat / OpenAI Responses）跨协议自动转换（含流式），页内一键下发虚拟供应商「自动路由」到各 agent，含端口/key 管理与最近请求日志
-18. **Codex 模型配置**: Codex（Desktop / CLI / VS Code 插件共用 `~/.codex/config.toml`）仅模型配置视图——当前模型/供应商（顶层 model + model_provider 配对切换）、思考强度（model_reasoning_effort）、跳过 ChatGPT 登录（preferred_auth_method/forced_login_method 成对写删）、供应商 CRUD（[model_providers.<id>]，密钥 experimental_bearer_token 明文写入）、每供应商模型列表（DB）+ 从 /models 接口拉取、「同步模型目录」生成 models.json
+17. **自动路由**: 通用配置页 tab，本地模型网关总开关——勾选主数据供应商+模型经本地端点暴露给任意 agent，三种入站协议（Anthropic Messages / OpenAI Chat / OpenAI Responses）跨协议自动转换（含流式），页内一键下发虚拟供应商「router」到各 agent（英文名以兼容 Codex 供应商 ID），含端口/key 管理与最近请求日志；路由开启时顶部「路由」tab 按钮右上角显示绿点标识（`useAutoRouteStatus` 模块级共享状态：index.vue 挂载时从 DB 重读，AutoRouteView 开关切换时同步；绿点用外层包裹定位，因 `.t-button` overflow: hidden 会裁切溢出角标）
+18. **Codex 模型配置**: Codex（Desktop / CLI / VS Code 插件共用 `~/.codex/config.toml`）仅模型配置视图——当前模型/供应商（顶层 model + model_provider 配对切换）、思考强度（model_reasoning_effort）、跳过 ChatGPT 登录（preferred_auth_method/forced_login_method 成对写删）、供应商 CRUD（[model_providers.<id>]，密钥 experimental_bearer_token 明文写入）、每供应商模型列表（DB）+ 从 /models 接口拉取、「模型目录」开关生成/停用 models.json（启用后自动同步）、「恢复默认配置」一键撤销全部模型定制回到官方状态
 
 ## Managed Env Fields (constants.js)
 

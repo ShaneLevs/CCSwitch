@@ -271,7 +271,64 @@ const dispatchToCodex = (provider, model, opts) => {
 // 自动路由网关（autoroute.js）作为虚拟供应商写入各 agent：Claude 目标用 anthropic-messages
 //（对外就是 Anthropic 协议端点，可通过协议守卫），其余目标用 openai-completions；
 // baseUrl 指向 http://127.0.0.1:<port>，key 为网关随机 key（agent 侧是占位符，网关侧用于鉴权）。
-const AUTOROUTE_PROVIDER_NAME = "自动路由";
+// 供应商名用英文 router：该名字同时用作 Codex 的 model_providers.<id>（TOML ID 仅支持英文，
+// 中文名会导致 Codex 侧无法识别）。
+const AUTOROUTE_PROVIDER_NAME = "router";
+// 历史版本曾以「自动路由」为名下发（中文 ID 不被 Codex 支持），下发成功后顺手清理遗留条目
+const LEGACY_AUTOROUTE_NAME = "自动路由";
+
+// 清理某 agent 内遗留的旧「自动路由」供应商条目；被引用为当前/默认供应商时跳过（避免引用悬空）
+const cleanupLegacyAutoRoute = (app) => {
+  try {
+    if (app === "claude") {
+      const docId = DISPATCH_DB_PREFIX + LEGACY_AUTOROUTE_NAME;
+      const doc = window.utools.db.get(docId);
+      if (!doc) return;
+      let active = null;
+      try { active = window.utools.db.get("ccswitch_active_config_id"); } catch (e) { /* ignore */ }
+      if (active && active.configId === docId) return; // 是当前启用的 Claude 配置，不清理
+      window.utools.db.remove(docId);
+    } else if (app === "opencode") {
+      const current = opencode.readOpencodeConfig();
+      if (!current.provider || !current.provider[LEGACY_AUTOROUTE_NAME]) return;
+      if (typeof current.model === "string" && current.model.startsWith(`${LEGACY_AUTOROUTE_NAME}/`)) return;
+      delete current.provider[LEGACY_AUTOROUTE_NAME];
+      opencode.writeOpencodeConfig(current);
+    } else if (app === "pi") {
+      const models = pi.readPiModels();
+      if (!models.providers || !models.providers[LEGACY_AUTOROUTE_NAME]) return;
+      const settings = pi.readPiSettings();
+      if (settings.defaultProvider === LEGACY_AUTOROUTE_NAME) return;
+      delete models.providers[LEGACY_AUTOROUTE_NAME];
+      pi.writePiModels(models);
+    } else if (app === "omp") {
+      const models = omp.readOmpModels();
+      if (!models.providers || !models.providers[LEGACY_AUTOROUTE_NAME]) return;
+      const roles = omp.readOmpModelRoles() || {};
+      const referenced = Object.values(roles).some(
+        (ref) => typeof ref === "string" && (ref === LEGACY_AUTOROUTE_NAME || ref.startsWith(`${LEGACY_AUTOROUTE_NAME}/`))
+      );
+      if (referenced) return;
+      delete models.providers[LEGACY_AUTOROUTE_NAME];
+      omp.writeOmpModels(models);
+    } else if (app === "reasonix") {
+      const doc = reasonix.readReasonixConfig();
+      if (!Array.isArray(doc.providers) || !doc.providers.some((p) => p.name === LEGACY_AUTOROUTE_NAME)) return;
+      if (
+        doc.default_model === LEGACY_AUTOROUTE_NAME ||
+        (typeof doc.default_model === "string" && doc.default_model.startsWith(`${LEGACY_AUTOROUTE_NAME}/`))
+      ) return;
+      doc.providers = doc.providers.filter((p) => p.name !== LEGACY_AUTOROUTE_NAME);
+      reasonix.writeReasonixConfig(doc);
+    } else if (app === "codex") {
+      // deleteCodexProvider 在条目不存在或它是当前使用供应商时抛错 → 跳过即可
+      codex.deleteCodexProvider(LEGACY_AUTOROUTE_NAME);
+    }
+  } catch (e) {
+    /* 清理失败不影响本次下发 */
+  }
+};
+
 const dispatchAutoRoute = (targets) => {
   const config = autoroute.readAutoRouteConfig();
   const enabled = autoroute.resolveAutoRouteModels(config);
@@ -296,14 +353,20 @@ const dispatchAutoRoute = (targets) => {
       baseUrl: isCodex ? `${baseUrl}/v1` : baseUrl,
       models,
     };
+    const targetResults = [];
     for (const model of models) {
       try {
         const message = d.run(provider, model, { providerName: AUTOROUTE_PROVIDER_NAME });
-        results.push({ app: t.app, ok: true, message });
+        targetResults.push({ app: t.app, ok: true, message });
       } catch (e) {
-        results.push({ app: t.app, ok: false, message: e.message || String(e) });
+        targetResults.push({ app: t.app, ok: false, message: e.message || String(e) });
       }
     }
+    // 该目标全部模型写入成功后，清理历史版本遗留的中文「自动路由」条目
+    if (targetResults.length > 0 && targetResults.every((r) => r.ok)) {
+      cleanupLegacyAutoRoute(t.app);
+    }
+    results.push(...targetResults);
   }
   return results;
 };

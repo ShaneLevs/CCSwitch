@@ -35,6 +35,7 @@ import CommonMcpView from "./common/McpView.vue";
 import CommonSkillView from "./common/SkillView.vue";
 import CommonAutoRouteView from "./common/AutoRouteView.vue";
 import { useAppContext } from "../composables/useAppContext";
+import { useAutoRouteStatus } from "../composables/useAutoRouteStatus";
 import { useDarkBackground } from "../composables/useDarkBackground";
 
 const props = defineProps({
@@ -43,6 +44,9 @@ const props = defineProps({
 });
 
 const { activeApp, setActiveApp, isClaude, isOpenCode, isPi, isOmp, isReasonix, isCodex, isCommon } = useAppContext();
+
+// 自动路由开启状态：「路由」tab 按钮右上角绿点标识（AutoRouteView 开关切换时同步）
+const { autoRouteEnabled, refreshAutoRouteEnabled } = useAutoRouteStatus();
 
 const { darkBackgroundEnabled, setDarkBackground, darkEffect, setDarkEffect } =
   useDarkBackground();
@@ -270,6 +274,9 @@ const handleAppSelect = (data) => {
 };
 
 onMounted(() => {
+  // 自动路由开启状态（每次进入插件从 DB 重读，之后由 AutoRouteView 开关同步）
+  refreshAutoRouteEnabled();
+
   // 根据入口命令预选对应应用
   const appMap = {
     claudeConfig: "claude",
@@ -383,14 +390,18 @@ onMounted(() => {
           >
             <template #icon><DashboardIcon /></template> 配置
           </Button>
-          <Button
-            size="small"
-            :theme="activeTab === 'autoroute' ? 'primary' : 'default'"
-            :variant="activeTab === 'autoroute' ? 'base' : 'outline'"
-            @click="activeTab = 'autoroute'"
-          >
-            <template #icon><MapRoutePlanningIcon /></template> 路由
-          </Button>
+          <span class="route-tab-btn">
+            <Button
+              size="small"
+              :theme="activeTab === 'autoroute' ? 'primary' : 'default'"
+              :variant="activeTab === 'autoroute' ? 'base' : 'outline'"
+              @click="activeTab = 'autoroute'"
+            >
+              <template #icon><MapRoutePlanningIcon /></template> 路由
+            </Button>
+            <!-- 自动路由开启标识：按钮右上角绿点（外层包裹定位，.t-button 自身 overflow: hidden 会裁切溢出角标） -->
+            <span v-if="autoRouteEnabled" class="route-on-dot" />
+          </span>
           <Button
             size="small"
             :theme="activeTab === 'mcp' ? 'primary' : 'default'"
@@ -818,6 +829,27 @@ onMounted(() => {
   display: flex;
   gap: 4px;
   align-items: center;
+}
+/* 路由 tab 按钮：自动路由开启时右上角绿点标识（表示网关已开启） */
+.route-tab-btn {
+  position: relative;
+  display: inline-flex;
+}
+.route-on-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--td-success-color);
+  border: 1.5px solid var(--td-bg-color-container);
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 1;
+}
+:root[theme-mode="dark"] .route-on-dot {
+  border-color: #303133;
 }
 .opencode-static-title {
   display: inline-flex;

@@ -166,6 +166,12 @@ const handleRequest = async (req, res) => {
     pushLog({ status: entry.status, ms: Date.now() - started, target: targetApi, ...entry });
   };
 
+  // 错误统一走这里：错误响应发给客户端，原因同时记入请求日志（error 字段供「最近请求」展示）
+  const fail = (protocol, status, message, model = "") => {
+    sendError(res, protocol, status, message);
+    finish({ protocol, model, status, error: message });
+  };
+
   const path = (req.url || "").split("?")[0].replace(/\/+$/, "") || "/";
   const method = (req.method || "GET").toUpperCase();
   try {
@@ -180,8 +186,7 @@ const handleRequest = async (req, res) => {
 
     const key = extractKey(req);
     if (!config.key || key !== config.key) {
-      sendError(res, sourceProtocol, 401, "无效的 API Key（请在 CCConfig 自动路由页复制正确的 key）");
-      finish({ protocol: sourceProtocol, model: "", status: 401 });
+      fail(sourceProtocol, 401, "无效的 API Key（请在 CCConfig 自动路由页复制正确的 key）");
       return;
     }
 
@@ -204,8 +209,7 @@ const handleRequest = async (req, res) => {
     }
 
     if (method !== "POST" || !sourceProtocol) {
-      sendError(res, sourceProtocol, 404, `未知端点: ${method} ${path}`);
-      finish({ protocol: sourceProtocol, model: "", status: 404 });
+      fail(sourceProtocol, 404, `未知端点: ${method} ${path}`);
       return;
     }
 
@@ -213,29 +217,25 @@ const handleRequest = async (req, res) => {
     try {
       body = JSON.parse(await collectBody(req));
     } catch (e) {
-      sendError(res, sourceProtocol, 400, "请求体不是有效的 JSON");
-      finish({ protocol: sourceProtocol, model: "", status: 400 });
+      fail(sourceProtocol, 400, "请求体不是有效的 JSON");
       return;
     }
 
     const enabled = resolveAutoRouteModels(config);
     const route = resolveRoute(enabled, body.model);
     if (!route) {
-      sendError(res, sourceProtocol, 404, `模型 ${body.model || "(空)"} 未在自动路由中启用，请到 CCConfig 通用配置勾选或用「供应商/模型ID」消歧`);
-      finish({ protocol: sourceProtocol, model: body.model || "", status: 404 });
+      fail(sourceProtocol, 404, `模型 ${body.model || "(空)"} 未在自动路由中启用，请到 CCConfig 通用配置勾选或用「供应商/模型ID」消歧`, body.model || "");
       return;
     }
     const { provider, model } = route;
 
     if (!getTarget(provider.api)) {
-      sendError(res, sourceProtocol, 400, `供应商「${provider.name}」的协议 ${provider.api} 暂不支持自动路由`);
-      finish({ protocol: sourceProtocol, model: model.id, status: 400 });
+      fail(sourceProtocol, 400, `供应商「${provider.name}」的协议 ${provider.api} 暂不支持自动路由`, model.id);
       return;
     }
     const url = buildUpstreamUrl(provider.baseUrl, provider.api);
     if (!url) {
-      sendError(res, sourceProtocol, 400, `供应商「${provider.name}」的 baseUrl 无效`);
-      finish({ protocol: sourceProtocol, model: model.id, status: 400 });
+      fail(sourceProtocol, 400, `供应商「${provider.name}」的 baseUrl 无效`, model.id);
       return;
     }
 
@@ -248,14 +248,28 @@ const handleRequest = async (req, res) => {
       // 同协议直通：仅重写 model，原样转发（保留图片、cache_control 等全部字段）
       const upstreamRes = await forwardUpstream(url, headers, { ...body, model: model.id });
       if (wantsStream) {
+        // 流式直通时上游非 200，错误体不是事件流，转成源协议错误响应（此前会误按 200 原样转发）
+        if (upstreamRes.statusCode !== 200) {
+          const text = await collectBody(upstreamRes);
+          fail(sourceProtocol, upstreamRes.statusCode || 502, extractUpstreamErrorMessage(text, upstreamRes.statusCode), model.id);
+          return;
+        }
         finish({ protocol: sourceProtocol, model: model.id, status: 200, passthrough: true });
         res.writeHead(200, { "content-type": upstreamRes.headers["content-type"] || "text/event-stream; charset=utf-8", "cache-control": "no-cache", connection: "keep-alive" });
         upstreamRes.pipe(res);
         return;
       }
       const text = await collectBody(upstreamRes);
-      finish({ protocol: sourceProtocol, model: model.id, status: upstreamRes.statusCode, passthrough: true });
-      res.writeHead(upstreamRes.statusCode || 502, { "content-type": upstreamRes.headers["content-type"] || "application/json; charset=utf-8" });
+      const status = upstreamRes.statusCode || 502;
+      // 原样转发上游错误体给客户端，同时把可读原因记入日志
+      finish({
+        protocol: sourceProtocol,
+        model: model.id,
+        status,
+        passthrough: true,
+        ...(status >= 400 ? { error: extractUpstreamErrorMessage(text, status) } : {}),
+      });
+      res.writeHead(status, { "content-type": upstreamRes.headers["content-type"] || "application/json; charset=utf-8" });
       res.end(text);
       return;
     }
@@ -270,8 +284,7 @@ const handleRequest = async (req, res) => {
     if (wantsStream) {
       if (upstreamRes.statusCode !== 200) {
         const text = await collectBody(upstreamRes);
-        sendError(res, sourceProtocol, upstreamRes.statusCode || 502, extractUpstreamErrorMessage(text, upstreamRes.statusCode));
-        finish({ protocol: sourceProtocol, model: model.id, status: upstreamRes.statusCode });
+        fail(sourceProtocol, upstreamRes.statusCode || 502, extractUpstreamErrorMessage(text, upstreamRes.statusCode), model.id);
         return;
       }
       finish({ protocol: sourceProtocol, model: model.id, status: 200, converted: true });
@@ -281,16 +294,14 @@ const handleRequest = async (req, res) => {
 
     const text = await collectBody(upstreamRes);
     if (upstreamRes.statusCode !== 200) {
-      sendError(res, sourceProtocol, upstreamRes.statusCode || 502, extractUpstreamErrorMessage(text, upstreamRes.statusCode));
-      finish({ protocol: sourceProtocol, model: model.id, status: upstreamRes.statusCode });
+      fail(sourceProtocol, upstreamRes.statusCode || 502, extractUpstreamErrorMessage(text, upstreamRes.statusCode), model.id);
       return;
     }
     let upstreamJson;
     try {
       upstreamJson = JSON.parse(text);
     } catch (e) {
-      sendError(res, sourceProtocol, 502, "上游返回了无法解析的响应");
-      finish({ protocol: sourceProtocol, model: model.id, status: 502 });
+      fail(sourceProtocol, 502, "上游返回了无法解析的响应", model.id);
       return;
     }
     const out = source.formatResponse(target.parseResponse(upstreamJson));
