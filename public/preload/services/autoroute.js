@@ -18,18 +18,24 @@ const { getTarget } = require("./autoroute-convert/target");
 const { pipeStream, collectBody } = require("./autoroute-convert/stream");
 const { buildUpstreamUrl, buildUpstreamHeaders, errorBody, extractUpstreamErrorMessage } = require("./autoroute-convert/canonical");
 
-const DOC_ID = "ccswitch_autoroute_config";
+// 路由配置按电脑隔离：uTools DB 跟随账号跨设备同步，而网关是本机服务（开关/端口/key/模型勾选
+// 都只对本机有意义），文档 ID 追加设备码区分（同「Env 额外字段」ccswitch_overridden_env_<nativeId> 先例）。
+// 旧版共用文档 ccswitch_autoroute_config 作为升级回退：机器首次读取尚无本机文档时继承旧配置作为起点，
+// 之后各自独立演进；旧文档保留不删（其他机器可能还没迁移过）。
+const LEGACY_DOC_ID = "ccswitch_autoroute_config";
+const getDocId = () => `ccswitch_autoroute_config_${window.utools.getNativeId()}`;
+
 const DEFAULT_CONFIG = { enabled: false, port: 17877, key: "", selection: [] };
 const SOURCE_OF_API = { "anthropic-messages": "anthropic", "openai-completions": "chat", "openai-responses": "responses" };
 
 const generateKey = () => "sk-ccr-" + crypto.randomBytes(16).toString("hex");
 
-// ==================== 配置（uTools DB） ====================
+// ==================== 配置（uTools DB，按电脑隔离） ====================
 
 const readAutoRouteConfig = () => {
   let data = {};
   try {
-    const doc = window.utools.db.get(DOC_ID);
+    const doc = window.utools.db.get(getDocId()) || window.utools.db.get(LEGACY_DOC_ID);
     if (doc && doc.data) data = doc.data;
   } catch (e) {
     /* ignore */
@@ -43,8 +49,9 @@ const readAutoRouteConfig = () => {
 
 const writeAutoRouteConfig = (patch) => {
   const config = { ...readAutoRouteConfig(), ...patch, updatedAt: Date.now() };
-  const doc = window.utools.db.get(DOC_ID);
-  const payload = { _id: DOC_ID, data: config };
+  const docId = getDocId();
+  const doc = window.utools.db.get(docId);
+  const payload = { _id: docId, data: config };
   if (doc && doc._rev) payload._rev = doc._rev;
   let res;
   try {
