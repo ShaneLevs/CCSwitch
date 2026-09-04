@@ -81,3 +81,27 @@
 /* 级联/下拉面板（teleport 到 body）里的复选框统一绿色主题 */
 .common-dispatch-select-popup .t-checkbox { --td-brand-color: var(--td-success-color); }
 
+
+/* 批量添加模型弹窗 */
+.common-batch-toolbar { display: flex; align-items: center; gap: 10px; }
+.common-batch-filter { flex: 1; }
+.common-batch-count { font-size: 12px; color: var(--td-text-color-secondary); white-space: nowrap; }
+.common-batch-table .t-checkbox,
+.common-batch-checkbox { --td-brand-color: var(--td-success-color); }
+.common-batch-table .t-select { width: 100%; }
+.common-batch-id-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.common-batch-item-id { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: var(--td-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.common-batch-item-name { font-size: 12px; color: var(--td-text-color-placeholder); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 上下文窗口 / 最大输出 表头批量设置下拉 */
+.common-batch-header-select { width: 100%; }
+.common-batch-header-select .t-input { font-size: 12px; }
+/* 批量添加弹窗：收窄 body 左右 padding，让弹窗更紧凑 */
+.common-batch-dialog.t-dialog--default { padding: 20px 16px 16px; }
+.common-batch-dialog .t-dialog__footer { padding-top: 0; }
+/* 文本/图像/思考 表头：默认只显示文字，hover 时才显示复选框 */
+.common-batch-flag-header { display: flex; justify-content: center; align-items: center; width: 100%; }
+.common-batch-flag-header .common-batch-checkbox { display: none; }
+.common-batch-flag-header:hover .common-batch-checkbox { display: inline-flex; }
+.common-batch-flag-header:hover .common-batch-flag-label { display: none; }
+/* 已存在模型：ID 前小绿点 */
+.common-batch-exist-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--td-success-color); flex-shrink: 0; }

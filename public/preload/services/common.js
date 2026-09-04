@@ -142,6 +142,29 @@ const addCommonModel = (providerName, model) => {
   return writeCommonProviders({ providers });
 };
 
+// 批量添加模型：模型 ID 重复（已存在或本批次内重复）自动跳过，一次性写入。
+// 返回 { added: string[], skipped: string[] }
+const addCommonModels = (providerName, models) => {
+  const { providers } = readCommonProviders();
+  const prov = providers.find((p) => p.name === providerName);
+  if (!prov) throw new Error(`供应商 ${providerName} 不存在`);
+  const existing = new Set(prov.models.map((m) => m.id));
+  const added = [];
+  const skipped = [];
+  for (const model of models || []) {
+    if (!model || !model.id) continue;
+    if (existing.has(model.id)) {
+      skipped.push(model.id);
+      continue;
+    }
+    existing.add(model.id);
+    prov.models.push(model);
+    added.push(model.id);
+  }
+  if (added.length > 0) writeCommonProviders({ providers });
+  return { added, skipped };
+};
+
 const updateCommonModel = (providerName, modelId, patch) => {
   const { providers } = readCommonProviders();
   const prov = providers.find((p) => p.name === providerName);
@@ -459,6 +482,7 @@ module.exports = {
   updateCommonProvider,
   deleteCommonProvider,
   addCommonModel,
+  addCommonModels,
   updateCommonModel,
   deleteCommonModel,
   getCommonMcpServers,

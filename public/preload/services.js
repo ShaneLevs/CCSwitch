@@ -1933,6 +1933,7 @@ window.services = {
   updateCommonProvider: common.updateCommonProvider,
   deleteCommonProvider: common.deleteCommonProvider,
   addCommonModel: common.addCommonModel,
+  addCommonModels: common.addCommonModels,
   updateCommonModel: common.updateCommonModel,
   deleteCommonModel: common.deleteCommonModel,
   getCommonMcpServers: common.getCommonMcpServers,
