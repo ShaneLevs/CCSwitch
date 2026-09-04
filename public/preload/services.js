@@ -1874,6 +1874,7 @@ window.services = {
   getPiExtensions: pi.getPiExtensions,
   installPiExtension: pi.installPiExtension,
   uninstallPiExtension: pi.uninstallPiExtension,
+  updatePiExtensions: pi.updatePiExtensions,
   fetchPiDevPackages: pi.fetchPiDevPackages,
   fetchPiDevPackage: pi.fetchPiDevPackage,
   isPiInstalled: pi.isPiInstalled,

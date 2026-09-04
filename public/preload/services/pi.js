@@ -131,6 +131,58 @@ const getExtraPathDirs = () => {
   } catch {
     /* ignore */
   }
+  if (process.platform === "win32") dirs.push(...getWindowsPathDirs());
+  return dirs;
+};
+
+// Windows：uTools 进程环境可能过时/精简（如装完 node 未重启 uTools），
+// pi 内部 spawn npm 报 ENOENT（'npm' is not recognized...）。直接按磁盘位置补全 node/npm 目录。
+const getWindowsPathDirs = () => {
+  const home = require("os").homedir();
+  const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
+  const localAppData = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
+  const dirs = [
+    path.join(appData, "npm"),                              // npm 全局安装目录（pi.cmd 等 shim）
+    "C:\\Program Files\\nodejs",                            // node 官方安装器（npm.cmd 与 node.exe 同目录）
+    path.join(localAppData, "Programs", "nodejs"),          // node 按用户安装
+    path.join(localAppData, "Volta", "bin"),                // volta
+    path.join(home, "scoop", "shims"),                      // scoop
+  ];
+  if (process.env.NVM_SYMLINK) dirs.push(process.env.NVM_SYMLINK); // nvm-windows 符号链接目录
+  if (process.env.NVM_HOME) dirs.push(process.env.NVM_HOME);
+  // nvm-windows 各版本目录
+  try {
+    const nvmHome = process.env.NVM_HOME || path.join(appData, "nvm");
+    if (fs.existsSync(nvmHome)) {
+      for (const v of fs.readdirSync(nvmHome))
+        if (/^v?\d/.test(v)) dirs.push(path.join(nvmHome, v));
+    }
+  } catch {
+    /* ignore */
+  }
+  // PATH 可用时直接取 node / npm 所在目录
+  for (const tool of ["node", "npm"]) {
+    try {
+      const p = execSync(`where ${tool} 2>nul`, {
+        encoding: "utf-8",
+        timeout: 5000,
+      })
+        .trim()
+        .split(/\r?\n/)[0]
+        .trim();
+      if (p) dirs.push(path.dirname(p));
+    } catch {
+      /* ignore */
+    }
+  }
+  // pi 入口自身目录（npm 全局安装的 pi.cmd 与全局 shim 同目录）
+  try {
+    const piBin = resolvePiPath();
+    if (piBin && !piBin.includes("|") && /\.(cmd|bat|exe)$/i.test(piBin))
+      dirs.push(path.dirname(piBin));
+  } catch {
+    /* ignore */
+  }
   return dirs;
 };
 
@@ -144,7 +196,14 @@ const buildPiEnv = () => {
       return false;
     }
   });
-  if (extra.length) env.PATH = [...extra, env.PATH || ""].join(path.delimiter);
+  if (extra.length) {
+    // Windows 系统变量为 Path（大小写不敏感），合并到已有键，避免 PATH/Path 双键并存导致子进程取值不稳
+    const pathKey =
+      Object.keys(env).find((k) => k.toLowerCase() === "path") || "PATH";
+    for (const k of Object.keys(env))
+      if (k.toLowerCase() === "path" && k !== pathKey) delete env[k];
+    env[pathKey] = [...extra, env[pathKey] || ""].join(path.delimiter);
+  }
   return env;
 };
 
@@ -969,6 +1028,15 @@ const uninstallPiExtension = async (source) => {
   };
 };
 
+// 一键更新全部已安装扩展（pi update --extensions）
+const updatePiExtensions = async () => {
+  const result = await runPiCmd(["update", "--extensions"], PI_CMD_TIMEOUT.install);
+  return {
+    success: result.success,
+    message: result.success ? result.stdout : result.stderr,
+  };
+};
+
 // ==================== Skills ====================
 
 const getPiSkills = () => {
@@ -1230,6 +1298,7 @@ module.exports = {
   getPiExtensions,
   installPiExtension,
   uninstallPiExtension,
+  updatePiExtensions,
   fetchPiDevPackages,
   fetchPiDevPackage,
   isPiInstalled,

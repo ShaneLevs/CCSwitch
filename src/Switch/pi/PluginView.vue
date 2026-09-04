@@ -3,7 +3,7 @@ import { ref, onMounted } from "vue";
 import {
   Card, Empty, Button, Dialog, Input, MessagePlugin, Tag, Popconfirm, Tooltip, Select, Alert, RadioGroup, RadioButton, Pagination,
 } from "tdesign-vue-next";
-import { AddIcon, DeleteIcon, RefreshIcon, LinkIcon, SearchIcon, DownloadIcon } from "tdesign-icons-vue-next";
+import { AddIcon, DeleteIcon, RefreshIcon, LinkIcon, SearchIcon, DownloadIcon, CloudDownloadIcon } from "tdesign-icons-vue-next";
 import "./styles/PluginView.css";
 
 const loading = ref(false);
@@ -95,6 +95,30 @@ const handleRemove = async (source) => {
 
 const openPiDevPackages = () => {
   try { window.utools.shellOpenExternal("https://pi.dev/packages"); } catch { }
+};
+
+// 一键更新全部已安装扩展（pi update --extensions）
+const updating = ref(false);
+const handleUpdateAll = async () => {
+  if (updating.value) return;
+  updating.value = true;
+  let msg = null;
+  try {
+    msg = await MessagePlugin.loading({ content: "正在更新全部扩展（pi update --extensions）...", duration: 0 });
+    const result = await window.services.updatePiExtensions();
+    try { msg.close(); } catch { /* 消息可能已自动关闭 */ }
+    if (result.success) {
+      MessagePlugin.success((result.message || "").trim() || "扩展已更新");
+      loadPlugins();
+    } else {
+      MessagePlugin.error("更新失败: " + (result.message || "未知错误"));
+    }
+  } catch (e) {
+    try { msg && msg.close(); } catch { /* ignore */ }
+    MessagePlugin.error("更新失败: " + (e.stderr || e.message || "未知错误"));
+  } finally {
+    updating.value = false;
+  }
 };
 
 // ==================== 包市场（pi.dev/packages） ====================
@@ -317,6 +341,11 @@ defineExpose({ installFromUrl });
       </div>
       <div class="pi-plugin-tabs-right">
         <template v-if="activeTab === 'installed'">
+          <Tooltip content="更新全部已安装扩展（pi update --extensions）" placement="top">
+            <Button size="small" variant="outline" :loading="updating" :disabled="updating || !!deletingSource" @click="handleUpdateAll">
+              <template #icon><CloudDownloadIcon /></template> 一键更新
+            </Button>
+          </Tooltip>
           <Button size="small" variant="outline" @click="openAddDialog">
             <template #icon><AddIcon /></template> 添加扩展
           </Button>
