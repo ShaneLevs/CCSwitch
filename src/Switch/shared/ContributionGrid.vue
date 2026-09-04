@@ -37,38 +37,54 @@ const fmt = (num) => {
 };
 
 const allWeeks = computed(() => {
-  const contribs = props.contributions;
-  if (!contribs?.length) return [];
+  const contribs = props.contributions || [];
+  if (!contribs.length) return [];
   const maxTokens = Math.max(...contribs.map((d) => d.tokens), 1);
-  const mapped = contribs.map((d) => {
-    const dayOfWeek = new Date(d.date + "T00:00:00").getDay();
+  const byDate = new Map(contribs.map((d) => [d.date, d]));
+
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const keyOf = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+  // GitHub 风格：固定展示最近 maxWeeks 周（截止到今天），数据不足的早期周补空单元格，保证铺满整行
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(start.getDate() - (maxWeeks.value * 7 - 1));
+  start.setDate(start.getDate() - start.getDay()); // 对齐到周日
+
+  // 结束于最后一个完整周的周六：新的一周开始时整列一次性铺满，
+  // 而不是随着日子一天天过去逐格生成（未来日期渲染为无数据的空格子）
+  const end = new Date(start);
+  end.setDate(end.getDate() + maxWeeks.value * 7 - 1);
+
+  const result = [];
+  let currentWeek = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const isFuture = cursor > today;
+    const key = keyOf(cursor);
+    const d = isFuture ? undefined : byDate.get(key);
     let level = 0;
-    if (d.tokens > 0) {
+    if (d && d.tokens > 0) {
       const ratio = d.tokens / maxTokens;
       level = ratio <= 0.1 ? 1 : ratio <= 0.3 ? 2 : ratio <= 0.6 ? 3 : 4;
     }
-    return {
-      date: d.date,
-      tokens: d.tokens,
-      models: d.models,
+    currentWeek.push({
+      // 未来日期不挂 tooltip，渲染为普通空格子
+      date: isFuture ? "" : key,
+      tokens: d ? d.tokens : 0,
+      models: d ? d.models : undefined,
       level,
-      dayOfWeek,
-      totalText: fmt(d.tokens),
-      modelLines: Object.entries(d.models || {}).map(([name, data]) => ({
-        name,
-        input: fmt(data.inputTokens),
-        output: fmt(data.outputTokens),
-      })),
-    };
-  });
-  const result = [];
-  let currentWeek = [];
-  for (const day of mapped) {
-    if (currentWeek.length === 0 && day.dayOfWeek !== 0) {
-      for (let i = 0; i < day.dayOfWeek; i++) currentWeek.push({ date: "", level: -1 });
-    }
-    currentWeek.push(day);
+      totalText: d ? fmt(d.tokens) : "0",
+      modelLines: d
+        ? Object.entries(d.models || {}).map(([name, data]) => ({
+            name,
+            input: fmt(data.inputTokens),
+            output: fmt(data.outputTokens),
+          }))
+        : [],
+    });
     if (currentWeek.length === 7) { result.push(currentWeek); currentWeek = []; }
+    cursor.setDate(cursor.getDate() + 1);
   }
   if (currentWeek.length > 0) {
     while (currentWeek.length < 7) currentWeek.push({ date: "", level: -1 });

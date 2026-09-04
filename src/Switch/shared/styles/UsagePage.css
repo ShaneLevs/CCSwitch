@@ -1,4 +1,5 @@
-.usage-view {
+/* 通用统计页（Claude Code / OpenCode / Pi Agent 共用） */
+.usage-page {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -16,6 +17,22 @@
   color: var(--td-text-color-placeholder);
 }
 
+.usage-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.usage-date-picker {
+  width: 240px;
+}
+
+.usage-empty-hint {
+  font-size: 12px;
+  color: var(--td-text-color-placeholder);
+}
+
+/* ==================== 统计卡片 ==================== */
 .stat-cards-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -25,7 +42,7 @@
 .stat-card {
   flex: 1;
   padding: 14px 16px;
-  border-radius: var(--cc-radius-card);
+  border-radius: var(--cc-radius-card, var(--td-radius-large));
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -39,21 +56,13 @@
 
 /* 统计卡片颜色 - 浅色模式 */
 .stat-green { background: var(--td-success-color-1); }
-.stat-blue { background: var(--cc-stat-blue-light); }
-.stat-teal { background: var(--cc-stat-teal-light); }
 .stat-red { background: var(--td-error-color-1); }
-.stat-orange { background: var(--td-warning-color-1); }
-.stat-purple { background: var(--cc-stat-purple-light); }
-.stat-pink { background: var(--cc-stat-pink-light); }
+.stat-pink { background: var(--cc-stat-pink-light, var(--td-error-color-1)); }
 
 /* 统计卡片颜色 - 深色模式 */
-:root[theme-mode="dark"] .stat-green { background: var(--cc-stat-green-dark); }
-:root[theme-mode="dark"] .stat-blue { background: var(--cc-stat-blue-dark); }
-:root[theme-mode="dark"] .stat-teal { background: var(--cc-stat-teal-dark); }
-:root[theme-mode="dark"] .stat-red { background: var(--cc-stat-red-dark); }
-:root[theme-mode="dark"] .stat-orange { background: var(--cc-stat-orange-dark); }
-:root[theme-mode="dark"] .stat-purple { background: var(--cc-stat-purple-dark); }
-:root[theme-mode="dark"] .stat-pink { background: var(--cc-stat-pink-dark); }
+:root[theme-mode="dark"] .stat-green { background: var(--cc-stat-green-dark, var(--td-success-color-1)); }
+:root[theme-mode="dark"] .stat-red { background: var(--cc-stat-red-dark, var(--td-error-color-1)); }
+:root[theme-mode="dark"] .stat-pink { background: var(--cc-stat-pink-dark, var(--td-error-color-1)); }
 
 .stat-title-row {
   display: flex;
@@ -86,61 +95,7 @@
   color: var(--td-text-color-secondary);
 }
 
-.model-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.model-block {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.model-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.model-left {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.model-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--td-text-color-primary);
-}
-
-.model-sessions {
-  font-size: 12px;
-  color: var(--td-text-color-placeholder);
-}
-
-.model-tokens {
-  font-size: 13px;
-  color: var(--td-text-color-secondary);
-}
-
-.model-bar-bg {
-  height: 8px;
-  background: var(--td-bg-color-component);
-  border-radius: var(--td-radius-small);
-  overflow: hidden;
-}
-
-.model-bar {
-  height: 100%;
-  background: var(--td-brand-color);
-  border-radius: var(--td-radius-small);
-  min-width: 2px;
-  transition: width 0.3s ease;
-}
-
+/* ==================== 模型使用分布 ==================== */
 .model-hint {
   font-size: 12px;
   color: var(--td-text-color-placeholder);
@@ -150,16 +105,64 @@
   padding: 20px 0;
 }
 
-.expand-btn-wrapper {
+.usage-model-list {
   display: flex;
-  justify-content: center;
-  padding-top: 8px;
-  border-top: 1px solid var(--td-component-stroke);
-  margin-top: 4px;
+  flex-direction: column;
 }
 
-.usage-actions {
+.usage-model-row {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--td-component-stroke);
+}
+
+.usage-model-row:last-child {
+  border-bottom: none;
+}
+
+.usage-model-row-content {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+}
+
+.usage-model-row-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--td-text-color-primary);
+  min-width: 120px;
+}
+
+.usage-model-row-stats {
+  font-size: 13px;
+  color: var(--td-text-color-secondary);
+  white-space: nowrap;
+}
+
+.usage-model-stat {
+  color: var(--td-text-color-secondary);
+}
+
+.usage-model-stat-divider {
+  color: var(--td-text-color-placeholder);
+  margin: 0 4px;
+}
+
+/* 进度条：相对最大值 */
+.usage-model-bar-track {
+  height: 8px;
+  background: var(--td-bg-color-component);
+  border-radius: var(--td-radius-small);
+  overflow: hidden;
+}
+
+.usage-model-bar {
+  height: 100%;
+  background: var(--td-brand-color);
+  border-radius: var(--td-radius-small);
+  min-width: 2px;
+  transition: width 0.3s ease;
 }
