@@ -52,6 +52,20 @@
 }
 .pi-plugin-card-side {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* 已禁用扩展：整卡降透明度，Switch 保持可点击 */
+.pi-plugin-disabled {
+  opacity: 0.55;
+}
+.pi-plugin-disabled:hover {
+  opacity: 0.8;
+}
+.pi-plugin-disabled .pi-plugin-name,
+.pi-plugin-disabled .pi-plugin-desc {
+  color: var(--td-text-color-secondary);
 }
 .pi-plugin-card-header {
   display: flex;
@@ -406,4 +420,75 @@
   border: none;
   border-top: 1px solid var(--td-component-border);
   margin: 12px 0;
+}
+
+/* ==================== 已安装卡片可点击 + 详情弹窗本地信息区 ==================== */
+.pi-plugin-list .pi-plugin-card {
+  cursor: pointer;
+  transition: border-color 0.15s ease, opacity 0.15s ease;
+}
+.pi-plugin-list .pi-plugin-card:hover {
+  border-color: var(--td-brand-color-light);
+}
+/* 详情头部：启停 Switch 靠右 */
+.pi-detail-head-switch {
+  margin-left: auto;
+}
+/* 路径元数据：可点击打开目录 */
+.pi-detail-meta-dir b {
+  cursor: pointer;
+  word-break: break-all;
+  white-space: normal;
+}
+.pi-detail-meta-dir b:hover {
+  color: var(--td-brand-color);
+}
+/* 逐资源启停列表 */
+.pi-detail-res {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pi-detail-res-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--td-bg-color-container-hover);
+}
+.pi-detail-res-path {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--td-text-color-primary);
+  word-break: break-all;
+}
+.pi-detail-res-off .pi-detail-res-path {
+  color: var(--td-text-color-placeholder);
+  text-decoration: line-through;
+}
+/* 详情弹窗头部：名称 + Tab 同行 */
+.pi-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.pi-detail-header-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 详情弹窗无底部按钮：去掉空 footer 的 padding-top，底部留白收窄到 16px */
+.pi-detail-dialog .t-dialog__footer {
+  padding-top: 0;
+}
+.t-dialog.pi-detail-dialog.t-dialog--default {
+  padding-bottom: 16px;
+}
+/* 路径较长，在 meta 网格中占满整行 */
+.pi-detail-meta-dir {
+  grid-column: 1 / -1;
 }
