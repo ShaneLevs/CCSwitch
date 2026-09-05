@@ -360,7 +360,10 @@ const fetchProviderModels = async (baseUrl, apiKey, timeout = 10_000) => {
           path: url.pathname,
           headers: {
             accept: "application/json",
-            ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
+            // 同时带 Bearer 与 x-api-key：OpenAI 兼容中转站认 Bearer，Anthropic 原生接口认 x-api-key
+            ...(apiKey
+              ? { authorization: `Bearer ${apiKey}`, "x-api-key": apiKey }
+              : {}),
           },
           timeout,
         },

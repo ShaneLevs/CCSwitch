@@ -42,7 +42,6 @@ const {
   getHeatmapHistory,
   saveUsageCache,
   getUsageCache,
-  fetchOpencodeGoModels,
 } = config;
 
 const {
@@ -97,7 +96,6 @@ window.services = {
   getClaudeMcpPath,
   openClaudeMcpFile,
   getMcpServerTools,
-  fetchOpencodeGoModels,
   encryptKey: encrypt,
   decryptKey: decrypt,
   saveOverriddenEnv,
